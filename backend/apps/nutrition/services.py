@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from datetime import date
+from typing import Optional
+
 
 @dataclass
 class Targets:
@@ -7,6 +9,7 @@ class Targets:
     protein_g: int
     fat_g: int
     carbs_g: int
+
 
 ACTIVITY = {
     "sedentary": 1.2,
@@ -18,13 +21,24 @@ ACTIVITY = {
 
 GOAL_ADJUST = {"lose": -0.2, "maintain": 0.0, "gain": 0.15, "recomp": -0.05}
 
-def age(birth_date: date) -> int:
+
+def age(birth_date: Optional[date]) -> int:
     if not birth_date:
         return 30
     today = date.today()
-    return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+    return today.year - birth_date.year - (
+            (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
 
-def tdee(sex: str, weight_kg: float, height_cm: int, birth_date: date, activity_level: str, goal: str) -> Targets:
+
+def tdee(
+        sex: str,
+        weight_kg: float,
+        height_cm: int,
+        birth_date: Optional[date],
+        activity_level: str,
+        goal: str,
+) -> Targets:
     a = age(birth_date)
     if sex == "m":
         bmr = 10 * weight_kg + 6.25 * height_cm - 5 * a + 5
