@@ -1,0 +1,45 @@
+export type Sex = 'm' | 'f'
+export type Activity = 'sedentary'|'light'|'moderate'|'high'|'athlete'
+export type Goal = 'lose'|'maintain'|'gain'|'recomp'
+
+export interface Profile {
+  id?: number
+  sex: Sex
+  birth_date?: string | null
+  height_cm: number
+  weight_kg: number
+  body_fat_pct?: number | null
+  activity_level: Activity
+  goal: Goal
+  allergies: string[]
+  exclusions: string[]
+  daily_budget?: number | null
+}
+
+export interface User {
+  id: number
+  username: string
+  email: string
+  city?: string
+  telegram_id?: number | null
+  profile?: Profile
+}
+
+export interface Targets {
+  calories: number
+  protein_g: number
+  fat_g: number
+  carbs_g: number
+}
+
+export interface PlanMeal {
+  item_id: number
+  title?: string
+  qty: number
+  time_hint: string
+}
+
+export interface MenuPlanResponse {
+  targets: Targets
+  plan: PlanMeal[]
+}

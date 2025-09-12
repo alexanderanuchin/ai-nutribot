@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nutribot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+
+  backend:
+    build: ../backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+
+  celery:
+    build: ../backend
+    env_file: .env
+    command: ["bash", "-lc", "celery -A nutribot worker -l info"]
+    depends_on:
+      - backend
+      - redis
+
+  bot:
+    build: ../bot
+    env_file: .env
+    depends_on:
+      - backend
+
+  frontend:
+    build: ../frontend
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+
+  gateway:
+    image: nginx:1.27
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  db-data:

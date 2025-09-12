@@ -1,0 +1,4 @@
+services:
+  bot:
+    environment:
+      - WEBAPP_URL=${WEBAPP_URL:-http://localhost/}

@@ -1,0 +1,17 @@
+services:
+  backend:
+    volumes:
+      - ../backend:/app
+    environment:
+      DJANGO_DEBUG: "1"
+    command: ["bash","-lc","python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+
+  bot:
+    volumes:
+      - ../bot:/app
+
+  frontend:
+    volumes:
+      - ../frontend:/app
+    command: ["npm","run","dev","--","--host","0.0.0.0"]
+

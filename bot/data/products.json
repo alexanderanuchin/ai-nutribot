@@ -1,0 +1,46 @@
+[
+  {
+    "id": 1001,
+    "source": "restaurant",
+    "source_id": 1,
+    "title": "Куриная грудка с киноа",
+    "price": 550,
+    "tags": ["sport","lowfat"],
+    "allergens": [],
+    "exclusions": ["vegan"],
+    "nutrients": {"calories": 420, "protein": 48, "fat": 8, "carbs": 38, "fiber": 5, "sodium": 600}
+  },
+  {
+    "id": 1002,
+    "source": "store",
+    "source_id": 1,
+    "title": "Греческий йогурт 2%",
+    "price": 110,
+    "tags": ["breakfast","dairy"],
+    "allergens": ["milk"],
+    "exclusions": ["vegan","lactose-free"],
+    "nutrients": {"calories": 150, "protein": 15, "fat": 5, "carbs": 12, "fiber": 0, "sodium": 80}
+  },
+  {
+    "id": 1003,
+    "source": "restaurant",
+    "source_id": 1,
+    "title": "Лосось запечённый с овощами",
+    "price": 680,
+    "tags": ["omega3","dinner"],
+    "allergens": ["fish"],
+    "exclusions": [],
+    "nutrients": {"calories": 520, "protein": 40, "fat": 28, "carbs": 30, "fiber": 4, "sodium": 500}
+  },
+  {
+    "id": 1004,
+    "source": "store",
+    "source_id": 1,
+    "title": "Хлеб цельнозерновой 2 ломтика",
+    "price": 35,
+    "tags": ["carbs"],
+    "allergens": ["gluten"],
+    "exclusions": ["gluten-free"],
+    "nutrients": {"calories": 180, "protein": 7, "fat": 2, "carbs": 34, "fiber": 5, "sodium": 180}
+  }
+]
