@@ -1,5 +1,7 @@
+# backend/apps/users/urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import ProfileViewSet, MeViewSet
 
 router = DefaultRouter()
@@ -10,6 +12,11 @@ me_update = MeViewSet.as_view({"patch": "update_profile"})
 me_user = MeViewSet.as_view({"get": "user"})
 
 urlpatterns = [
+    # JWT auth
+    path("auth/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
+    # Router + "me" ручки
     path("", include(router.urls)),
     path("me/profile/", me_profile, name="me-profile"),
     path("me/profile/update/", me_update, name="me-profile-update"),
