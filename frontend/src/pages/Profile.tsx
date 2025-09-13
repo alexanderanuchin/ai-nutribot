@@ -28,7 +28,7 @@ export default function Profile(){
       const u = await me()
       setUser(u)
       // получим текущую анкету
-      const { data } = await api.get('/users/profile/')
+      const { data } = await api.get('/users/profiles/')
       const p = Array.isArray(data) && data.length ? data[0] : null
       if (p){ setProfileId(p.id); setProfile({...p}) }
     })()
@@ -43,9 +43,9 @@ export default function Profile(){
     try{
       // PATCH/PUT на профиль пользователя
       if (profileId){
-        await api.patch(`/users/profile/${profileId}/`, profile)
+        await api.patch(`/users/profiles/${profileId}/`, profile)
       } else {
-        await api.post(`/users/profile/`, profile)
+        await api.post(`/users/profiles/`, profile)
       }
       setMsg('Сохранено ✅')
     }catch(e: any){

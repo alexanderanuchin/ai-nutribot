@@ -10,7 +10,8 @@ export async function login(username: string, password: string){
 }
 
 export async function me(): Promise<User>{
-  const { data } = await api.get('/users/me/')
+  const endpoint = '/users/me/user/' . replace ( /\s+/g , '' )
+  const { data } = await api.get(endpoint)
   return data
 }
 
