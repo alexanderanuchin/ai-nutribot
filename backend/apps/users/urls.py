@@ -5,9 +5,9 @@ from .views import ProfileViewSet, MeViewSet
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profile")
 
-me_profile = MeViewSet.as_view({"get":"profile"})
-me_update  = MeViewSet.as_view({"patch":"update_profile"})
-me_user    = MeViewSet.as_view({"get":"user"})
+me_profile = MeViewSet.as_view({"get": "profile"})
+me_update = MeViewSet.as_view({"patch": "update_profile"})
+me_user = MeViewSet.as_view({"get": "user"})
 
 urlpatterns = [
     path("", include(router.urls)),
