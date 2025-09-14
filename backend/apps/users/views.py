@@ -1,6 +1,13 @@
 from rest_framework import viewsets, permissions, decorators, response, status, generics
+from django.contrib.auth import get_user_model
 from .models import Profile
-from .serializers import ProfileSerializer, UserSerializer, RegisterSerializer
+from .serializers import (
+    ProfileSerializer,
+    UserSerializer,
+    RegisterSerializer,
+    PhoneCheckSerializer,
+)
+
 
 class ProfileViewSet(viewsets.ModelViewSet):
     serializer_class = ProfileSerializer
@@ -16,6 +23,7 @@ class ProfileViewSet(viewsets.ModelViewSet):
         if user_id:
             qs = qs.filter(user_id=user_id)
         return qs
+
 
 class MeViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
@@ -41,3 +49,16 @@ class MeViewSet(viewsets.ViewSet):
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class CheckPhoneView(generics.GenericAPIView):
+    serializer_class = PhoneCheckSerializer
+    permission_classes = [permissions.AllowAny]
+    User = get_user_model()
+
+    def post(self, request):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        phone = ser.validated_data["phone"]
+        exists = self.User.objects.filter(username=phone).exists()
+        return response.Response({"available": not exists})
