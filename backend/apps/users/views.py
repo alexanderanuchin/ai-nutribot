@@ -1,6 +1,6 @@
-from rest_framework import viewsets, permissions, decorators, response, status
+from rest_framework import viewsets, permissions, decorators, response, status, generics
 from .models import Profile
-from .serializers import ProfileSerializer, UserSerializer
+from .serializers import ProfileSerializer, UserSerializer, RegisterSerializer
 
 class ProfileViewSet(viewsets.ModelViewSet):
     serializer_class = ProfileSerializer
@@ -36,3 +36,8 @@ class MeViewSet(viewsets.ViewSet):
     @decorators.action(detail=False, methods=["get"])
     def user(self, request):
         return response.Response(UserSerializer(request.user).data)
+
+
+class RegisterView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+    permission_classes = [permissions.AllowAny]

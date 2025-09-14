@@ -2,8 +2,13 @@ import api from './client'
 import { tokenStore } from '../utils/storage'
 import type { User } from '../types'
 
-export async function login(username: string, password: string){
-  const { data } = await api.post('/users/auth/token/', { username, password })
+export async function register(phone: string, password: string){
+  const { data } = await api.post('/users/auth/register/', { phone, password })
+  return data
+}
+
+export async function login(phone: string, password: string){
+  const { data } = await api.post('/users/auth/token/', { username: phone, password })
   tokenStore.access = data.access
   tokenStore.refresh = data.refresh
   return data
