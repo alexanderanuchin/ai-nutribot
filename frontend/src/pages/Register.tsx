@@ -42,6 +42,7 @@ export default function Register(){
     if(pwdErr){ setError(pwdErr); return }
     if(password !== password2){ setError('Пароли не совпадают'); return }
     if(phoneAvailable === false){ setError('Номер уже зарегистрирован'); return }
+    if(!/^\d{4}$/.test(smsCode)){ setError('Код из SMS должен состоять из 4 цифр'); return }
     setError(null); setLoading(true)
     try{
       await register(phone, password, smsCode)
@@ -70,7 +71,15 @@ export default function Register(){
         {phoneAvailable === false && <div className="small" style={{color:'#ff8b8b'}}>Номер уже зарегистрирован</div>}
         {phoneAvailable === true && <div className="small" style={{color:'#42a742'}}>Номер свободен</div>}
         <label>Код из SMS</label>
-        <input type="text" value={smsCode} onChange={e=>setSmsCode(e.target.value)} placeholder="1234" />
+        <input
+          type="text"
+          value={smsCode}
+          onChange={e=>setSmsCode(e.target.value.replace(/\D/g, '').slice(0,4))}
+          maxLength={4}
+          placeholder="1234"
+          style={{width:'33%', display:'block'}}
+        />
+        <div className="small" style={{color:'#0066c0', cursor:'pointer', width:'33%', textAlign:'right'}}>Получить код</div>
         <label>Придумайте пароль</label>
         <input
           type="password"
