@@ -31,7 +31,7 @@ export default function Login(){
         <input
           type="tel"
           value={phone}
-          onChange={e=>setPhone(formatPhoneInput(e.target.value))}
+          onChange={e=>setPhone(prev=>formatPhoneInput(e.target.value, prev))}
           placeholder="+7 (___) ___-__-__"
           autoFocus
         />

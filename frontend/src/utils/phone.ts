@@ -1,9 +1,14 @@
-export function formatPhoneInput(value: string): string {
+export function formatPhoneInput(value: string, previousValue = ''): string {
   let digits = value.replace(/\D/g, '');
+  const prevDigits = previousValue.replace(/\D/g, '');
 
   const trimmed = value.trim();
   if (trimmed.startsWith('+7') || trimmed.startsWith('7') || trimmed.startsWith('8')) {
     digits = digits.slice(1);
+  }
+
+  if (previousValue && value.length < previousValue.length && digits.length === prevDigits.length) {
+    digits = digits.slice(0, -1);
   }
 
   digits = digits.slice(0, 10);
@@ -12,7 +17,7 @@ export function formatPhoneInput(value: string): string {
   }
 
   let result = '+7 (' + digits.slice(0, 3);
-  if (digits.length >= 3) {
+  if (digits.length > 3) {
     result += ')';
   }
   if (digits.length > 3) {
