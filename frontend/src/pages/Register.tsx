@@ -14,6 +14,14 @@ export default function Register(){
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
+  const isFormValid =
+    phone &&
+    password &&
+    password2 &&
+    password === password2 &&
+    !passwordError &&
+    /^\d{4}$/.test(smsCode) &&
+    phoneAvailable !== false
 
 
   function validatePassword(p: string): string | null{
@@ -79,7 +87,12 @@ export default function Register(){
           placeholder="1234"
           style={{width:'33%', display:'block'}}
         />
-        <div className="small" style={{color:'#0066c0', cursor:'pointer', width:'33%', textAlign:'right'}}>Получить код</div>
+        <div
+          className="small"
+          style={{color:'#0066c0', cursor:'pointer', width:'33%', textAlign:'right'}}
+        >
+          Получить код
+        </div>
         <label>Придумайте пароль</label>
         <input
           type="password"
@@ -99,7 +112,7 @@ export default function Register(){
         )}
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
-          <button type="submit" disabled={loading}>{loading?'Регистрируем…':'Зарегистрироваться'}</button>
+          <button type="submit" disabled={loading || !isFormValid}>{loading?'Регистрируем…':'Зарегистрироваться'}</button>
         </div>
       </form>
       <div className="hr"></div>

@@ -2,7 +2,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-from .views import ProfileViewSet, MeViewSet, RegisterView, CheckPhoneView
+from .views import (
+    ProfileViewSet,
+    MeViewSet,
+    RegisterView,
+    CheckPhoneView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
+)
 
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profile")
@@ -17,6 +24,12 @@ urlpatterns = [
     path("auth/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/register/", RegisterView.as_view(), name="register"),
     path("auth/check-phone/", CheckPhoneView.as_view(), name="check-phone"),
+    path("auth/password-reset/", PasswordResetRequestView.as_view(), name="password-reset"),
+    path(
+        "auth/password-reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="password-reset-confirm",
+    ),
 
     # Router + "me" ручки
     path("", include(router.urls)),

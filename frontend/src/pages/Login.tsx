@@ -42,6 +42,7 @@ export default function Login(){
           <button type="submit" disabled={loading}>{loading?'Входим…':'Войти'}</button>
         </div>
       </form>
+      <div className="small" style={{marginTop:10}}><Link to="/forgot-password">Забыли пароль?</Link></div>
       <div className="hr"></div>
       <div className="small">Нет аккаунта? <Link to="/register">Зарегистрируйся</Link></div>
     </div>

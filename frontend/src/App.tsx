@@ -4,6 +4,8 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Profile from './pages/Profile'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './routes/ProtectedRoute'
 import Navbar from './components/Navbar'
 
@@ -17,6 +19,8 @@ export default function App(){
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          import ForgotPassword from './pages/ForgotPassword'
+          import ResetPassword from './pages/ResetPassword'
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={
             <ProtectedRoute><Dashboard /></ProtectedRoute>

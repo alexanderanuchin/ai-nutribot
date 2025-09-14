@@ -86,3 +86,26 @@ class ProfileSerializer(serializers.ModelSerializer):
             "daily_budget",
             "created_at", "updated_at",
         )
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError("Пароль должен содержать минимум 8 символов")
+        if not re.search(r"[A-Z]", value):
+            raise serializers.ValidationError("Пароль должен содержать хотя бы одну заглавную букву")
+        if not re.search(r"[a-z]", value):
+            raise serializers.ValidationError("Пароль должен содержать хотя бы одну строчную букву")
+        if not re.search(r"\d", value):
+            raise serializers.ValidationError("Пароль должен содержать хотя бы одну цифру")
+        if not re.search(r"[^\w\s]", value):
+            raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
+        return value

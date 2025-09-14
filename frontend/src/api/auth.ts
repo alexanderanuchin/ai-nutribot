@@ -31,6 +31,16 @@ export async function me(): Promise<User>{
   return data
 }
 
+export async function requestPasswordReset(email: string){
+  const { data } = await api.post('/users/auth/password-reset/', { email })
+  return data
+}
+
+export async function resetPassword(uid: string, token: string, password: string){
+  const { data } = await api.post('/users/auth/password-reset/confirm/', { uid, token, password })
+  return data
+}
+
 export function logout(){
   tokenStore.clear()
   window.location.href = '/login'
