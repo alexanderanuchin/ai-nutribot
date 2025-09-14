@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { login } from '../api/auth'
 import { useNavigate, Link } from 'react-router-dom'
+import { formatPhoneInput } from '../utils/phone'
 
 export default function Login(){
   const [phone, setPhone] = useState('')
@@ -27,7 +28,13 @@ export default function Login(){
       <h2>Вход</h2>
       <form onSubmit={onSubmit}>
         <label>Телефон</label>
-        <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+7 999 123-45-67" autoFocus />
+        <input
+          type="tel"
+          value={phone}
+          onChange={e=>setPhone(formatPhoneInput(e.target.value))}
+          placeholder="+7 (___) ___-__-__"
+          autoFocus
+        />
         <label>Пароль</label>
         <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" />
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
