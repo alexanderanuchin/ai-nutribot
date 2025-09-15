@@ -71,6 +71,10 @@ class PhoneCheckSerializer(serializers.Serializer):
         return normalize_phone(value)
 
 
+class EmailCheckSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
 

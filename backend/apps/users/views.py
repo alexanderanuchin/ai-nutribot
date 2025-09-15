@@ -11,6 +11,7 @@ from .serializers import (
     UserSerializer,
     RegisterSerializer,
     PhoneCheckSerializer,
+    EmailCheckSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
 )
@@ -69,6 +70,20 @@ class CheckPhoneView(generics.GenericAPIView):
         phone = ser.validated_data["phone"]
         exists = self.User.objects.filter(username=phone).exists()
         return response.Response({"available": not exists})
+
+
+class CheckEmailView(generics.GenericAPIView):
+    serializer_class = EmailCheckSerializer
+    permission_classes = [permissions.AllowAny]
+    User = get_user_model()
+
+    def post(self, request):
+        ser = self.get_serializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        email = ser.validated_data["email"]
+        exists = self.User.objects.filter(email=email).exists()
+        return response.Response({"exists": exists})
+
 
 class PasswordResetRequestView(generics.GenericAPIView):
     serializer_class = PasswordResetRequestSerializer

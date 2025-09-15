@@ -41,6 +41,11 @@ export async function resetPassword(uid: string, token: string, password: string
   return data
 }
 
+export async function checkEmail(email: string){
+  const { data } = await api.post('/users/auth/check-email/', { email })
+  return data as { exists: boolean }
+}
+
 export function logout(){
   tokenStore.clear()
   window.location.href = '/login'

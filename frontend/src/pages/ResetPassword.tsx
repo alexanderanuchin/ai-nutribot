@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { resetPassword } from '../api/auth'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import Lottie from 'lottie-react'
+import successAnimation from '../assets/animation.json'
 
 export default function ResetPassword(){
   const [params] = useSearchParams()
@@ -9,6 +11,7 @@ export default function ResetPassword(){
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
   const nav = useNavigate()
 
   async function onSubmit(e: React.FormEvent){
@@ -16,13 +19,21 @@ export default function ResetPassword(){
     setError(null); setLoading(true)
     try{
       await resetPassword(uid, token, password)
-      nav('/login', { replace: true })
+      setDone(true)
+      setTimeout(() => nav('/login', { replace: true }), 3000)
     }catch(err: any){
       setError(err?.response?.data?.detail || 'Ошибка')
     }finally{
       setLoading(false)
     }
   }
+
+  if (done) return (
+    <div className="card" style={{maxWidth:420, margin:'60px auto', textAlign:'center'}}>
+      <Lottie animationData={successAnimation} loop={false} />
+    </div>
+  )
+
 
   return (
     <div className="card" style={{maxWidth:420, margin:'60px auto'}}>
