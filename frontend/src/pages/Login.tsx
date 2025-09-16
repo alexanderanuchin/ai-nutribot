@@ -35,48 +35,40 @@ export default function Login(){
     }
   }
 
+  const loginModes: Array<{ key: LoginMode; title: string; hint: string }> = [
+    {
+      key: 'phone',
+      title: 'По номеру телефона',
+      hint: 'Используйте привязанный мобильный',
+    },
+    {
+      key: 'email',
+      title: 'По электронной почте',
+      hint: 'Войдите через корпоративную почту',
+    },
+  ]
+
+
   return (
-    <div className="card" style={{maxWidth:420, margin:'60px auto'}}>
+    <div className="card auth-card">
       <h2>Вход</h2>
-      <div
-        style={{
-          display: 'flex',
-          overflow: 'hidden',
-          margin: '16px 0'
-        }}
-      >
-        <button
-          type="button"
-          onClick={()=>setMode('phone')}
-          style={{
-            flex: 1,
-            padding: '10px 12px',
-            backgroundColor: mode === 'phone' ? '#e1f6eb' : '#f5f5f5',
-            color: mode === 'phone' ? '#1f7a54' : '#777',
-            border: 'none',
-            fontWeight: mode === 'phone' ? 600 : 500,
-            cursor: 'pointer',
-            transition: 'background-color 0.2s ease, color 0.2s ease'
-          }}
-        >
-          По номеру телефона
-        </button>
-        <button
-          type="button"
-          onClick={()=>setMode('email')}
-          style={{
-            flex: 1,
-            padding: '10px 12px',
-            backgroundColor: mode === 'email' ? '#e1f6eb' : '#f5f5f5',
-            color: mode === 'email' ? '#1f7a54' : '#777',
-            border: 'none',
-            fontWeight: mode === 'email' ? 600 : 500,
-            cursor: 'pointer',
-            transition: 'background-color 0.2s ease, color 0.2s ease'
-          }}
-        >
-          По электронной почте
-        </button>
+      <div className="segmented-control" role="tablist" aria-label="Способ входа">
+        {loginModes.map(({ key, title, hint }) => {
+          const active = mode === key
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={`segmented-control__tab${active ? ' is-active' : ''}`}
+              onClick={()=>setMode(key)}
+            >
+              <span className="segmented-control__title">{title}</span>
+              <span className="segmented-control__hint">{hint}</span>
+            </button>
+          )
+        })}
       </div>
       <form onSubmit={onSubmit}>
         {mode === 'phone' ? (

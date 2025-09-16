@@ -22,3 +22,19 @@ th,td{padding:8px;border-bottom:1px solid #222630}
 label{display:block;margin:6px 0 6px;font-size:12px;color:var(--muted)}
 .form-actions{display:flex;gap:10px;justify-content:flex-end}
 .small{font-size:12px;color:var(--muted)}
+.auth-card{max-width:420px;margin:60px auto;backdrop-filter:blur(12px);box-shadow:0 26px 60px -45px rgba(0,0,0,0.9)}
+.auth-card h2{margin:0 0 18px;font-size:28px;font-weight:700;letter-spacing:0.02em}
+.segmented-control{display:flex;gap:6px;padding:6px;background:#0f1116;border:1px solid #20232a;border-radius:16px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.03),0 24px 45px -36px rgba(0,0,0,0.9);margin:16px 0 22px;position:relative}
+.segmented-control__tab{flex:1;padding:12px;border-radius:12px;background:transparent;color:var(--muted);border:none;text-align:left;font-weight:600;display:flex;flex-direction:column;gap:4px;position:relative;cursor:pointer;transition:color .25s ease,transform .2s ease}
+.segmented-control__tab::before{content:"";position:absolute;inset:0;border-radius:10px;background:radial-gradient(110% 150% at 50% 0%,rgba(91,188,255,.18),rgba(142,240,166,.08));opacity:0;transition:opacity .25s ease}
+.segmented-control__tab::after{content:"";position:absolute;inset:0;border-radius:10px;background:linear-gradient(135deg,rgba(91,188,255,.15),rgba(142,240,166,.15));opacity:0;transition:opacity .32s ease,box-shadow .32s ease}
+.segmented-control__title{font-size:13px;letter-spacing:.02em;position:relative;z-index:1}
+.segmented-control__hint{font-size:11px;color:rgba(160,166,176,.7);font-weight:500;position:relative;z-index:1}
+.segmented-control__tab:hover{color:var(--text)}
+.segmented-control__tab:hover::before{opacity:.35}
+.segmented-control__tab.is-active{color:#0b0c10;transform:translateY(-1px)}
+.segmented-control__tab.is-active::before{opacity:.9;background:radial-gradient(100% 160% at 50% 0%,rgba(255,255,255,.32),rgba(142,240,166,.18))}
+.segmented-control__tab.is-active::after{opacity:1;background:linear-gradient(135deg,var(--primary),var(--accent));box-shadow:0 18px 42px -28px rgba(91,188,255,.8)}
+.segmented-control__tab.is-active .segmented-control__hint{color:rgba(11,12,16,.72)}
+.segmented-control__tab:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
