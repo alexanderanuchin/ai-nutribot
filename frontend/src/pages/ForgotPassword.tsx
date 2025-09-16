@@ -2,11 +2,12 @@ import React, { useState } from 'react'
 import { requestPasswordReset, checkEmail } from '../api/auth'
 import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
+import successAnimation from '../assets/animation.json'
 import { useNavigate } from 'react-router-dom'
 
 export default function ForgotPassword(){
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
+  const [step, setStep] = useState<'send' | 'success' | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
