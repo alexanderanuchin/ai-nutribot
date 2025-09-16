@@ -14,6 +14,8 @@ export default function Register(){
   const [smsCode, setSmsCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false)
   const nav = useNavigate()
   const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const isFormValid =
@@ -24,7 +26,8 @@ export default function Register(){
     password === password2 &&
     !passwordError &&
     /^\d{4}$/.test(smsCode) &&
-    phoneAvailable !== false
+    phoneAvailable !== false &&
+    privacyAccepted
 
 
   function validatePassword(p: string): string | null{
@@ -55,6 +58,7 @@ export default function Register(){
     if(!emailPattern.test(email)){ setError('Введите корректный email'); return }
     if(phoneAvailable === false){ setError('Номер уже зарегистрирован'); return }
     if(!/^\d{4}$/.test(smsCode)){ setError('Код из SMS должен состоять из 4 цифр'); return }
+    if(!privacyAccepted){ setError('Необходимо согласиться с политикой конфиденциальности'); return }
     setError(null); setLoading(true)
     try{
       await register(phone, email, password, smsCode)
@@ -124,6 +128,32 @@ export default function Register(){
         {showPassword2 && password && password2 && password !== password2 && (
           <div className="small" style={{color:'#ff8b8b'}}>Пароли не совпадают</div>
         )}
+        <div className="consent-block">
+          <label className="consent-option">
+            <input
+              type="checkbox"
+              checked={privacyAccepted}
+              onChange={e=>{ setPrivacyAccepted(e.target.checked); if(e.target.checked) setError(null) }}
+            />
+            <span>
+              Я принимаю&nbsp;
+              <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                политику конфиденциальности
+              </a>
+              &nbsp;и условия обработки данных
+            </span>
+          </label>
+          <label className="consent-option">
+            <input
+              type="checkbox"
+              checked={newsletterOptIn}
+              onChange={e=>setNewsletterOptIn(e.target.checked)}
+            />
+            <span>
+              Получать новости и продуктовые обновления на email
+            </span>
+          </label>
+        </div>
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
           <button type="submit" disabled={loading || !isFormValid}>{loading?'Регистрируем…':'Зарегистрироваться'}</button>

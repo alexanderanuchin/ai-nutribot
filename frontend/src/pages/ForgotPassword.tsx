@@ -3,7 +3,7 @@ import { requestPasswordReset, checkEmail } from '../api/auth'
 import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
 import successAnimation from '../assets/animation.json'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 export default function ForgotPassword(){
   const [email, setEmail] = useState('')
@@ -57,6 +57,15 @@ export default function ForgotPassword(){
           <button type="submit" disabled={loading}>{loading?'Отправляем…':'Отправить'}</button>
         </div>
       </form>
+      <div className="hr" style={{marginTop:26}}></div>
+      <div className="small" style={{marginTop:26, display:'flex', justifyContent:'space-between', gap:12, flexWrap:'wrap'}}>
+        <span>
+          Есть аккаунт? <Link to="/login">Войти</Link>
+        </span>
+        <span>
+          Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
+        </span>
+      </div>
     </div>
   )
 }
