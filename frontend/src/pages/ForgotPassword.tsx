@@ -15,22 +15,33 @@ export default function ForgotPassword(){
     e.preventDefault()
     setLoading(true); setError(null)
     try{
-        const { exists } = await checkEmail(email)
-        if(!exists){
+      const { exists } = await checkEmail(email)
+      if(!exists){
         setError('Пользователь с таким email не найден')
         return
       }
       await requestPasswordReset(email)
-      setSent(true)
-      setTimeout(() => nav('/login', { replace: true }), 3000)
+      setStep('send')
     }finally{
       setLoading(false)
     }
   }
 
-  if (sent) return (
-      <div className="card" style={{maxWidth:420, margin:'60px auto', textAlign:'center'}}>
-      <Lottie animationData={sendAnimation} loop={false} />
+  if (step) return (
+    <div className="card" style={{maxWidth:420, margin:'60px auto', textAlign:'center'}}>
+      {step === 'send' ? (
+        <Lottie
+          animationData={sendAnimation}
+          loop={false}
+          onComplete={() => setStep('success')}
+        />
+      ) : (
+        <Lottie
+          animationData={successAnimation}
+          loop={false}
+          onComplete={() => nav('/login', { replace: true })}
+        />
+      )}
     </div>
   )
 
