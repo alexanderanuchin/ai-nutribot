@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from .models import Profile
 import re
@@ -120,3 +121,27 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if not re.search(r"[^\w\s]", value):
             raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
         return value
+
+
+class PhoneEmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Позволяет авторизоваться по номеру телефона или email."""
+
+    def validate(self, attrs):
+        username_or_email = attrs.get(self.username_field)
+
+        if username_or_email:
+            # Попробуем найти пользователя по email.
+            if "@" in username_or_email:
+                user = User.objects.filter(email__iexact=username_or_email).first()
+                if user:
+                    attrs[self.username_field] = user.get_username()
+            else:
+                # Попробуем нормализовать номер телефона.
+                try:
+                    normalized = normalize_phone(username_or_email)
+                except serializers.ValidationError:
+                    pass
+                else:
+                    attrs[self.username_field] = normalized
+
+        return super().validate(attrs)

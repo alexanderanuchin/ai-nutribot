@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, decorators, response, status, generics
+from rest_framework_simplejwt.views import TokenObtainPairView
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
@@ -14,6 +15,7 @@ from .serializers import (
     EmailCheckSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
+    PhoneEmailTokenObtainPairSerializer,
 )
 
 
@@ -56,6 +58,11 @@ class MeViewSet(viewsets.ViewSet):
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
+
+class PhoneEmailTokenObtainPairView(TokenObtainPairView):
+    serializer_class = PhoneEmailTokenObtainPairSerializer
     permission_classes = [permissions.AllowAny]
 
 

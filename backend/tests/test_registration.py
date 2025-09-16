@@ -16,6 +16,7 @@ User = get_user_model()
 def test_user_can_register_and_login_with_various_phones(client, raw, email):
     resp = client.post("/api/users/auth/register/", {
         "phone": raw,
+        "email": email,
         "password": "StrongPass123!",
     })
     assert resp.status_code == 201
@@ -29,6 +30,25 @@ def test_user_can_register_and_login_with_various_phones(client, raw, email):
     assert resp.status_code == 200
     data = resp.json()
     assert "access" in data and "refresh" in data
+
+
+@pytest.mark.django_db
+def test_user_can_login_with_email(client):
+    resp = client.post("/api/users/auth/register/", {
+        "phone": "+7 (999) 123-45-67",
+        "email": "user@example.com",
+        "password": "StrongPass123!",
+    })
+    assert resp.status_code == 201
+
+    resp = client.post("/api/users/auth/token/", {
+        "username": "user@example.com",
+        "password": "StrongPass123!",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access" in data and "refresh" in data
+
 
 
 @pytest.mark.django_db
