@@ -5,21 +5,22 @@ User = get_user_model()
 
 
 @pytest.mark.parametrize(
-    "raw",
+    ("raw", "email"),
     [
-        "+7 (999) 123-45-67",
-        "89991234567",
-        "9991234567",
+        ("+7 (999) 123-45-67", "user1@example.com"),
+        ("89991234567", "user2@example.com"),
+        ("9991234567", "user3@example.com"),
     ],
 )
 @pytest.mark.django_db
-def test_user_can_register_and_login_with_various_phones(client, raw):
+def test_user_can_register_and_login_with_various_phones(client, raw, email):
     resp = client.post("/api/users/auth/register/", {
         "phone": raw,
         "password": "StrongPass123!",
     })
     assert resp.status_code == 201
-    assert User.objects.filter(username="+79991234567").exists()
+    user = User.objects.get(username="+79991234567")
+    assert user.email == email
 
     resp = client.post("/api/users/auth/token/", {
         "username": "+79991234567",
@@ -45,6 +46,7 @@ def test_check_phone_endpoint(client):
 def test_weak_password_rejected(client):
     resp = client.post("/api/users/auth/register/", {
         "phone": "+7 (999) 123-45-67",
+        "email": "weak@example.com",
         "password": "weak",
     })
     assert resp.status_code == 400

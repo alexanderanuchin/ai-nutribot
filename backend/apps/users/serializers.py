@@ -32,12 +32,13 @@ class UserSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     phone = serializers.CharField(write_only=True)
+    email = serializers.EmailField(write_only=True)
     password = serializers.CharField(write_only=True)
     sms_code = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ("id", "phone", "password", "sms_code")
+        fields = ("id", "phone", "email", "password", "sms_code")
 
     def validate_phone(self, value):
         normalized = normalize_phone(value)
@@ -57,6 +58,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         if not re.search(r"[^\w\s]", value):
             raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
         return value
+
+    def validate_email(self, value):
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("Пользователь с таким email уже существует")
+        return value
+
 
     def create(self, validated_data):
         phone = validated_data.pop("phone")

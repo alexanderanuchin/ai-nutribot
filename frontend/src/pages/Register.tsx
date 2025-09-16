@@ -5,6 +5,7 @@ import { formatPhoneInput } from '../utils/phone'
 
 export default function Register(){
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
   const [phoneAvailable, setPhoneAvailable] = useState<boolean | null>(null)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
@@ -14,8 +15,10 @@ export default function Register(){
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const isFormValid =
     phone &&
+    emailPattern.test(email) &&
     password &&
     password2 &&
     password === password2 &&
@@ -49,11 +52,12 @@ export default function Register(){
     const pwdErr = validatePassword(password)
     if(pwdErr){ setError(pwdErr); return }
     if(password !== password2){ setError('Пароли не совпадают'); return }
+    if(!emailPattern.test(email)){ setError('Введите корректный email'); return }
     if(phoneAvailable === false){ setError('Номер уже зарегистрирован'); return }
     if(!/^\d{4}$/.test(smsCode)){ setError('Код из SMS должен состоять из 4 цифр'); return }
     setError(null); setLoading(true)
     try{
-      await register(phone, password, smsCode)
+      await register(phone, email, password, smsCode)
       await login(phone, password)
       nav('/dashboard', { replace: true })
     }catch(err: any){
@@ -93,6 +97,16 @@ export default function Register(){
         >
           Получить код
         </div>
+                <label>Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={e=>setEmail(e.target.value)}
+          placeholder="you@example.com"
+        />
+        {email && !emailPattern.test(email) && (
+          <div className="small" style={{color:'#ff8b8b'}}>Введите корректный email</div>
+        )}
         <label>Придумайте пароль</label>
         <input
           type="password"

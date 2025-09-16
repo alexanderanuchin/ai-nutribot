@@ -3,9 +3,9 @@ import { tokenStore } from '../utils/storage'
 import { normalizePhone } from '../utils/phone'
 import type { User } from '../types'
 
-export async function register(phone: string, password: string, smsCode?: string){
+export async function register(phone: string, email: string, password: string, smsCode?: string){
   const normalized = normalizePhone(phone)
-  const payload: Record<string, string> = { phone: normalized, password }
+  const payload: Record<string, string> = { phone: normalized, email, password }
   if (smsCode) payload.sms_code = smsCode
   const { data } = await api.post('/users/auth/register/', payload)
   return data
