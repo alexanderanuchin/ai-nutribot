@@ -25,6 +25,14 @@ export async function login(phone: string, password: string){
   return data
 }
 
+export async function loginWithEmail(email: string, password: string){
+  const { data } = await api.post('/users/auth/token/', { username: email.trim(), password })
+  tokenStore.access = data.access
+  tokenStore.refresh = data.refresh
+  return data
+}
+
+
 export async function me(): Promise<User>{
   const endpoint = '/users/me/user/' . replace ( /\s+/g , '' )
   const { data } = await api.get(endpoint)
