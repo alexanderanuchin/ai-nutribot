@@ -157,8 +157,8 @@ class GridShimmer {
 
   private initCells(): void {
     const { spacingX, spacingY } = this.opts
-    this.cols = Math.max(1, Math.floor(this.viewW / spacingX))
-    this.rows = Math.max(1, Math.floor(this.viewH / spacingY))
+    this.cols = Math.max(1, Math.ceil(this.viewW / spacingX))
+    this.rows = Math.max(1, Math.ceil(this.viewH / spacingY))
     this.cells = new Array(this.rows)
     for (let j = 0; j < this.rows; j += 1) {
       this.cells[j] = new Array(this.cols)
@@ -250,7 +250,8 @@ class GridShimmer {
         ctx.globalAlpha = alpha * maxGlowAlpha
 
         const x0 = Math.floor(i * spacingX) + 0.5
-        const x1 = Math.floor((i + 1) * spacingX) + 0.5
+        const x1Base = Math.min(Math.floor((i + 1) * spacingX), width)
+        const x1 = x1Base + 0.5
 
         ctx.beginPath()
         ctx.moveTo(x0, y0)
