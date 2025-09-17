@@ -68,6 +68,44 @@ class GridShimmer {
   private last = 0
   private rafId: number | null = null
   private readonly onResize: () => void
+    private lastPointerCell: { row: number; col: number } | null = null
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (!this.cells.length) return
+
+    const rect = this.canvas.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+
+    if (x < 0 || y < 0 || x >= this.viewW || y >= this.viewH) {
+      this.lastPointerCell = null
+      return
+    }
+
+    const col = Math.floor(x / this.opts.spacingX)
+    const row = Math.floor(y / this.opts.spacingY)
+
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+      this.lastPointerCell = null
+      return
+    }
+
+    if (this.lastPointerCell?.row === row && this.lastPointerCell.col === col) {
+      return
+    }
+
+    this.lastPointerCell = { row, col }
+
+    const cell = this.cells[row]?.[col]
+    if (!cell) return
+
+    const isOn = cell.a >= this.opts.threshold
+    cell.a = isOn ? 0 : 1
+  }
+
+  private readonly handlePointerLeave = (): void => {
+    this.lastPointerCell = null
+  }
 
   constructor(canvas: HTMLCanvasElement, opts: Partial<GridShimmerOptions> = {}) {
     this.canvas = canvas
@@ -83,6 +121,8 @@ class GridShimmer {
       this.makeBaseGrid()
       this.initCells()
     }
+    this.canvas.addEventListener('pointermove', this.handlePointerMove)
+    this.canvas.addEventListener('pointerleave', this.handlePointerLeave)
 
     this.init()
   }
@@ -105,6 +145,8 @@ class GridShimmer {
   destroy(): void {
     this.stop()
     window.removeEventListener('resize', this.onResize)
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove)
+    this.canvas.removeEventListener('pointerleave', this.handlePointerLeave)
   }
 
   private init(): void {
