@@ -7,9 +7,7 @@ button{border:0;border-radius:10px;background:var(--primary);color:#0b0c10;paddi
 button:disabled{background:#2a2e36;color:#565b66;cursor:not-allowed}
 input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #2a2e36;background:#0f1116;color:var(--text)}
 input[type="checkbox"]{width:auto;accent-color:var(--primary);background:transparent}
-.container{max-width:100%;margin:0 auto;padding:20px;position:relative;isolation:isolate}
-.container__content{position:relative;z-index:1}
-.grid-shimmer-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.container{max-width:980px;margin:0 auto;padding:20px}
 .card{background:var(--card);border:1px solid #20232a;border-radius:16px;padding:16px}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .col{flex:1 1 260px}
