@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
+import Logo from './Logo'
 
 export default function Navbar(){
   const { pathname } = useLocation()
@@ -9,7 +10,9 @@ export default function Navbar(){
   const isActive = (p: string) => pathname.startsWith(p)
   return (
     <div className="nav">
-      <b>🍽️ CaloIQ</b>
+      <Link to="/" className="nav-logo" aria-label="На главную CaloIQ">
+        <Logo />
+      </Link>
       {authenticated && (
         <>
           <Link to="/dashboard" style={{background: isActive('/dashboard')?'#1a1e26':''}}>План</Link>
