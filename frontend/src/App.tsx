@@ -1,5 +1,5 @@
 import React from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -10,11 +10,25 @@ import ProtectedRoute from './routes/ProtectedRoute'
 import Navbar from './components/Navbar'
 
 import { useTelegramAuth } from './hooks/useTelegramAuth'
+import GridShimmerCanvas from './components/GridShimmerCanvas'
+import { useAuth } from './hooks/useAuth'
+
+const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password']
+
 export default function App(){
   useTelegramAuth();
+  const location = useLocation()
+  const { ready, authenticated } = useAuth()
+  const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
+  const showAuthBackground = ready && !authenticated && isAuthRoute
   return (
     <>
       <Navbar />
+      {showAuthBackground && (
+        <div className="auth-background">
+          <GridShimmerCanvas />
+        </div>
+      )}
       <div className="container">
         <Routes>
           <Route path="/login" element={<Login />} />

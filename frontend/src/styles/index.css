@@ -7,12 +7,14 @@ button{border:0;border-radius:10px;background:var(--primary);color:#0b0c10;paddi
 button:disabled{background:#2a2e36;color:#565b66;cursor:not-allowed}
 input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #2a2e36;background:#0f1116;color:var(--text)}
 input[type="checkbox"]{width:auto;accent-color:var(--primary);background:transparent}
-.container{max-width:980px;margin:0 auto;padding:20px}
+.container{max-width:980px;margin:0 auto;padding:20px;position:relative;z-index:1}
 .card{background:var(--card);border:1px solid #20232a;border-radius:16px;padding:16px}
+.auth-background{position:fixed;inset:0;pointer-events:none;z-index:0}
+.grid-shimmer-overlay{width:100%;height:100%;display:block}
 .row{display:flex;gap:12px;flex-wrap:wrap}
 .col{flex:1 1 260px}
 .hr{height:1px;background:#242833;margin:16px 0}
-.nav{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #20232a;background:#0f1116;position:sticky;top:0}
+.nav{display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid #20232a;background:#0f1116;position:sticky;top:0;z-index:3}
 .nav a{padding:8px 10px;border-radius:8px}
 .nav-logo{display:flex;align-items:center;padding:6px 10px;border-radius:14px;position:relative;overflow:hidden;color:inherit;text-decoration:none;isolation:isolate}
 .nav-logo::before{content:"";position:absolute;inset:auto -44px -46px;width:190px;height:190px;background:radial-gradient(55% 55% at 50% 50%,rgba(96,165,250,.18),rgba(96,165,250,0));opacity:.45;animation:neonPulse 6s ease-in-out infinite}
