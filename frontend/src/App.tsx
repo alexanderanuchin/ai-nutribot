@@ -11,7 +11,9 @@ import Navbar from './components/Navbar'
 
 import { useTelegramAuth } from './hooks/useTelegramAuth'
 import GridShimmerCanvas from './components/GridShimmerCanvas'
+import GlowingLineCloudsCanvas from './components/GlowingLineCloudsCanvas'
 import { useAuth } from './hooks/useAuth'
+import { useTheme } from './hooks/useTheme'
 
 const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password']
 
@@ -19,6 +21,7 @@ export default function App(){
   useTelegramAuth();
   const location = useLocation()
   const { ready, authenticated } = useAuth()
+  const { theme } = useTheme()
   const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
   const showAuthBackground = ready && !authenticated && isAuthRoute
   return (
@@ -26,7 +29,7 @@ export default function App(){
       <Navbar />
       {showAuthBackground && (
         <div className="auth-background">
-          <GridShimmerCanvas />
+          {theme === 'dark' ? <GridShimmerCanvas /> : <GlowingLineCloudsCanvas />}
         </div>
       )}
       <div className="container">

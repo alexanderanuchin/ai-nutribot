@@ -20,6 +20,7 @@ export interface User {
   id: number
   username: string
   email: string
+  avatar_url?: string | null
   city?: string
   telegram_id?: number | null
   profile?: Profile
