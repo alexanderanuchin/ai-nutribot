@@ -3,30 +3,33 @@ import { Link, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 import Logo from './Logo'
+import ThemeToggle from './ThemeToggle'
 
 export default function Navbar(){
   const { pathname } = useLocation()
   const { authenticated } = useAuth()
   const isActive = (p: string) => pathname.startsWith(p)
+  const linkClass = (path: string) => `nav-link${isActive(path) ? ' nav-link--active' : ''}`
   return (
     <div className="nav">
       <Link to="/" className="nav-logo" aria-label="На главную CaloIQ">
         <Logo />
       </Link>
       {authenticated && (
-        <>
-          <Link to="/dashboard" style={{background: isActive('/dashboard')?'#1a1e26':''}}>План</Link>
-          <Link to="/profile" style={{background: isActive('/profile')?'#1a1e26':''}}>Профиль</Link>
-        </>
+        <nav className="nav-links" aria-label="Основная навигация">
+          <Link to="/dashboard" className={linkClass('/dashboard')}>План</Link>
+          <Link to="/profile" className={linkClass('/profile')}>Профиль</Link>
+        </nav>
       )}
       <div className="right">
+        <ThemeToggle />
         {authenticated ? (
-          <button onClick={logout}>Выйти</button>
+          <button type="button" onClick={logout}>Выйти</button>
         ) : (
-          <>
-            <Link to="/login" style={{background: isActive('/login')?'#1a1e26':''}}>Войти</Link>
-            <Link to="/register" style={{background: isActive('/register')?'#1a1e26':''}}>Регистрация</Link>
-          </>
+          <nav className="nav-links" aria-label="Навигация гостя">
+            <Link to="/login" className={linkClass('/login')}>Войти</Link>
+            <Link to="/register" className={linkClass('/register')}>Регистрация</Link>
+          </nav>
         )}
       </div>
     </div>
