@@ -39,7 +39,7 @@ export default function Logo(){
         />
       </g>
       <g transform="translate(200,102)">
-        <text x="0" y="0" fontSize="56" fontWeight="800" fontFamily="Inter, 'SF Pro Display', Roboto, Helvetica, Arial, sans-serif">
+        <text x="0" y="0" fontSize="68" fontWeight="800" fontFamily="Inter, 'SF Pro Display', Roboto, Helvetica, Arial, sans-serif">
           <tspan fill="#22D3EE">C</tspan>
           <tspan fill="#34D399">a</tspan>
           <tspan fill="#FBBF24">l</tspan>

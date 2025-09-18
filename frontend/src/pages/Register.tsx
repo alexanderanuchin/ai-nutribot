@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { register, login, checkPhone } from '../api/auth'
+import { register, login, checkPhone, checkEmail } from '../api/auth'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
 
 export default function Register(){
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)
   const [phoneAvailable, setPhoneAvailable] = useState<boolean | null>(null)
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
@@ -27,6 +28,7 @@ export default function Register(){
     !passwordError &&
     /^\d{4}$/.test(smsCode) &&
     phoneAvailable !== false &&
+    emailAvailable !== false &&
     privacyAccepted
 
 
@@ -49,19 +51,35 @@ export default function Register(){
     }
   }
 
+  async function onEmailBlur(){
+    const trimmed = email.trim()
+    if(!trimmed || !emailPattern.test(trimmed)){
+      setEmailAvailable(null)
+      return
+    }
+    try{
+      const { exists } = await checkEmail(trimmed)
+      setEmailAvailable(!exists)
+    }catch{
+      setEmailAvailable(null)
+    }
+  }
+
 
   async function onSubmit(e: React.FormEvent){
     e.preventDefault()
     const pwdErr = validatePassword(password)
     if(pwdErr){ setError(pwdErr); return }
     if(password !== password2){ setError('Пароли не совпадают'); return }
-    if(!emailPattern.test(email)){ setError('Введите корректный email'); return }
+    const trimmedEmail = email.trim()
+    if(!emailPattern.test(trimmedEmail)){ setError('Введите корректный email'); return }
+    if(emailAvailable === false){ setError('Email уже зарегистрирован'); return }
     if(phoneAvailable === false){ setError('Номер уже зарегистрирован'); return }
     if(!/^\d{4}$/.test(smsCode)){ setError('Код из SMS должен состоять из 4 цифр'); return }
     if(!privacyAccepted){ setError('Необходимо согласиться с политикой конфиденциальности'); return }
     setError(null); setLoading(true)
     try{
-      await register(phone, email, password, smsCode)
+      await register(phone, trimmedEmail, password, smsCode)
       await login(phone, password)
       nav('/dashboard', { replace: true })
     }catch(err: any){
@@ -101,15 +119,22 @@ export default function Register(){
         >
           Получить код
         </div>
-                <label>Email</label>
+        <label>Email</label>
         <input
           type="email"
           value={email}
-          onChange={e=>setEmail(e.target.value)}
+          onChange={e=>{ setEmail(e.target.value); setEmailAvailable(null) }}
+          onBlur={onEmailBlur}
           placeholder="you@example.com"
         />
         {email && !emailPattern.test(email) && (
           <div className="small" style={{color:'#ff8b8b'}}>Введите корректный email</div>
+        )}
+        {email && emailPattern.test(email) && emailAvailable === true && (
+          <div className="small" style={{color:'#42a742'}}>Email свободен</div>
+        )}
+        {emailAvailable === false && (
+          <div className="small" style={{color:'#ff8b8b'}}>Email уже зарегистрирован</div>
         )}
         <label>Придумайте пароль</label>
         <input

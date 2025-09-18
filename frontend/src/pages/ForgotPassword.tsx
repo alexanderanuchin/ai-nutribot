@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { requestPasswordReset, checkEmail } from '../api/auth'
 import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
@@ -10,18 +10,57 @@ export default function ForgotPassword(){
   const [step, setStep] = useState<'send' | 'success' | undefined>(undefined)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emailExists, setEmailExists] = useState<boolean | null>(null)
+  const [checkingEmail, setCheckingEmail] = useState(false)
+  const emailCheckId = useRef(0)
   const nav = useNavigate()
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  async function verifyEmail(currentEmail: string){
+    const trimmed = currentEmail.trim()
+    if(!trimmed || !emailPattern.test(trimmed)){
+      setEmailExists(null)
+      return null
+    }
+    const requestId = ++emailCheckId.current
+    setCheckingEmail(true)
+    try{
+      const { exists } = await checkEmail(trimmed)
+      if(emailCheckId.current === requestId && email.trim() === trimmed){
+        setEmailExists(exists)
+      }
+      return exists
+    }catch{
+      if(emailCheckId.current === requestId && email.trim() === trimmed){
+        setEmailExists(null)
+      }
+      return null
+    }finally{
+      if(emailCheckId.current === requestId){
+        setCheckingEmail(false)
+      }
+    }
+  }
+
+  async function onEmailBlur(){
+    await verifyEmail(email)
+  }
 
   async function onSubmit(e: React.FormEvent){
     e.preventDefault()
     setLoading(true); setError(null)
     try{
-      const { exists } = await checkEmail(email)
-      if(!exists){
-        setError('Пользователь с таким email не найден')
+      const trimmed = email.trim()
+      if(!emailPattern.test(trimmed)){
+        setEmailExists(null)
+        setError('Введите корректный email')
         return
       }
-      await requestPasswordReset(email)
+      const exists = emailExists === null ? await verifyEmail(trimmed) : emailExists
+      if(!exists){
+        return
+      }
+      await requestPasswordReset(trimmed)
       setStep('send')
     }finally{
       setLoading(false)
@@ -51,7 +90,20 @@ export default function ForgotPassword(){
       <h2>Восстановление пароля</h2>
       <form onSubmit={onSubmit}>
         <label>Email</label>
-        <input type="email" value={email} onChange={e=>setEmail(e.target.value)} autoFocus />
+        <input
+          type="email"
+          value={email}
+          onChange={e=>{ setEmail(e.target.value); setEmailExists(null); setError(null) }}
+          onBlur={onEmailBlur}
+          autoFocus
+        />
+        {checkingEmail && <div className="small" style={{color:'#0066c0'}}>Проверяем…</div>}
+        {emailExists === true && (
+          <div className="small" style={{color:'#42a742'}}>Аккаунт с таким email найден</div>
+        )}
+        {emailExists === false && (
+          <div className="small" style={{color:'#ff8b8b'}}>Пользователь с таким email не найден</div>
+        )}
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
           <button type="submit" disabled={loading}>{loading?'Отправляем…':'Отправить'}</button>

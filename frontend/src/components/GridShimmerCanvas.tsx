@@ -68,7 +68,7 @@ class GridShimmer {
   private last = 0
   private rafId: number | null = null
   private readonly onResize: () => void
-    private lastPointerCell: { row: number; col: number } | null = null
+  private lastPointerCell: { row: number; col: number } | null = null
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
     if (!this.cells.length) return
