@@ -1,4 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react'
+import Cropper, { type Area } from 'react-easy-crop'
+import 'react-easy-crop/react-easy-crop.css'
 import type { Profile as ProfileT, User } from '../types'
 
 interface ProfileSidebarProps {
@@ -152,6 +154,7 @@ const CALO_REWARD_TARGET = 1200
 
 const AVATAR_STORAGE_KEY = 'profile:avatar-preference'
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024
+const AVATAR_CROP_ASPECT = 16 / 9
 
 type AvatarState =
   | { kind: 'initials' }
@@ -160,6 +163,13 @@ type AvatarState =
   | { kind: 'upload'; dataUrl: string }
 
 type AvatarStorageValue = Extract<AvatarState, { kind: 'preset' } | { kind: 'upload' }>
+
+interface AvatarEditorState {
+  imageSrc: string
+  crop: { x: number; y: number }
+  zoom: number
+  croppedAreaPixels: Area | null
+}
 
 const avatarPresets: Array<{
   id: string
@@ -210,7 +220,46 @@ const readStoredAvatar = (): AvatarStorageValue | null => {
   }
   return null
 }
+const loadImage = (src: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', reject)
+    image.crossOrigin = 'anonymous'
+    image.src = src
+  })
 
+const getCroppedImage = async (imageSrc: string, cropArea: Area): Promise<string> => {
+  const image = await loadImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  if (!context) {
+    throw new Error('Canvas context is not available')
+  }
+
+  const dominantSide = Math.max(cropArea.width, cropArea.height)
+  const maxOutputSize = 512
+  const scale = dominantSide > maxOutputSize ? maxOutputSize / dominantSide : 1
+  const targetWidth = Math.max(1, Math.round(cropArea.width * scale))
+  const targetHeight = Math.max(1, Math.round(cropArea.height * scale))
+
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+
+  context.drawImage(
+    image,
+    cropArea.x,
+    cropArea.y,
+    cropArea.width,
+    cropArea.height,
+    0,
+    0,
+    targetWidth,
+    targetHeight
+  )
+
+  return canvas.toDataURL('image/png')
+}
 function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>){
   return (
     <svg
@@ -263,13 +312,36 @@ function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
+function CameraIcon(props: React.SVGProps<SVGSVGElement>){
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...props}>
+      <path
+        d="M9.2 5.5 8.1 7H6.6C5.2 7 4 8.2 4 9.6v7.1C4 18.2 5.2 19.4 6.6 19.4h10.8c1.4 0 2.6-1.2 2.6-2.7V9.6c0-1.4-1.2-2.6-2.6-2.6h-1.5l-1.1-1.5a1.8 1.8 0 0 0-1.5-.8H10.7a1.8 1.8 0 0 0-1.5.8z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx="12"
+        cy="13"
+        r="3.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <circle cx="17.5" cy="9" r="0.9" fill="currentColor" />
+    </svg>
+  )
+}
 
 export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tdee, recommendedCalories }: ProfileSidebarProps){
   const [showWallet, setShowWallet] = useState(false)
   const walletHintId = useId()
   const avatarPickerId = useId()
+  const avatarZoomId = useId()
   const displayName = user?.username || 'Профиль'
-  const email = user?.email || 'email не указан'
   const avatarUrl = user?.avatar_url || null
   const initials = displayName.slice(0, 2).toUpperCase()
   const city = profile.city || user?.city || null
@@ -285,9 +357,20 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
   })
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [avatarEditor, setAvatarEditor] = useState<AvatarEditorState | null>(null)
+  const [avatarSaving, setAvatarSaving] = useState(false)
   const avatarPickerRef = useRef<HTMLDivElement | null>(null)
   const avatarButtonRef = useRef<HTMLButtonElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const handleCropChange = useCallback((crop: { x: number; y: number }) => {
+    setAvatarEditor(prev => (prev ? { ...prev, crop } : prev))
+  }, [])
+  const handleZoomChange = useCallback((zoom: number) => {
+    setAvatarEditor(prev => (prev ? { ...prev, zoom } : prev))
+  }, [])
+  const handleCropComplete = useCallback((_: Area, croppedAreaPixels: Area) => {
+    setAvatarEditor(prev => (prev ? { ...prev, croppedAreaPixels } : prev))
+  }, [])
   const normalizedDailyBudget = parseNumber(profile.daily_budget)
   const hasDailyBudget = normalizedDailyBudget !== null && normalizedDailyBudget > 0
   const dailyBudgetValue = hasDailyBudget && normalizedDailyBudget !== null ? normalizedDailyBudget : 0
@@ -349,6 +432,16 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
       return { kind: 'external', url: avatarUrl }
     })
   }, [avatarUrl])
+
+  useEffect(() => {
+    if (avatarPickerOpen) return
+    setAvatarEditor(null)
+    setAvatarSaving(false)
+    setAvatarError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [avatarPickerOpen])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -425,6 +518,9 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
 
   const handleAvatarUploadClick = () => {
     setAvatarError(null)
+    if (!avatarPickerOpen) {
+      setAvatarPickerOpen(true)
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
       fileInputRef.current.click()
@@ -451,9 +547,14 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     reader.onload = () => {
       const result = reader.result
       if (typeof result === 'string') {
-        setAvatarState({ kind: 'upload', dataUrl: result })
-        setAvatarPickerOpen(false)
+        setAvatarEditor({
+          imageSrc: result,
+          crop: { x: 0, y: 0 },
+          zoom: 1,
+          croppedAreaPixels: null
+        })
         setAvatarError(null)
+        setAvatarPickerOpen(true)
       } else {
         setAvatarError('Не удалось прочитать файл изображения')
       }
@@ -463,6 +564,32 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     }
     reader.readAsDataURL(file)
   }
+  const handleAvatarEditorCancel = () => {
+    setAvatarEditor(null)
+    setAvatarSaving(false)
+    setAvatarError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleAvatarEditorSave = async () => {
+    if (!avatarEditor) return
+    setAvatarSaving(true)
+    try {
+      const { croppedAreaPixels, imageSrc } = avatarEditor
+      const dataUrl = croppedAreaPixels ? await getCroppedImage(imageSrc, croppedAreaPixels) : imageSrc
+      setAvatarState({ kind: 'upload', dataUrl })
+      setAvatarPickerOpen(false)
+      setAvatarError(null)
+    } catch (error) {
+      void error
+      setAvatarError('Не удалось обработать изображение')
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
 
   const handleAvatarReset = () => {
     if (avatarUrl) {
@@ -508,6 +635,10 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                       ) : (
                         initials
                       )}
+                      <div className="profile-sidebar__user-info">
+                        <div className="profile-sidebar__username">{displayName}</div>
+                        {city && <div className="profile-sidebar__user-meta">{city}</div>}
+                      </div>
                       <span className="sr-only">Аватар профиля</span>
                     </div>
                     <button
@@ -519,7 +650,8 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                       onClick={handleAvatarButtonClick}
                       ref={avatarButtonRef}
                     >
-                      ✨
+                      <CameraIcon className="profile-sidebar__avatar-edit-icon" />
+                      <span className="sr-only">Изменить фото профиля</span>
                     </button>
                     {avatarPickerOpen && (
                       <div
@@ -529,50 +661,81 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                         role="dialog"
                         aria-modal="false"
                       >
-                        <div className="profile-sidebar__avatar-picker-header">Выберите образ</div>
-                        <div className="profile-sidebar__avatar-options">
-                          {avatarPresets.map(preset => (
-                            <button
-                              key={preset.id}
-                              type="button"
-                              className={`profile-sidebar__avatar-option ${
-                                avatarState.kind === 'preset' && avatarState.id === preset.id ? 'is-active' : ''
-                              }`}
-                              style={{ background: preset.gradient }}
-                              onClick={handlePresetClick(preset.id)}
-                            >
-                              <span className="profile-sidebar__avatar-option-emoji" aria-hidden="true">{preset.emoji}</span>
-                              <span className="profile-sidebar__avatar-option-label">{preset.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                        <div className="profile-sidebar__avatar-upload">
-                          <button
-                            type="button"
-                            className="profile-sidebar__avatar-upload-button"
-                            onClick={handleAvatarUploadClick}
-                          >
-                            Загрузить своё фото
-                          </button>
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="sr-only"
-                            onChange={handleAvatarFileChange}
-                          />
-                          {avatarError && <div className="profile-sidebar__avatar-error small">{avatarError}</div>}
-                        </div>
-                        <button type="button" className="profile-sidebar__avatar-reset" onClick={handleAvatarReset}>
-                          Сбросить до стандартного вида
-                        </button>
+                        {avatarEditor ? (
+                          <div className="profile-sidebar__avatar-editor">
+                            <div className="profile-sidebar__avatar-picker-header">Настройте фото</div>
+                            <p className="profile-sidebar__avatar-editor-hint small">
+                              Передвиньте изображение и используйте масштаб, чтобы центрировать кадр.
+                            </p>
+                            <div className="profile-sidebar__avatar-editor-canvas">
+                              <Cropper
+                                image={avatarEditor.imageSrc}
+                                crop={avatarEditor.crop}
+                                zoom={avatarEditor.zoom}
+                                aspect={AVATAR_CROP_ASPECT}
+                                cropShape="rect"
+                                onCropChange={handleCropChange}
+                                onCropComplete={handleCropComplete}
+                                onZoomChange={handleZoomChange}
+                                showGrid={false}
+                                minZoom={1}
+                                maxZoom={3}
+                              />
+                            </div>
+                            <div className="profile-sidebar__avatar-editor-controls">
+                              <label htmlFor={avatarZoomId}>Масштаб</label>
+                              <input
+                                id={avatarZoomId}
+                                type="range"
+                                min={1}
+                                max={3}
+                                step={0.01}
+                                value={avatarEditor.zoom}
+                                onChange={event => handleZoomChange(Number(event.target.value))}
+                                className="profile-sidebar__avatar-editor-range"
+                              />
+                            </div>
+                            <div className="profile-sidebar__avatar-editor-actions">
+                              <button
+                                type="button"
+                                className="profile-sidebar__avatar-editor-cancel"
+                                onClick={handleAvatarEditorCancel}
+                                disabled={avatarSaving}
+                              >
+                                Отмена
+                              </button>
+                              <button
+                                type="button"
+                                className="profile-sidebar__avatar-editor-apply"
+                                onClick={handleAvatarEditorSave}
+                                disabled={avatarSaving}
+                              >
+                                {avatarSaving ? 'Сохраняем…' : 'Сохранить'}
+                              </button>
+                            </div>
+                            {avatarError && <div className="profile-sidebar__avatar-error small">{avatarError}</div>}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="profile-sidebar__avatar-picker-header">Выберите образ</div>
+                            <div className="profile-sidebar__avatar-options">
+                              {avatarPresets.map(preset => (
+                                <button
+                                  key={preset.id}
+                                  type="button"
+                                  className={`profile-sidebar__avatar-option ${
+                                    avatarState.kind === 'preset' && avatarState.id === preset.id ? 'is-active' : ''
+                                  }`}
+                                  style={{ background: preset.gradient }}
+                                  onClick={handlePresetClick(preset.id)}
+                                >
+                                  <span className="profile-sidebar__avatar-option-emoji" aria-hidden="true">{preset.emoji}</span>
+                                  <span className="profile-sidebar__avatar-option-label">{preset.label}</span>
+                                </button>
+                          </>
+                        )}
                       </div>
                     )}
-                  </div>
-                  <div className="profile-sidebar__user-info">
-                    <div className="profile-sidebar__username">{displayName}</div>
-                    <div className="profile-sidebar__email">{email}</div>
-                    {city && <div className="profile-sidebar__email">{city}</div>}
                   </div>
                 </div>
                 <div className="profile-sidebar__identity-status">
