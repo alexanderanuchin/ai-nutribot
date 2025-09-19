@@ -409,26 +409,29 @@ label {
     top: 92px;
     max-height: calc(100vh - 140px);
     overflow-y: auto;
-    scrollbar-width: none;
+    --profile-sidebar-scrollbar-width: 8px;
+    scrollbar-width: thin;
     scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;
+    scrollbar-gutter: stable both-edges
     scrollbar-gutter: stable both-edges
 }
 
 .profile-sidebar:hover,
 .profile-sidebar:focus-within {
-    scrollbar-width: thin;
     scrollbar-color: rgba(91, 188, 255, .65) transparent
 }
 
-.profile-sidebar::-webkit-scrollbar {
-    width: 0;
-    background: transparent;
-    transition: width .2s ease
+@supports not (scrollbar-gutter: stable) {
+    .profile-sidebar {
+        padding-inline-start: calc(16px + var(--profile-sidebar-scrollbar-width));
+        padding-inline-end: calc(16px + var(--profile-sidebar-scrollbar-width))
+    }
 }
 
-.profile-sidebar:hover::-webkit-scrollbar,
-.profile-sidebar:focus-within::-webkit-scrollbar {
-    width: 8px
+.profile-sidebar::-webkit-scrollbar {
+    width: var(--profile-sidebar-scrollbar-width);
+    background: transparent
 }
 
 .profile-sidebar::-webkit-scrollbar-track {
