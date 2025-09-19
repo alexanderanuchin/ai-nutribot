@@ -156,11 +156,13 @@ input[type="checkbox"] {
 }
 
 .container {
-    max-width: 980px;
+    width: 100%;
+    max-width: none;
     margin: 0 auto;
-    padding: 20px;
+    padding: clamp(16px, 4vw, 48px);
     position: relative;
-    z-index: 1
+    z-index: 1;
+    box-sizing: border-box
 }
 
 .card {
@@ -393,13 +395,69 @@ label {
     position: sticky;
     top: 92px;
     max-height: calc(100vh - 140px);
-    overflow-y: auto
+    overflow-y: auto;
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable both-edges
+}
+
+.profile-sidebar:hover,
+.profile-sidebar:focus-within {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(91, 188, 255, .65) transparent
+}
+
+.profile-sidebar::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+    transition: width .2s ease
+}
+
+.profile-sidebar:hover::-webkit-scrollbar,
+.profile-sidebar:focus-within::-webkit-scrollbar {
+    width: 8px
+}
+
+.profile-sidebar::-webkit-scrollbar-track {
+    background: transparent
+}
+
+.profile-sidebar:hover::-webkit-scrollbar-track,
+.profile-sidebar:focus-within::-webkit-scrollbar-track {
+    background: rgba(91, 188, 255, .08);
+    border-radius: 999px
+}
+
+.profile-sidebar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box
+}
+
+.profile-sidebar:hover::-webkit-scrollbar-thumb,
+.profile-sidebar:focus-within::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(91, 188, 255, .85), rgba(142, 240, 166, .85));
+    border-radius: 999px;
+    border: 2px solid rgba(12, 18, 27, .35);
+    box-shadow: 0 10px 24px -12px rgba(91, 188, 255, .45)
+}
+
+.profile-sidebar__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    row-gap: 14px
 }
 
 .profile-sidebar__user {
     display: flex;
     align-items: center;
-    gap: 14px
+    gap: 14px;
+    flex: 1;
+    min-width: 0
 }
 
 .profile-sidebar__avatar {
@@ -442,6 +500,37 @@ label {
     display: flex;
     flex-wrap: wrap;
     gap: 8px
+}
+.profile-sidebar__balance {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    padding: 12px 14px;
+    min-width: 160px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(91, 188, 255, .16), rgba(142, 240, 166, .12));
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 18px 42px -32px rgba(91, 188, 255, .45)
+}
+
+.profile-sidebar__balance-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted)
+}
+
+.profile-sidebar__balance-value {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.01em
+}
+
+.profile-sidebar__balance-hint {
+    text-align: right;
+    max-width: 200px
 }
 
 .profile-sidebar__chip {
@@ -786,6 +875,11 @@ label {
         align-items: flex-start
     }
 
+    .profile-sidebar__header {
+        flex-direction: column;
+        align-items: stretch
+    }
+
     .profile-sidebar__metrics {
         grid-template-columns: repeat(2, minmax(0, 1fr))
     }
@@ -794,6 +888,15 @@ label {
         width: 56px;
         height: 56px;
         border-radius: 14px
+    }
+    .profile-sidebar__balance {
+        width: 100%;
+        align-items: flex-start;
+        text-align: left
+    }
+
+    .profile-sidebar__balance-hint {
+        text-align: left
     }
 
     .profile-form-meta {

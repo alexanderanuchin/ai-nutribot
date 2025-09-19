@@ -26,6 +26,13 @@ const activityLabels: Record<ProfileT['activity_level'], string> = {
   athlete: 'Спортивный режим'
 }
 
+const currencyFormatter = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'RUB',
+  maximumFractionDigits: 0
+})
+
+
 const NAV_SECTIONS = [
   {
     title: 'Панель управления',
@@ -124,16 +131,32 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
   const email = user?.email || 'email не указан'
   const avatarUrl = user?.avatar_url || null
   const initials = displayName.slice(0, 2).toUpperCase()
+  const rawDailyBudget = profile.daily_budget
+  const normalizedBalance =
+    rawDailyBudget !== null && rawDailyBudget !== undefined && rawDailyBudget !== ''
+      ? Number(rawDailyBudget)
+      : null
+  const hasBalance = normalizedBalance !== null && Number.isFinite(normalizedBalance)
+  const balanceDisplay = hasBalance ? currencyFormatter.format(normalizedBalance) : '—'
 
   return (
     <aside className="profile-sidebar card">
-      <div className="profile-sidebar__user">
-        <div className="profile-sidebar__avatar">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={displayName} loading="lazy" />
-          ) : (
-            initials
+      <div className="profile-sidebar__header">
+        <div className="profile-sidebar__user">
+          <div className="profile-sidebar__avatar">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName} loading="lazy" />
+            ) : (
+              initials
+            )}
+          </div>
+        <div className="profile-sidebar__balance" aria-live="polite">
+          <span className="profile-sidebar__balance-label">Баланс</span>
+          <span className="profile-sidebar__balance-value">{balanceDisplay}</span>
+          {!hasBalance && (
+            <span className="profile-sidebar__balance-hint small">Укажите дневной бюджет, чтобы отслеживать расходы.</span>
           )}
+          </div>
         </div>
         <div className="profile-sidebar__user-info">
           <div className="profile-sidebar__username">{displayName}</div>
