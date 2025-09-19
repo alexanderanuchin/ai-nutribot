@@ -409,17 +409,25 @@ label {
     top: 92px;
     max-height: calc(100vh - 140px);
     overflow-y: auto;
-    scrollbar-width: thin;
+    scrollbar-width: none;
     scrollbar-color: transparent transparent;
     scrollbar-gutter: stable both-edges
 }
 
 .profile-sidebar:hover,
 .profile-sidebar:focus-within {
+    scrollbar-width: thin;
     scrollbar-color: rgba(91, 188, 255, .65) transparent
 }
 
 .profile-sidebar::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+    transition: width .2s ease
+}
+
+.profile-sidebar:hover::-webkit-scrollbar,
+.profile-sidebar:focus-within::-webkit-scrollbar {
     width: 8px
 }
 
@@ -459,77 +467,72 @@ label {
 
 .profile-sidebar__user {
     display: flex;
-    flex-direction: column;
-    gap: 16px;
+    align-items: flex-start;
+    gap: 14px;
     flex: 1;
     min-width: 0
 }
 .profile-sidebar__avatar-wrapper {
     position: relative;
-    width: 100%;
-    padding: 10px;
-    border-radius: 20px;
-    border: 1px solid rgba(12, 18, 27, .18);
-    background: linear-gradient(135deg, rgba(91, 188, 255, .14), rgba(142, 240, 166, .12));
-    box-shadow: 0 26px 58px -36px rgba(91, 188, 255, .55);
-    transition: box-shadow .2s ease, transform .2s ease;
-    cursor: default;
-}
-
-.profile-sidebar__avatar-wrapper:hover {
-    box-shadow: 0 32px 66px -34px rgba(91, 188, 255, .62);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    border: 1px solid rgba(12, 18, 27, .25);
+    box-shadow: 0 20px 42px -32px rgba(91, 188, 255, .6);
+    transition: transform .2s ease, box-shadow .2s ease;
+    position: relative;
 }
 
 .profile-sidebar__avatar {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
+    width: 68px;
+    height: 68px;
     border-radius: 18px;
     background: linear-gradient(140deg, var(--primary), var(--accent));
     color: #0b0c10;
     font-weight: 700;
-    font-size: 28px;
+    font-size: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    flex-shrink: 0
 }
 
 .profile-sidebar__avatar img {
-    position: absolute;
-    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
 .profile-sidebar__avatar-emoji {
-    font-size: 36px;
+    font-size: 26px;
 }
 
 .profile-sidebar__avatar-edit {
     position: absolute;
-    top: 16px;
-    right: 16px;
-    width: 36px;
-    height: 36px;
+    bottom: -8px;
+    right: -6px;
+    width: 28px;
+    height: 28px;
     border-radius: 999px;
     border: 1px solid rgba(12, 18, 27, .2);
-    background: linear-gradient(135deg, rgba(91, 188, 255, .96), rgba(142, 240, 166, .9));
+    background: linear-gradient(135deg, rgba(91, 188, 255, .95), rgba(142, 240, 166, .95));
     color: #0b0c10;
     font-size: 16px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 24px 48px -30px rgba(91, 188, 255, .82);
+    box-shadow: 0 20px 40px -28px rgba(91, 188, 255, .8);
     cursor: pointer;
     transition: transform .2s ease, box-shadow .2s ease;
-    z-index: 3;
+    z-index: 2;
 }
 
 .profile-sidebar__avatar-edit:hover {
     transform: translateY(-1px);
-    box-shadow: 0 28px 56px -30px rgba(91, 188, 255, .85);
+    box-shadow: 0 22px 46px -28px rgba(91, 188, 255, .85);
 }
 
 .profile-sidebar__avatar-edit:focus-visible {
@@ -537,16 +540,11 @@ label {
     outline-offset: 2px;
 }
 
-.profile-sidebar__avatar-edit-icon {
-    width: 18px;
-    height: 18px;
-}
-
 .profile-sidebar__avatar-picker {
     position: absolute;
     top: calc(100% + 12px);
     left: 0;
-    width: min(320px, calc(100vw - 56px));
+    width: min(280px, calc(100vw - 56px));
     border-radius: 16px;
     border: 1px solid rgba(91, 188, 255, .35);
     background: linear-gradient(135deg, rgba(12, 18, 27, .94), rgba(12, 18, 27, .86));
@@ -652,99 +650,6 @@ label {
     cursor: pointer;
     transition: color .2s ease;
 }
-.profile-sidebar__avatar-editor {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.profile-sidebar__avatar-editor-hint {
-    margin: -2px 0 0;
-    color: rgba(248, 251, 255, .7);
-}
-
-.profile-sidebar__avatar-editor-canvas {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    border-radius: 18px;
-    overflow: hidden;
-    background: rgba(12, 18, 27, .5);
-}
-
-.profile-sidebar__avatar-editor-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.profile-sidebar__avatar-editor-controls label {
-    font-size: 12px;
-    color: rgba(248, 251, 255, .75);
-}
-
-.profile-sidebar__avatar-editor-range {
-    width: 100%;
-    accent-color: var(--primary);
-}
-
-.profile-sidebar__avatar-editor-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-}
-
-.profile-sidebar__avatar-editor-cancel {
-    border: 0;
-    background: none;
-    color: rgba(248, 251, 255, .75);
-    font-size: 12px;
-    cursor: pointer;
-    transition: color .2s ease;
-}
-
-.profile-sidebar__avatar-editor-cancel:hover {
-    color: #f8fbff;
-}
-
-.profile-sidebar__avatar-editor-cancel:disabled {
-    opacity: .6;
-    cursor: default;
-}
-
-.profile-sidebar__avatar-editor-cancel:focus-visible {
-    outline: 2px solid #f8fbff;
-    outline-offset: 2px;
-}
-
-.profile-sidebar__avatar-editor-apply {
-    border: 0;
-    border-radius: 999px;
-    padding: 8px 16px;
-    font-weight: 600;
-    font-size: 12px;
-    background: linear-gradient(135deg, rgba(91, 188, 255, .95), rgba(142, 240, 166, .9));
-    color: #0b0c10;
-    cursor: pointer;
-    transition: transform .2s ease, box-shadow .2s ease;
-}
-
-.profile-sidebar__avatar-editor-apply:hover:enabled {
-    transform: translateY(-1px);
-    box-shadow: 0 22px 46px -30px rgba(91, 188, 255, .65);
-}
-
-.profile-sidebar__avatar-editor-apply:disabled {
-    opacity: .7;
-    cursor: default;
-    transform: none;
-    box-shadow: none;
-}
-
-.profile-sidebar__avatar-editor-apply:focus-visible {
-    outline: 2px solid #f8fbff;
-    outline-offset: 2px;
-}
 
 .profile-sidebar__avatar-reset:hover {
     color: #f8fbff;
@@ -756,29 +661,21 @@ label {
 }
 
 .profile-sidebar__user-info {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    padding: 16px;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    background: linear-gradient(0deg, rgba(12, 18, 27, .82), rgba(12, 18, 27, 0));
-    color: #f8fbff;
-    pointer-events: none;
+    min-width: 0;
 }
 
 .profile-sidebar__username {
-    font-weight: 700;
-    font-size: 18px;
-    color: #f8fbff;
-    text-shadow: 0 6px 14px rgba(12, 18, 27, .75);
+    font-weight: 600;
+    font-size: 16px
 }
 
-.profile-sidebar__user-meta {
-    font-size: 13px;
-    color: rgba(248, 251, 255, .75);
+.profile-sidebar__email {
+    font-size: 12px;
+    color: var(--muted)
+}
 
 .profile-sidebar__identity {
     flex: 1;
@@ -818,8 +715,8 @@ label {
     transition: box-shadow .35s ease, border-color .35s ease, opacity .35s ease;
 }
 .profile-sidebar__identity-face--front {
-    padding: 12px 14px 14px;
-    gap: 12px;
+    padding: 14px 16px 16px;
+    gap: 10px;
 }
 
 .profile-sidebar__identity:hover .profile-sidebar__identity-face--front,
@@ -839,15 +736,16 @@ label {
 }
 .profile-sidebar__identity-main {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    align-items: flex-start;
+    gap: 14px;
+    flex-wrap: wrap;
 }
 
 .profile-sidebar__identity-status {
-    margin-top: 0;
-    display: grid;
-    gap: 6px;
-}
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .profile-sidebar__identity.is-open .profile-sidebar__identity-face--front {
@@ -856,14 +754,14 @@ label {
 
 .profile-sidebar__wallet-icons {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: center;
 }
 
 .profile-sidebar__wallet-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 8px;
 }
 
 .profile-sidebar__wallet-tag {
@@ -872,7 +770,7 @@ label {
     letter-spacing: 0.08em;
     background: rgba(12, 18, 27, .08);
     color: var(--muted);
-    padding: 4px 9px;
+    padding: 4px 10px;
     border-radius: 999px;
     border: 1px solid rgba(91, 188, 255, .2);
     font-weight: 600;
@@ -885,9 +783,9 @@ label {
 }
 
 .profile-sidebar__wallet-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 14px;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -904,8 +802,8 @@ label {
 }
 
 .profile-sidebar__wallet-icon-svg {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
 }
 
 .profile-sidebar__wallet-status {
