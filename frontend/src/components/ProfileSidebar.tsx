@@ -263,6 +263,37 @@ function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
+function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>){
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+      {...props}
+    >
+      <path
+        d="M3.8 13.7V16.8H6.9L15.9 7.8 12.8 4.7 3.8 13.7Z"
+        fill="rgba(248, 251, 255, 0.85)"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m12.9 5.1 2.6 2.6"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M3.2 16.8h3.9"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
 
 export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tdee, recommendedCalories }: ProfileSidebarProps){
   const [showWallet, setShowWallet] = useState(false)
@@ -312,6 +343,7 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
       : avatarState.kind === 'upload'
         ? avatarState.dataUrl
         : null
+  const avatarClassName = `profile-sidebar__avatar${avatarImageSrc ? ' profile-sidebar__avatar--with-image' : ''}`
   const hasTelegramLink = Boolean(profile.telegram_id || user?.telegram_id)
   const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
   const caloRubEquivalent = hasCaloRate ? caloBalanceValue * caloRateValue : null
@@ -498,7 +530,7 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                 <div className="profile-sidebar__identity-main">
                   <div className="profile-sidebar__avatar-wrapper" onClick={event => event.stopPropagation()}>
                     <div
-                      className="profile-sidebar__avatar"
+                      className={avatarClassName}
                       style={avatarState.kind === 'preset' && currentPreset ? { background: currentPreset.gradient } : undefined}
                     >
                       {avatarImageSrc ? (
@@ -519,7 +551,7 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                       onClick={handleAvatarButtonClick}
                       ref={avatarButtonRef}
                     >
-                      ✨
+                      <EditAvatarIcon className="profile-sidebar__avatar-edit-icon" />
                     </button>
                     {avatarPickerOpen && (
                       <div
