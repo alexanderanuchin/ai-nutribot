@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from 'react'
+import React, { useEffect, useId, useRef, useState } from 'react'
 import type { Profile as ProfileT, User } from '../types'
 
 interface ProfileSidebarProps {
@@ -147,6 +147,70 @@ const walletPerks = [
   'Экспериментальные фичи AI-куратора без ограничений'
 ]
 
+const STARS_REWARD_TARGET = 500
+const CALO_REWARD_TARGET = 1200
+
+const AVATAR_STORAGE_KEY = 'profile:avatar-preference'
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024
+
+type AvatarState =
+  | { kind: 'initials' }
+  | { kind: 'external'; url: string }
+  | { kind: 'preset'; id: string }
+  | { kind: 'upload'; dataUrl: string }
+
+type AvatarStorageValue = Extract<AvatarState, { kind: 'preset' } | { kind: 'upload' }>
+
+const avatarPresets: Array<{
+  id: string
+  label: string
+  emoji: string
+  gradient: string
+}> = [
+  {
+    id: 'focus',
+    label: 'Фокус и энергия',
+    emoji: '⚡️',
+    gradient: 'linear-gradient(135deg, #9fd8ff, #5bbcff)'
+  },
+  {
+    id: 'nature',
+    label: 'Баланс и природа',
+    emoji: '🌿',
+    gradient: 'linear-gradient(135deg, #baf4c8, #5be8a0)'
+  },
+  {
+    id: 'sunrise',
+    label: 'Новый день',
+    emoji: '🌅',
+    gradient: 'linear-gradient(135deg, #ffd6a5, #ff9f68)'
+  },
+  {
+    id: 'wave',
+    label: 'Свежесть и движение',
+    emoji: '🌊',
+    gradient: 'linear-gradient(135deg, #7ac9ff, #3ea3ff)'
+  }
+]
+
+const readStoredAvatar = (): AvatarStorageValue | null => {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(AVATAR_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed && parsed.kind === 'preset' && typeof parsed.id === 'string') {
+      return { kind: 'preset', id: parsed.id }
+    }
+    if (parsed && parsed.kind === 'upload' && typeof parsed.dataUrl === 'string') {
+      return { kind: 'upload', dataUrl: parsed.dataUrl }
+    }
+  } catch (error) {
+    void error
+  }
+  return null
+}
+
 function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>){
   return (
     <svg
@@ -203,11 +267,27 @@ function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>){
 export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tdee, recommendedCalories }: ProfileSidebarProps){
   const [showWallet, setShowWallet] = useState(false)
   const walletHintId = useId()
+  const avatarPickerId = useId()
   const displayName = user?.username || 'Профиль'
   const email = user?.email || 'email не указан'
   const avatarUrl = user?.avatar_url || null
   const initials = displayName.slice(0, 2).toUpperCase()
   const city = profile.city || user?.city || null
+  const [avatarState, setAvatarState] = useState<AvatarState>(() => {
+    const stored = readStoredAvatar()
+    if (stored) {
+      return stored
+    }
+    if (avatarUrl) {
+      return { kind: 'external', url: avatarUrl }
+    }
+    return { kind: 'initials' }
+  })
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+  const avatarPickerRef = useRef<HTMLDivElement | null>(null)
+  const avatarButtonRef = useRef<HTMLButtonElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const normalizedDailyBudget = parseNumber(profile.daily_budget)
   const hasDailyBudget = normalizedDailyBudget !== null && normalizedDailyBudget > 0
   const dailyBudgetValue = hasDailyBudget && normalizedDailyBudget !== null ? normalizedDailyBudget : 0
@@ -225,12 +305,17 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+  const currentPreset = avatarState.kind === 'preset' ? avatarPresets.find(preset => preset.id === avatarState.id) || null : null
   const hasTelegramLink = Boolean(profile.telegram_id || user?.telegram_id)
   const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
   const caloRubEquivalent = hasCaloRate ? caloBalanceValue * caloRateValue : null
   const dailyBudgetDisplay = hasDailyBudget ? rubFormatter.format(dailyBudgetValue) : null
   const walletAriaLabel = showWallet ? 'Скрыть детали кошелька' : 'Показать детали кошелька'
   const walletHint = showWallet ? 'Скрыть баланс и действия' : 'Баланс скрыт — нажмите, чтобы раскрыть'
+  const starsTargetLeft = Math.max(STARS_REWARD_TARGET - starsBalance, 0)
+  const starProgress = Math.min(100, Math.round((starsBalance / STARS_REWARD_TARGET) * 100))
+  const caloTargetLeft = Math.max(CALO_REWARD_TARGET - Math.floor(caloBalanceValue), 0)
+  const caloProgress = Math.min(100, Math.round((caloBalanceValue / CALO_REWARD_TARGET) * 100))
 
   useEffect(() => {
     if (!showWallet) return
@@ -242,6 +327,60 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [showWallet])
+
+  useEffect(() => {
+    if (!avatarUrl) {
+      setAvatarState(prev => {
+        if (prev.kind === 'preset' || prev.kind === 'upload') return prev
+        if (prev.kind === 'initials') return prev
+        return { kind: 'initials' }
+      })
+      return
+    }
+    setAvatarState(prev => {
+      if (prev.kind === 'preset' || prev.kind === 'upload') return prev
+      if (prev.kind === 'external' && prev.url === avatarUrl) return prev
+      return { kind: 'external', url: avatarUrl }
+    })
+  }, [avatarUrl])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (avatarState.kind === 'preset' || avatarState.kind === 'upload') {
+      const toStore: AvatarStorageValue = avatarState
+      window.localStorage.setItem(AVATAR_STORAGE_KEY, JSON.stringify(toStore))
+    } else {
+      window.localStorage.removeItem(AVATAR_STORAGE_KEY)
+    }
+  }, [avatarState])
+
+  useEffect(() => {
+    if (!avatarPickerOpen) return
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (avatarPickerRef.current?.contains(target)) return
+      if (avatarButtonRef.current?.contains(target)) return
+      setAvatarPickerOpen(false)
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAvatarPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    window.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      window.removeEventListener('keydown', handleEscape)
+    }
+  }, [avatarPickerOpen])
+
+  useEffect(() => {
+    if (showWallet) {
+      setAvatarPickerOpen(false)
+    }
+  }, [showWallet])
+
 
   const handleWalletClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
@@ -271,13 +410,6 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     <aside className="profile-sidebar card">
       <div className="profile-sidebar__header">
         <div className="profile-sidebar__user">
-          <div className="profile-sidebar__avatar">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} loading="lazy" />
-            ) : (
-              initials
-            )}
-          </div>
           <div
             className={`profile-sidebar__identity ${showWallet ? 'is-open' : ''}`}
             role="button"
@@ -291,24 +423,101 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
           >
             <div className={`profile-sidebar__identity-inner ${showWallet ? 'is-flipped' : ''}`}>
               <div className="profile-sidebar__identity-face profile-sidebar__identity-face--front">
-                <div className="profile-sidebar__user-info">
-                  <div className="profile-sidebar__username">{displayName}</div>
-                  <div className="profile-sidebar__email">{email}</div>
-                  {city && <div className="profile-sidebar__email">{city}</div>}
+                <div className="profile-sidebar__identity-main">
+                  <div className="profile-sidebar__avatar-wrapper" onClick={event => event.stopPropagation()}>
+                    <div
+                      className="profile-sidebar__avatar"
+                      style={avatarState.kind === 'preset' && currentPreset ? { background: currentPreset.gradient } : undefined}
+                    >
+                      {avatarImageSrc ? (
+                        <img src={avatarImageSrc} alt={displayName} loading="lazy" />
+                      ) : avatarState.kind === 'preset' && currentPreset ? (
+                        <span className="profile-sidebar__avatar-emoji" aria-hidden="true">{currentPreset.emoji}</span>
+                      ) : (
+                        initials
+                      )}
+                      <span className="sr-only">Аватар профиля</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="profile-sidebar__avatar-edit"
+                      aria-controls={avatarPickerId}
+                      aria-expanded={avatarPickerOpen}
+                      aria-label="Сменить аватар"
+                      onClick={handleAvatarButtonClick}
+                      ref={avatarButtonRef}
+                    >
+                      ✨
+                    </button>
+                    {avatarPickerOpen && (
+                      <div
+                        id={avatarPickerId}
+                        className="profile-sidebar__avatar-picker"
+                        ref={avatarPickerRef}
+                        role="dialog"
+                        aria-modal="false"
+                      >
+                        <div className="profile-sidebar__avatar-picker-header">Выберите образ</div>
+                        <div className="profile-sidebar__avatar-options">
+                          {avatarPresets.map(preset => (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              className={`profile-sidebar__avatar-option ${
+                                avatarState.kind === 'preset' && avatarState.id === preset.id ? 'is-active' : ''
+                              }`}
+                              style={{ background: preset.gradient }}
+                              onClick={handlePresetClick(preset.id)}
+                            >
+                              <span className="profile-sidebar__avatar-option-emoji" aria-hidden="true">{preset.emoji}</span>
+                              <span className="profile-sidebar__avatar-option-label">{preset.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="profile-sidebar__avatar-upload">
+                          <button
+                            type="button"
+                            className="profile-sidebar__avatar-upload-button"
+                            onClick={handleAvatarUploadClick}
+                          >
+                            Загрузить своё фото
+                          </button>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={handleAvatarFileChange}
+                          />
+                          {avatarError && <div className="profile-sidebar__avatar-error small">{avatarError}</div>}
+                        </div>
+                        <button type="button" className="profile-sidebar__avatar-reset" onClick={handleAvatarReset}>
+                          Сбросить до стандартного вида
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="profile-sidebar__user-info">
+                    <div className="profile-sidebar__username">{displayName}</div>
+                    <div className="profile-sidebar__email">{email}</div>
+                    {city && <div className="profile-sidebar__email">{city}</div>}
+                  </div>
                 </div>
-                <div className="profile-sidebar__wallet-icons" aria-hidden="true">
-                  <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--stars">
-                    <TelegramStarIcon className="profile-sidebar__wallet-icon-svg" />
-                  </span>
-                  <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--calo">
-                    <CaloCoinIcon className="profile-sidebar__wallet-icon-svg" />
-                  </span>
+                <div className="profile-sidebar__identity-status">
+                  <div className="profile-sidebar__wallet-icons" aria-hidden="true">
+                    <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--stars">
+                      <TelegramStarIcon className="profile-sidebar__wallet-icon-svg" />
+                    </span>
+                    <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--calo">
+                      <CaloCoinIcon className="profile-sidebar__wallet-icon-svg" />
+                    </span>
+                  </div>
+                  <div className="profile-sidebar__wallet-tags">
+                    <span className="profile-sidebar__wallet-tag">Telegram Stars</span>
+                    <span className="profile-sidebar__wallet-tag">CaloCoin</span>
+                  </div>
+                  <span id={walletHintId} className="profile-sidebar__wallet-status small">{walletHint}</span>
                 </div>
-                <div className="profile-sidebar__wallet-tags">
-                  <span className="profile-sidebar__wallet-tag">Telegram Stars</span>
-                  <span className="profile-sidebar__wallet-tag">CaloCoin</span>
-                </div>
-                <span id={walletHintId} className="profile-sidebar__wallet-status small">{walletHint}</span>
               </div>
               <div className="profile-sidebar__identity-face profile-sidebar__identity-face--back">
                 <div className="profile-sidebar__wallet-balance" aria-live="polite">
@@ -327,7 +536,7 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                     </div>
                     <a
                       className="profile-sidebar__wallet-action"
-                      href={hasTelegramLink ? 'https://t.me/wallet?start=star-topup' : 'https://t.me/ai_nutribot'}
+                      href={hasTelegramLink ? 'https://t.me/wallet?start=star-topup' : 'https://t.me/CaloIQ_bot'}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -349,12 +558,42 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                     </div>
                     <a
                       className="profile-sidebar__wallet-action"
-                      href="https://t.me/ai_nutribot?start=calopro"
+                      href="https://t.me/CaloIQ_bot?start=calopro"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
                       Оформить PRO
                     </a>
+                  </div>
+                </div>
+                <div className="profile-sidebar__wallet-progress" aria-live="polite">
+                  <div className="profile-sidebar__wallet-progress-item">
+                    <div className="profile-sidebar__wallet-progress-header">
+                      <span className="profile-sidebar__wallet-progress-title">До клубной консультации</span>
+                      <span className="profile-sidebar__wallet-progress-value">{starProgress}%</span>
+                    </div>
+                    <div className="profile-sidebar__wallet-progress-bar" aria-hidden="true">
+                      <span style={{ width: `${starProgress}%` }} />
+                    </div>
+                    <p className="profile-sidebar__wallet-progress-hint small">
+                      {starsTargetLeft > 0
+                        ? `Ещё ${integerFormatter.format(starsTargetLeft)} Stars — и куратор свяжется с вами.`
+                        : 'Доступ к консультациям открыт — напишите куратору в @CaloIQ_bot.'}
+                    </p>
+                  </div>
+                  <div className="profile-sidebar__wallet-progress-item">
+                    <div className="profile-sidebar__wallet-progress-header">
+                      <span className="profile-sidebar__wallet-progress-title">До PRO-доступа</span>
+                      <span className="profile-sidebar__wallet-progress-value">{caloProgress}%</span>
+                    </div>
+                    <div className="profile-sidebar__wallet-progress-bar" aria-hidden="true">
+                      <span style={{ width: `${caloProgress}%` }} />
+                    </div>
+                    <p className="profile-sidebar__wallet-progress-hint small">
+                      {caloTargetLeft > 0
+                        ? `Накопите ещё ${integerFormatter.format(caloTargetLeft)} CaloCoin для полного PRO.`
+                        : 'Баланс позволяет активировать PRO прямо сейчас.'}
+                    </p>
                   </div>
                 </div>
                 <div className="profile-sidebar__wallet-meta small">
@@ -372,6 +611,28 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                     <li key={perk}>{perk}</li>
                   ))}
                 </ul>
+                <div className="profile-sidebar__wallet-follow">
+                  <a
+                    className="profile-sidebar__wallet-action"
+                    href="https://t.me/CaloIQ_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Открыть @CaloIQ_bot
+                  </a>
+                  <a
+                    className="profile-sidebar__wallet-link"
+                    href="https://t.me/CaloIQ_bot?start=autopay"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Настроить автопополнение и напоминания
+                  </a>
+                </div>
+                <div className="profile-sidebar__wallet-insights small">
+                  Переходите к ежедневным сценариям в <strong>@CaloIQ_bot</strong> и держите баланс в плюсе —
+                  бот синхронизирует задачи и рекомендации с вашим профилем.
+                </div>
               </div>
             </div>
           </div>
