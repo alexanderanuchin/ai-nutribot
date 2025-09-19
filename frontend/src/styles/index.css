@@ -761,6 +761,15 @@ label {
     border: 1px solid rgba(91, 188, 255, .35);
     box-shadow: 0 24px 54px -32px rgba(12, 18, 27, .6);
 }
+
+.profile-sidebar__identity:not(.is-open) .profile-sidebar__identity-face--back {
+    height: 0;
+    padding-block: 0;
+    gap: 0;
+    border: 0;
+    box-shadow: none;
+    overflow: hidden;
+}
 .profile-sidebar__identity-main {
     display: flex;
     flex-direction: column;
