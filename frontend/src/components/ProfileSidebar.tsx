@@ -306,6 +306,12 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
     maximumFractionDigits: 2
   })
   const currentPreset = avatarState.kind === 'preset' ? avatarPresets.find(preset => preset.id === avatarState.id) || null : null
+  const avatarImageSrc =
+    avatarState.kind === 'external'
+      ? avatarState.url
+      : avatarState.kind === 'upload'
+        ? avatarState.dataUrl
+        : null
   const hasTelegramLink = Boolean(profile.telegram_id || user?.telegram_id)
   const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
   const caloRubEquivalent = hasCaloRate ? caloBalanceValue * caloRateValue : null
@@ -405,6 +411,72 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
       setShowWallet(false)
     }
   }
+
+  const handleAvatarButtonClick = () => {
+    setAvatarPickerOpen(prev => !prev)
+    setAvatarError(null)
+  }
+
+  const handlePresetClick = (presetId: string) => () => {
+    setAvatarState({ kind: 'preset', id: presetId })
+    setAvatarPickerOpen(false)
+    setAvatarError(null)
+  }
+
+  const handleAvatarUploadClick = () => {
+    setAvatarError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+      fileInputRef.current.click()
+    }
+  }
+
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Можно загрузить только изображение')
+      event.target.value = ''
+      return
+    }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      setAvatarError('Размер файла не должен превышать 2 МБ')
+      event.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result === 'string') {
+        setAvatarState({ kind: 'upload', dataUrl: result })
+        setAvatarPickerOpen(false)
+        setAvatarError(null)
+      } else {
+        setAvatarError('Не удалось прочитать файл изображения')
+      }
+    }
+    reader.onerror = () => {
+      setAvatarError('Не удалось загрузить файл изображения')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleAvatarReset = () => {
+    if (avatarUrl) {
+      setAvatarState({ kind: 'external', url: avatarUrl })
+    } else {
+      setAvatarState({ kind: 'initials' })
+    }
+    setAvatarPickerOpen(false)
+    setAvatarError(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
 
   return (
     <aside className="profile-sidebar card">
