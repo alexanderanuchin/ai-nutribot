@@ -732,6 +732,8 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                                   <span className="profile-sidebar__avatar-option-emoji" aria-hidden="true">{preset.emoji}</span>
                                   <span className="profile-sidebar__avatar-option-label">{preset.label}</span>
                                 </button>
+                              ))}
+                            </div>
                           </>
                         )}
                       </div>
