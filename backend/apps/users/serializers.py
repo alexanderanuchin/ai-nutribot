@@ -96,6 +96,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             "activity_level", "goal",
             "allergies", "exclusions",
             "daily_budget",
+            "telegram_stars_balance", "telegram_stars_rate_rub",
+            "calocoin_balance", "calocoin_rate_rub",
             "created_at", "updated_at",
         )
 

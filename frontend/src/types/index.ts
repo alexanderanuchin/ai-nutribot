@@ -14,6 +14,12 @@ export interface Profile {
   allergies: string[]
   exclusions: string[]
   daily_budget?: number | null
+    telegram_id?: number | null
+  city?: string
+  telegram_stars_balance?: number
+  telegram_stars_rate_rub?: number | null
+  calocoin_balance?: number | null
+  calocoin_rate_rub?: number | null
 }
 
 export interface User {

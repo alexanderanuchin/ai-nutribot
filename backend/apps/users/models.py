@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 
@@ -43,6 +45,26 @@ class Profile(models.Model):
     exclusions = models.JSONField(default=_list_default, blank=True)
 
     daily_budget = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    telegram_stars_balance = models.PositiveIntegerField(default=0)
+    telegram_stars_rate_rub = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Сколько рублей стоит одна Telegram Star при пополнении",
+    )
+    calocoin_balance = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Баланс внутренней валюты CaloCoin",
+    )
+    calocoin_rate_rub = models.DecimalField(
+        max_digits=7,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        help_text="Сколько рублей стоит один CaloCoin",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

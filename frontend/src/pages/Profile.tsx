@@ -14,7 +14,13 @@ const emptyProfile: ProfileT = {
   exclusions: [],
   birth_date: null,
   body_fat_pct: null,
-  daily_budget: null
+  daily_budget: null,
+  telegram_id: null,
+  city: '',
+  telegram_stars_balance: 0,
+  telegram_stars_rate_rub: 0,
+  calocoin_balance: 0,
+  calocoin_rate_rub: 0
 }
 
 const activityFactors: Record<Activity, number> = {
