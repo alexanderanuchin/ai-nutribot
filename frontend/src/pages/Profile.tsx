@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { me } from '../api/auth'
 import type { Activity, Goal, Profile as ProfileT, User } from '../types'
+import { updateProfile, type ProfileUpdatePayload } from '../api/profile'
+import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
 
 const emptyProfile: ProfileT = {
@@ -20,7 +22,10 @@ const emptyProfile: ProfileT = {
   telegram_stars_balance: 0,
   telegram_stars_rate_rub: 0,
   calocoin_balance: 0,
-  calocoin_rate_rub: 0
+  calocoin_rate_rub: 0,
+  middle_name: '',
+  experience_level: 'newbie',
+  experience_level_display: 'Новичок'
 }
 
 const activityFactors: Record<Activity, number> = {
@@ -75,6 +80,10 @@ export default function Profile(){
   const [profileId, setProfileId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [isEditOpen, setEditOpen] = useState(false)
+  const [editSubmitting, setEditSubmitting] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [profileNotice, setProfileNotice] = useState<string | null>(null)
 
   useEffect(() => {
     (async () => {
@@ -90,6 +99,11 @@ export default function Profile(){
     })()
   }, [])
 
+  useEffect(() => {
+    if (!profileNotice) return
+    const timer = window.setTimeout(() => setProfileNotice(null), 6000)
+    return () => window.clearTimeout(timer)
+  }, [profileNotice])
 
   const change = (key: keyof ProfileT, v: any) => setProfile(prev => ({...prev, [key]: v}))
   const allergyStr = useMemo(()=> profile.allergies.join(', '), [profile])
@@ -227,7 +241,49 @@ export default function Profile(){
       description: 'Ведите учёт суперфудов, добавок и автоматически пополняйте их.'
     }
   ]
+  const handleProfileEditSubmit = async (payload: ProfileUpdatePayload) => {
+    setEditSubmitting(true)
+    setEditError(null)
+    try {
+      const data = await updateProfile(payload)
+      const { user: updatedUser, ...profilePayload } = data
+      if (profilePayload.id) {
+        setProfileId(profilePayload.id)
+      }
+      setProfile(prev => ({ ...prev, ...profilePayload }))
+      setUser(prev => (prev ? { ...prev, ...updatedUser } : updatedUser))
+      setProfileNotice('Профиль обновлён — изменения применены.')
+      setEditOpen(false)
+    } catch (error) {
+      let message = 'Не удалось сохранить изменения. Проверьте введённые данные.'
+      if (error && typeof error === 'object') {
+        const response = (error as any).response
+        const data = response?.data
+        if (typeof data === 'string') {
+          message = data
+        } else if (data?.detail) {
+          message = data.detail
+        } else if (data && typeof data === 'object') {
+          const firstKey = Object.keys(data)[0]
+          const firstValue = (data as Record<string, unknown>)[firstKey]
+          if (Array.isArray(firstValue) && firstValue.length) {
+            const candidate = firstValue[0]
+            if (typeof candidate === 'string') {
+              message = candidate
+            }
+          }
+        }
+      }
+      setEditError(message)
+    } finally {
+      setEditSubmitting(false)
+    }
+  }
 
+  const openEditDialog = () => {
+    setEditError(null)
+    setEditOpen(true)
+  }
 
   async function save(){
     setSaving(true); setMsg(null)
@@ -245,7 +301,8 @@ export default function Profile(){
   }
 
   return (
-    <div className="profile-layout">
+    <>
+      <div className="profile-layout">
       <ProfileSidebar
         user={user}
         profile={profile}
@@ -254,6 +311,8 @@ export default function Profile(){
         bmiStatus={bmiStatus}
         tdee={tdee}
         recommendedCalories={recommendedCalories}
+        onEditProfile={openEditDialog}
+        profileUpdateNotice={profileNotice}
       />
       <div className="profile-main">
         <div className="profile-main-columns">
@@ -412,6 +471,19 @@ export default function Profile(){
           </div>
         </div>
       </div>
-      </div>
+    </div>
+      <ProfileEditDialog
+        open={isEditOpen}
+        onClose={() => {
+          setEditOpen(false)
+          setEditError(null)
+        }}
+        user={user}
+        profile={profile}
+        onSubmit={handleProfileEditSubmit}
+        submitting={editSubmitting}
+        error={editError}
+      />
+    </>
   )
 }

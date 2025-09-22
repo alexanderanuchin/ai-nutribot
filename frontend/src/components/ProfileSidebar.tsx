@@ -1,5 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react'
-import type { Profile as ProfileT, User } from '../types'
+import type { ExperienceLevel, Profile as ProfileT, User } from '../types'
+import { formatPhoneInput } from '../utils/phone'
+
 
 interface ProfileSidebarProps {
   user: User | null
@@ -9,6 +11,8 @@ interface ProfileSidebarProps {
   bmiStatus: string | null
   tdee: number | null
   recommendedCalories: number | null
+  onEditProfile?: () => void
+  profileUpdateNotice?: string | null
 }
 
 const goalLabels: Record<ProfileT['goal'], string> = {
@@ -24,6 +28,63 @@ const activityLabels: Record<ProfileT['activity_level'], string> = {
   moderate: 'Умеренная активность',
   high: 'Высокая активность',
   athlete: 'Спортивный режим'
+}
+
+const experienceLevelMeta: Record<ExperienceLevel, {
+  title: string
+  summary: string
+  course: string
+  temperature: number
+  humidity: number
+  water: string
+  micronutrients: string
+  uv: string
+  extra: string
+}> = {
+  newbie: {
+    title: 'Новичок',
+    summary: 'Спокойный старт: фиксируем базовые привычки и наблюдаем динамику.',
+    course: 'Курс адаптации · 62%',
+    temperature: 22,
+    humidity: 47,
+    water: 'Вода средней минерализации · ~240 мг/л',
+    micronutrients: 'Фокус: витамин D, магний и лёгкий комплекс группы B.',
+    uv: 'УФ-индекс низкий (2/11) — прогулки до полудня комфортны.',
+    extra: 'Совет дня: добавьте ещё 2 стакана воды и короткую прогулку.'
+  },
+  enthusiast: {
+    title: 'Энтузиаст',
+    summary: 'Вы на ускоренной траектории — поддерживаем тонус без перегрузок.',
+    course: 'Курс прогресса · 74%',
+    temperature: 21,
+    humidity: 44,
+    water: 'Вода: баланс Ca/Mg 3:1 — идеальна для восстановления.',
+    micronutrients: 'Проверьте омега-3 и коэнзим Q10 для выносливости.',
+    uv: 'УФ-индекс умеренный (4/11) — SPF для прогулок после 14:00.',
+    extra: 'Добавьте растяжку на 10 минут — снизит мышечное напряжение.'
+  },
+  pro: {
+    title: 'Профи',
+    summary: 'Тонкая настройка нагрузок и питания: данные обновляются каждые 4 часа.',
+    course: 'Курс мастерства · 88%',
+    temperature: 20,
+    humidity: 42,
+    water: 'Минерализация повышенная · 320 мг/л, следим за натрием.',
+    micronutrients: 'Актуальны цинк, селен и адаптогены для когнитивной ясности.',
+    uv: 'УФ-индекс высокий (6/11) — добавьте SPF 30 и очки.',
+    extra: 'Интегрируйте дыхательные практики — HRV откликнет ростом.'
+  },
+  legend: {
+    title: 'Легенда',
+    summary: 'Максимальный контроль: AI синхронизирует экспертов и гаджеты в реальном времени.',
+    course: 'Курс прорыва · 95%',
+    temperature: 19,
+    humidity: 40,
+    water: 'Артезианская вода ~380 мг/л, подключим анализ минералов.',
+    micronutrients: 'Слежение за железом, витамином K2 и персональными добавками.',
+    uv: 'УФ-индекс интенсивный (7/11) — планируйте тренировки до 11:00.',
+    extra: 'Сценарий дня: чередуйте силовые блоки с холодовым протоколом.'
+  }
 }
 
 const rubFormatter = new Intl.NumberFormat('ru-RU', {
@@ -295,15 +356,38 @@ function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
-export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tdee, recommendedCalories }: ProfileSidebarProps){
-  const [showWallet, setShowWallet] = useState(false)
-  const walletHintId = useId()
-  const avatarPickerId = useId()
-  const displayName = user?.username || 'Профиль'
-  const email = user?.email || 'email не указан'
-  const avatarUrl = user?.avatar_url || null
-  const initials = displayName.slice(0, 2).toUpperCase()
-  const city = profile.city || user?.city || null
+export default function ProfileSidebar({
+  user,
+  profile,
+  age,
+  bmi,
+  bmiStatus,
+  tdee,
+  recommendedCalories,
+  onEditProfile,
+  profileUpdateNotice
+}: ProfileSidebarProps){
+  const [showWallet, setShowWallet] = useState(false);
+  const walletHintId = useId();
+  const avatarPickerId = useId();
+  const fallbackDisplay = user?.username || 'Профиль';
+  const firstName = user?.first_name?.trim() ?? '';
+  const lastName = user?.last_name?.trim() ?? '';
+  const middleName = profile.middle_name?.trim() ?? '';
+  const fullNameParts = [lastName, firstName, middleName].filter(Boolean);
+  const fullName = fullNameParts.length
+    ? fullNameParts.join(' ')
+    : [firstName, middleName, lastName].filter(Boolean).join(' ') || fallbackDisplay;
+  const email = user?.email?.trim() || 'Email не указан';
+  const avatarUrl = user?.avatar_url || null;
+  const initialsSource = fullName || fallbackDisplay;
+  const initials = initialsSource.slice(0, 2).toUpperCase();
+  const city = profile.city?.trim() || user?.city?.trim() || '';
+  const phoneDisplay = user?.username ? formatPhoneInput(user.username) : null;
+  const experienceLevelKey = (profile.experience_level ?? 'newbie') as ExperienceLevel;
+  const experienceDetails = experienceLevelMeta[experienceLevelKey] ?? experienceLevelMeta.newbie;
+  const experienceLabel = profile.experience_level_display || experienceDetails.title;
+  const friendlyName = firstName || fullName || 'Вы';
   const [avatarState, setAvatarState] = useState<AvatarState>(() => {
     const stored = readStoredAvatar()
     if (stored) {
@@ -348,8 +432,92 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
   const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
   const caloRubEquivalent = hasCaloRate ? caloBalanceValue * caloRateValue : null
   const dailyBudgetDisplay = hasDailyBudget ? rubFormatter.format(dailyBudgetValue) : null
-  const walletAriaLabel = showWallet ? 'Скрыть детали кошелька' : 'Показать детали кошелька'
-  const walletHint = showWallet ? 'Скрыть баланс и действия' : 'Баланс скрыт — нажмите, чтобы раскрыть'
+  const highlightMessages = Array.from(
+    new Set(
+      [
+        profileUpdateNotice?.trim() || null,
+        `${friendlyName}, режим «${experienceLabel}» активирован — двигаемся в комфортном темпе.`,
+        experienceDetails.extra,
+        'AI-ассистент мягко подскажет, когда сделать паузу и пополнить воду.'
+      ].filter(Boolean) as string[]
+    )
+  )
+
+  const climateItems = [
+    {
+      label: 'Курс',
+      value: experienceDetails.course,
+      hint: 'Обновляем по целям и дневнику. Вскоре подключим автоматические данные из API.'
+    },
+    {
+      label: 'Температура',
+      value: `~${experienceDetails.temperature}°C`,
+      hint: city
+        ? `Оценка для города ${city}. При подключении погодного API данные станут точными.`
+        : 'Укажите город или подключите погодный API, чтобы видеть актуальную температуру.'
+    },
+    {
+      label: 'Влажность',
+      value: `${experienceDetails.humidity}%`,
+      hint: 'Используем в расчётах гидратации — синхронизация с метеоданными уже в бэклоге.'
+    },
+    {
+      label: 'Вода',
+      value: experienceDetails.water,
+      hint: 'В дальнейшем подключим API качества воды по регионам для более точных рекомендаций.'
+    },
+    {
+      label: 'Микро/макро элементы',
+      value: experienceDetails.micronutrients,
+      hint: 'Добавим лабораторные данные и интеграции, чтобы формировать персональные наборы.'
+    },
+    {
+      label: 'УФ влияние',
+      value: experienceDetails.uv,
+      hint: 'Планируем получать индекс УФ в реальном времени и строить защитные сценарии.'
+    }
+  ]
+
+  const aiConsultantActive = Boolean(profile.telegram_id || user?.telegram_id)
+  const personalTrainerConnected = experienceLevelKey === 'pro' || experienceLevelKey === 'legend'
+
+  const services = [
+    {
+      key: 'ai',
+      state: aiConsultantActive ? 'active' : 'inactive',
+      badge: aiConsultantActive ? 'активно' : 'доступно',
+      title: aiConsultantActive ? 'AI консультант подключён' : 'AI консультант ещё не активирован',
+      description: aiConsultantActive
+        ? 'Алгоритм обновляет меню и гидратацию каждые 6 часов и пишет ненавязчивые сообщения в @CaloIQ_bot.'
+        : 'Оформите AI-консультанта — он будет подсказывать мягко и без спама, синхронизируясь с вашим расписанием.',
+      action: aiConsultantActive ? 'Открыть сценарии' : 'Подключить AI-консультанта',
+      href: 'https://t.me/CaloIQ_bot'
+    },
+    {
+      key: 'trainer',
+      state: personalTrainerConnected ? 'active' : 'inactive',
+      badge: personalTrainerConnected ? 'подключено' : 'маркетплейс',
+      title: personalTrainerConnected ? 'Личный тренер синхронизирован' : 'Личный тренер не выбран',
+      description: personalTrainerConnected
+        ? 'Ваш тренер недели: Полина Хак — рейтинг 4.9 из 5 (128 отзывов). План тренировок уже учтён в рекомендациях.'
+        : 'Выберите тренера в маркетплейсе — покажем ТОП экспертов с рейтингами и отзывами, чтобы старт был комфортным.',
+      action: personalTrainerConnected ? 'Перейти к программе' : 'Подобрать тренера',
+      href: 'https://t.me/CaloIQ_bot?start=market'
+    }
+  ] as Array<{
+    key: string
+    state: 'active' | 'inactive'
+    badge: string
+    title: string
+    description: string
+    action: string
+    href: string
+  }>
+
+  const walletAriaLabel = showWallet ? 'Скрыть финансовую панель' : 'Показать финансовую панель'
+  const walletHint = showWallet
+    ? 'Скрыть финансовый блок и бонусы'
+    : 'Разверните панель, чтобы увидеть бонусы, подписки и оплату'
   const starsTargetLeft = Math.max(STARS_REWARD_TARGET - starsBalance, 0)
   const starProgress = Math.min(100, Math.round((starsBalance / STARS_REWARD_TARGET) * 100))
   const caloTargetLeft = Math.max(CALO_REWARD_TARGET - Math.floor(caloBalanceValue), 0)
@@ -534,7 +702,7 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                       style={avatarState.kind === 'preset' && currentPreset ? { background: currentPreset.gradient } : undefined}
                     >
                       {avatarImageSrc ? (
-                        <img src={avatarImageSrc} alt={displayName} loading="lazy" />
+                        <img src={avatarImageSrc} alt={fullName} loading="lazy" />
                       ) : avatarState.kind === 'preset' && currentPreset ? (
                         <span className="profile-sidebar__avatar-emoji" aria-hidden="true">{currentPreset.emoji}</span>
                       ) : (
@@ -602,23 +770,71 @@ export default function ProfileSidebar({ user, profile, age, bmi, bmiStatus, tde
                     )}
                   </div>
                   <div className="profile-sidebar__user-info">
-                    <div className="profile-sidebar__username">{displayName}</div>
-                    <div className="profile-sidebar__email">{email}</div>
-                    {city && <div className="profile-sidebar__email">{city}</div>}
+                    <div className="profile-sidebar__identity-header">
+                      <div className="profile-sidebar__identity-name">{fullName}</div>
+                      {onEditProfile && (
+                        <button
+                          type="button"
+                          className="profile-sidebar__edit-link"
+                          onClick={event => {
+                            event.stopPropagation()
+                            onEditProfile()
+                          }}
+                        >
+                          Редактировать профиль
+                        </button>
+                      )}
+                    </div>
+                    <div className="profile-sidebar__identity-level">
+                      <span className="profile-sidebar__identity-level-chip">{experienceLabel}</span>
+                      <span className="profile-sidebar__identity-level-hint">{experienceDetails.summary}</span>
+                    </div>
+                    <div className="profile-sidebar__identity-contacts">
+                      <span>{email}</span>
+                      {phoneDisplay && <span>{phoneDisplay}</span>}
+                      {city && <span>{city}</span>}
+                    </div>
                   </div>
                 </div>
                 <div className="profile-sidebar__identity-status">
-                  <div className="profile-sidebar__wallet-icons" aria-hidden="true">
-                    <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--stars">
-                      <TelegramStarIcon className="profile-sidebar__wallet-icon-svg" />
-                    </span>
-                    <span className="profile-sidebar__wallet-icon profile-sidebar__wallet-icon--calo">
-                      <CaloCoinIcon className="profile-sidebar__wallet-icon-svg" />
-                    </span>
+                  {highlightMessages.length > 0 && (
+                    <ul className="profile-sidebar__identity-messages">
+                      {highlightMessages.map(message => (
+                        <li key={message} className="profile-sidebar__identity-message">{message}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="profile-sidebar__identity-climate">
+                    {climateItems.map(item => (
+                      <div key={item.label} className="profile-sidebar__climate-item">
+                        <div className="profile-sidebar__climate-label">{item.label}</div>
+                        <div className="profile-sidebar__climate-value">{item.value}</div>
+                        <div className="profile-sidebar__climate-hint small">{item.hint}</div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="profile-sidebar__wallet-tags">
-                    <span className="profile-sidebar__wallet-tag">Telegram Stars</span>
-                    <span className="profile-sidebar__wallet-tag">CaloCoin</span>
+                  <div className="profile-sidebar__identity-services">
+                    {services.map(service => (
+                      <div
+                        key={service.key}
+                        className={`profile-sidebar__service-card ${service.state === 'active' ? 'is-active' : 'is-inactive'}`}
+                      >
+                        <div className="profile-sidebar__service-header">
+                          <span className="profile-sidebar__service-badge">{service.badge}</span>
+                          <span className="profile-sidebar__service-title">{service.title}</span>
+                        </div>
+                        <p className="profile-sidebar__service-description">{service.description}</p>
+                        <a
+                          className="profile-sidebar__service-action"
+                          href={service.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={event => event.stopPropagation()}
+                        >
+                          {service.action}
+                        </a>
+                      </div>
+                    ))}
                   </div>
                   <span id={walletHintId} className="profile-sidebar__wallet-status small">{walletHint}</span>
                 </div>

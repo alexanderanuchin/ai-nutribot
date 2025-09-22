@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from .models import Profile
 from .serializers import (
     ProfileSerializer,
+    ProfileUpdateSerializer,
     UserSerializer,
     RegisterSerializer,
     PhoneCheckSerializer,
@@ -46,7 +47,7 @@ class MeViewSet(viewsets.ViewSet):
     @decorators.action(detail=False, methods=["patch"])
     def update_profile(self, request):
         prof, _ = Profile.objects.get_or_create(user=request.user)
-        ser = ProfileSerializer(prof, data=request.data, partial=True)
+        ser = ProfileUpdateSerializer(prof, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
         return response.Response(ser.data, status=status.HTTP_200_OK)

@@ -3,8 +3,10 @@ from decimal import Decimal
 from django.conf import settings
 from django.db import models
 
+
 def _list_default():
     return []
+
 
 class Profile(models.Model):
     class Sex(models.TextChoices):
@@ -14,22 +16,36 @@ class Profile(models.Model):
 
     class Activity(models.TextChoices):
         SEDENTARY = "sedentary", "Sedentary"
-        LIGHT     = "light", "Light"
-        MODERATE  = "moderate", "Moderate"
-        ACTIVE    = "active", "Active"
-        ATHLETE   = "athlete", "Athlete"
+        LIGHT = "light", "Light"
+        MODERATE = "moderate", "Moderate"
+        ACTIVE = "active", "Active"
+        ATHLETE = "athlete", "Athlete"
 
     class Goal(models.TextChoices):
-        LOSE     = "lose", "Lose fat"
+        LOSE = "lose", "Lose fat"
         MAINTAIN = "maintain", "Maintain"
-        GAIN     = "gain", "Gain"
-        RECOMP   = "recomp", "Recomp"
+        GAIN = "gain", "Gain"
+        RECOMP = "recomp", "Recomp"
+
+    class ExperienceLevel(models.TextChoices):
+        NEWBIE = "newbie", "Новичок"
+        ENTHUSIAST = "enthusiast", "Энтузиаст"
+        PRO = "pro", "Профи"
+        LEGEND = "legend", "Легенда"
+
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
 
     # переносим сюда «юзерские» поля
     telegram_id = models.BigIntegerField(null=True, blank=True, unique=True)
     city = models.CharField(max_length=100, blank=True)
+    middle_name = models.CharField(max_length=150, blank=True)
+    experience_level = models.CharField(
+        max_length=32,
+        choices=ExperienceLevel.choices,
+        default=ExperienceLevel.NEWBIE,
+    )
+
 
     sex = models.CharField(max_length=1, choices=Sex.choices, default=Sex.MALE)
     birth_date = models.DateField(null=True, blank=True)

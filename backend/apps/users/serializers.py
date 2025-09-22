@@ -25,6 +25,20 @@ def normalize_phone(value: str) -> str:
     return f"+7{digits}"
 
 
+def validate_password_strength(value: str) -> str:
+    if len(value) < 8:
+        raise serializers.ValidationError("Пароль должен содержать минимум 8 символов")
+    if not re.search(r"[A-Z]", value):
+        raise serializers.ValidationError("Пароль должен содержать хотя бы одну заглавную букву")
+    if not re.search(r"[a-z]", value):
+        raise serializers.ValidationError("Пароль должен содержать хотя бы одну строчную букву")
+    if not re.search(r"\d", value):
+        raise serializers.ValidationError("Пароль должен содержать хотя бы одну цифру")
+    if not re.search(r"[^\w\s]", value):
+        raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
+    return value
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -48,23 +62,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         return normalized
 
     def validate_password(self, value):
-        if len(value) < 8:
-            raise serializers.ValidationError("Пароль должен содержать минимум 8 символов")
-        if not re.search(r"[A-Z]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну заглавную букву")
-        if not re.search(r"[a-z]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну строчную букву")
-        if not re.search(r"\d", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну цифру")
-        if not re.search(r"[^\w\s]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
-        return value
+        return validate_password_strength(value)
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Пользователь с таким email уже существует")
         return value
-
 
     def create(self, validated_data):
         phone = validated_data.pop("phone")
@@ -85,12 +88,13 @@ class EmailCheckSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    experience_level_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = (
             "id", "user",
-            "telegram_id", "city",
+            "telegram_id", "city", "middle_name",
             "sex", "birth_date",
             "height_cm", "weight_kg", "body_fat_pct",
             "activity_level", "goal",
@@ -98,8 +102,88 @@ class ProfileSerializer(serializers.ModelSerializer):
             "daily_budget",
             "telegram_stars_balance", "telegram_stars_rate_rub",
             "calocoin_balance", "calocoin_rate_rub",
+            "experience_level", "experience_level_display",
             "created_at", "updated_at",
         )
+
+    def get_experience_level_display(self, obj):
+        return obj.get_experience_level_display()
+
+
+class ProfileUpdateSerializer(ProfileSerializer):
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    phone = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+
+    class Meta(ProfileSerializer.Meta):
+        fields = ProfileSerializer.Meta.fields + (
+            "first_name",
+            "last_name",
+            "email",
+            "phone",
+            "password",
+        )
+        extra_kwargs = {"password": {"write_only": True}}
+
+    def validate_phone(self, value):
+        if value in (None, ""):
+            raise serializers.ValidationError("Введите корректный номер телефона")
+        normalized = normalize_phone(value)
+        user = self.instance.user
+        exists = User.objects.exclude(pk=user.pk).filter(username=normalized).exists()
+        if exists:
+            raise serializers.ValidationError("Пользователь с таким телефоном уже существует")
+        return normalized
+
+    def validate_email(self, value):
+        if value == "":
+            return ""
+        user = self.instance.user
+        exists = User.objects.exclude(pk=user.pk).filter(email__iexact=value).exists()
+        if exists:
+            raise serializers.ValidationError("Пользователь с таким email уже существует")
+        return value
+
+    def validate_password(self, value):
+        if value is None or value == "":
+            raise serializers.ValidationError("Пароль не может быть пустым")
+        return validate_password_strength(value)
+
+    def update(self, instance, validated_data):
+        user = instance.user
+        update_fields = set()
+
+        first_name = validated_data.pop("first_name", serializers.empty)
+        if first_name is not serializers.empty:
+            user.first_name = first_name
+            update_fields.add("first_name")
+
+        last_name = validated_data.pop("last_name", serializers.empty)
+        if last_name is not serializers.empty:
+            user.last_name = last_name
+            update_fields.add("last_name")
+
+        email = validated_data.pop("email", serializers.empty)
+        if email is not serializers.empty:
+            user.email = email
+            update_fields.add("email")
+
+        phone = validated_data.pop("phone", serializers.empty)
+        if phone is not serializers.empty:
+            user.username = phone
+            update_fields.add("username")
+
+        password = validated_data.pop("password", serializers.empty)
+        if password is not serializers.empty:
+            user.set_password(password)
+            update_fields.add("password")
+
+        if update_fields:
+            user.save(update_fields=list(update_fields))
+
+        return super().update(instance, validated_data)
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -112,17 +196,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate_password(self, value):
-        if len(value) < 8:
-            raise serializers.ValidationError("Пароль должен содержать минимум 8 символов")
-        if not re.search(r"[A-Z]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну заглавную букву")
-        if not re.search(r"[a-z]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну строчную букву")
-        if not re.search(r"\d", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы одну цифру")
-        if not re.search(r"[^\w\s]", value):
-            raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
-        return value
+        return validate_password_strength(value)
 
 
 class PhoneEmailTokenObtainPairSerializer(TokenObtainPairSerializer):
