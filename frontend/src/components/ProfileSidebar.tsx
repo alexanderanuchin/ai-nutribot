@@ -1,7 +1,8 @@
-import React, { useEffect, useId, useRef, useState } from 'react'
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ExperienceLevel, Profile as ProfileT, User } from '../types'
 import { formatPhoneInput } from '../utils/phone'
 
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
 interface ProfileSidebarProps {
   user: User | null
@@ -356,6 +357,8 @@ function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
+const IDENTITY_FACE_MIN_HEIGHT = 140
+
 export default function ProfileSidebar({
   user,
   profile,
@@ -378,7 +381,8 @@ export default function ProfileSidebar({
   const fullName = fullNameParts.length
     ? fullNameParts.join(' ')
     : [firstName, middleName, lastName].filter(Boolean).join(' ') || fallbackDisplay;
-  const email = user?.email?.trim() || 'Email не указан';
+  const email = user?.email?.trim() ?? '';
+  const emailDisplay = email || 'Email не указан';
   const avatarUrl = user?.avatar_url || null;
   const initialsSource = fullName || fallbackDisplay;
   const initials = initialsSource.slice(0, 2).toUpperCase();
@@ -403,6 +407,9 @@ export default function ProfileSidebar({
   const avatarPickerRef = useRef<HTMLDivElement | null>(null)
   const avatarButtonRef = useRef<HTMLButtonElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const frontFaceRef = useRef<HTMLDivElement | null>(null)
+  const backFaceRef = useRef<HTMLDivElement | null>(null)
+  const [identityHeight, setIdentityHeight] = useState<number | null>(null)
   const normalizedDailyBudget = parseNumber(profile.daily_budget)
   const hasDailyBudget = normalizedDailyBudget !== null && normalizedDailyBudget > 0
   const dailyBudgetValue = hasDailyBudget && normalizedDailyBudget !== null ? normalizedDailyBudget : 0
@@ -442,6 +449,18 @@ export default function ProfileSidebar({
       ].filter(Boolean) as string[]
     )
   )
+
+  const basicIdentityItems: Array<{ label: string; value: string }> = [
+    { label: 'Имя', value: firstName || '—' },
+    { label: 'Фамилия', value: lastName || '—' }
+  ]
+
+  const contactInfoItems = [
+    { label: 'Email', value: emailDisplay },
+    phoneDisplay ? { label: 'Телефон', value: phoneDisplay } : null,
+    city ? { label: 'Город', value: city } : null
+  ].filter((item): item is { label: string; value: string } => Boolean(item))
+
 
   const climateItems = [
     {
@@ -587,6 +606,64 @@ export default function ProfileSidebar({
     }
   }, [showWallet])
 
+  useIsomorphicLayoutEffect(() => {
+    const frontEl = frontFaceRef.current
+    const backEl = backFaceRef.current
+
+    if (!frontEl || !backEl) {
+      return
+    }
+
+    const readHeight = (element: HTMLElement) => {
+      const { height } = element.getBoundingClientRect()
+      return Math.max(Math.round(height), IDENTITY_FACE_MIN_HEIGHT)
+    }
+
+    const syncFrontHeight = () => {
+      const next = readHeight(frontEl)
+      setIdentityHeight(prev => {
+        if (showWallet) {
+          return prev
+        }
+        return prev === next ? prev : next
+      })
+    }
+
+    const syncBackHeight = () => {
+      const next = readHeight(backEl)
+      setIdentityHeight(prev => {
+        if (!showWallet) {
+          return prev
+        }
+        return prev === next ? prev : next
+      })
+    }
+
+    syncFrontHeight()
+    syncBackHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      return
+    }
+
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.target === frontEl) {
+          syncFrontHeight()
+        } else if (entry.target === backEl) {
+          syncBackHeight()
+        }
+      }
+    })
+
+    observer.observe(frontEl)
+    observer.observe(backEl)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [showWallet, avatarPickerOpen, emailDisplay, phoneDisplay, city, firstName, lastName, experienceLevelKey])
+
 
   const handleWalletClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
@@ -617,7 +694,8 @@ export default function ProfileSidebar({
     setAvatarError(null)
   }
 
-  const handlePresetClick = (presetId: string) => () => {
+  const handlePresetClick = (presetId: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
     setAvatarState({ kind: 'preset', id: presetId })
     setAvatarPickerOpen(false)
     setAvatarError(null)
@@ -693,8 +771,14 @@ export default function ProfileSidebar({
             onClick={handleWalletClick}
             onKeyDown={handleWalletKeyDown}
           >
-            <div className={`profile-sidebar__identity-inner ${showWallet ? 'is-flipped' : ''}`}>
-              <div className="profile-sidebar__identity-face profile-sidebar__identity-face--front">
+            <div
+              className={`profile-sidebar__identity-inner ${showWallet ? 'is-flipped' : ''}`}
+              style={identityHeight !== null ? { height: `${identityHeight}px` } : undefined}
+            >
+              <div
+                className="profile-sidebar__identity-face profile-sidebar__identity-face--front"
+                ref={frontFaceRef}
+              >
                 <div className="profile-sidebar__identity-main">
                   <div className="profile-sidebar__avatar-wrapper" onClick={event => event.stopPropagation()}>
                     <div
@@ -728,6 +812,7 @@ export default function ProfileSidebar({
                         ref={avatarPickerRef}
                         role="dialog"
                         aria-modal="false"
+                        onClick={event => event.stopPropagation()}
                       >
                         <div className="profile-sidebar__avatar-picker-header">Выберите образ</div>
                         <div className="profile-sidebar__avatar-options">
@@ -789,10 +874,13 @@ export default function ProfileSidebar({
                       <span className="profile-sidebar__identity-level-chip">{experienceLabel}</span>
                       <span className="profile-sidebar__identity-level-hint">{experienceDetails.summary}</span>
                     </div>
-                    <div className="profile-sidebar__identity-contacts">
-                      <span>{email}</span>
-                      {phoneDisplay && <span>{phoneDisplay}</span>}
-                      {city && <span>{city}</span>}
+                    <div className="profile-sidebar__identity-basics">
+                      {basicIdentityItems.map(item => (
+                        <div key={item.label} className="profile-sidebar__identity-basic">
+                          <span className="profile-sidebar__identity-basic-label">{item.label}</span>
+                          <span className="profile-sidebar__identity-basic-value">{item.value}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -804,15 +892,6 @@ export default function ProfileSidebar({
                       ))}
                     </ul>
                   )}
-                  <div className="profile-sidebar__identity-climate">
-                    {climateItems.map(item => (
-                      <div key={item.label} className="profile-sidebar__climate-item">
-                        <div className="profile-sidebar__climate-label">{item.label}</div>
-                        <div className="profile-sidebar__climate-value">{item.value}</div>
-                        <div className="profile-sidebar__climate-hint small">{item.hint}</div>
-                      </div>
-                    ))}
-                  </div>
                   <div className="profile-sidebar__identity-services">
                     {services.map(service => (
                       <div
@@ -839,7 +918,29 @@ export default function ProfileSidebar({
                   <span id={walletHintId} className="profile-sidebar__wallet-status small">{walletHint}</span>
                 </div>
               </div>
-              <div className="profile-sidebar__identity-face profile-sidebar__identity-face--back">
+              <div
+                className="profile-sidebar__identity-face profile-sidebar__identity-face--back"
+                ref={backFaceRef}
+              >
+                <div className="profile-sidebar__identity-back-overview">
+                  <div className="profile-sidebar__identity-contacts profile-sidebar__identity-contacts--back">
+                    {contactInfoItems.map(item => (
+                      <div key={item.label} className="profile-sidebar__identity-contact">
+                        <span className="profile-sidebar__identity-contact-label">{item.label}</span>
+                        <span className="profile-sidebar__identity-contact-value">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="profile-sidebar__identity-climate profile-sidebar__identity-climate--back">
+                    {climateItems.map(item => (
+                      <div key={item.label} className="profile-sidebar__climate-item">
+                        <div className="profile-sidebar__climate-label">{item.label}</div>
+                        <div className="profile-sidebar__climate-value">{item.value}</div>
+                        <div className="profile-sidebar__climate-hint small">{item.hint}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="profile-sidebar__wallet-balance" aria-live="polite">
                   <div className="profile-sidebar__wallet-balance-row">
                     <div className="profile-sidebar__wallet-balance-info">

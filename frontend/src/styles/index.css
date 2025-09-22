@@ -754,19 +754,76 @@ label {
     line-height: 1.45;
 }
 
-.profile-sidebar__identity-contacts {
-    display: flex;
-    flex-wrap: wrap;
+.profile-sidebar__identity-basics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 10px;
-    margin-top: 8px;
-    font-size: 12px;
+    margin-top: 12px;
+}
+
+.profile-sidebar__identity-basic {
+    border-radius: 14px;
+    border: 1px solid rgba(91, 188, 255, .22);
+    background: linear-gradient(135deg, rgba(91, 188, 255, .16), rgba(142, 240, 166, .12));
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.profile-sidebar__identity-basic-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--muted);
 }
 
-.profile-sidebar__identity-contacts span {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+.profile-sidebar__identity-basic-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.profile-sidebar__identity-back-overview {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.profile-sidebar__identity-contacts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 0;
+}
+
+.profile-sidebar__identity-contacts--back {
+    color: inherit;
+}
+
+.profile-sidebar__identity-contact {
+    border-radius: 16px;
+    border: 1px solid rgba(248, 251, 255, .22);
+    background: rgba(255, 255, 255, .06);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    backdrop-filter: blur(8px);
+}
+
+.profile-sidebar__identity-contact-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(248, 251, 255, .65);
+}
+
+.profile-sidebar__identity-contact-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #f8fbff;
+    word-break: break-word;
 }
 
 .profile-sidebar__identity-messages {
@@ -822,6 +879,26 @@ label {
 .profile-sidebar__climate-hint {
     color: var(--muted);
     line-height: 1.35;
+}
+.profile-sidebar__identity-climate--back {
+    gap: 16px;
+}
+
+.profile-sidebar__identity-face--back .profile-sidebar__climate-item {
+    border: 1px solid rgba(248, 251, 255, .24);
+    background: rgba(255, 255, 255, .08);
+}
+
+.profile-sidebar__identity-face--back .profile-sidebar__climate-label {
+    color: rgba(248, 251, 255, .65);
+}
+
+.profile-sidebar__identity-face--back .profile-sidebar__climate-value {
+    color: #f8fbff;
+}
+
+.profile-sidebar__identity-face--back .profile-sidebar__climate-hint {
+    color: rgba(248, 251, 255, .72);
 }
 
 .profile-sidebar__identity-services {
@@ -915,6 +992,7 @@ label {
     display: grid;
     place-items: center;
     padding: clamp(16px, 4vw, 32px);
+    overflow-y: auto;
 }
 
 .profile-edit-dialog__backdrop {
@@ -936,6 +1014,9 @@ label {
     display: flex;
     flex-direction: column;
     gap: 18px;
+    max-height: min(92vh, 780px);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
 }
 
 .profile-edit-dialog__header {
@@ -1141,7 +1222,7 @@ label {
     display: grid;
     position: relative;
     transform-style: preserve-3d;
-    transition: transform .6s cubic-bezier(.2, .85, .25, 1);
+    transition: transform .6s cubic-bezier(.2, .85, .25, 1), height .45s cubic-bezier(.2, .85, .25, 1);
     min-height: 140px;
 }
 
