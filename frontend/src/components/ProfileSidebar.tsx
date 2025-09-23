@@ -229,31 +229,31 @@ const avatarPresets: Array<{
   emoji: string
   gradient: string
 }> = [
-  {
-    id: 'focus',
-    label: 'Фокус и энергия',
-    emoji: '⚡️',
-    gradient: 'linear-gradient(135deg, #9fd8ff, #5bbcff)'
-  },
-  {
-    id: 'nature',
-    label: 'Баланс и природа',
-    emoji: '🌿',
-    gradient: 'linear-gradient(135deg, #baf4c8, #5be8a0)'
-  },
-  {
-    id: 'sunrise',
-    label: 'Новый день',
-    emoji: '🌅',
-    gradient: 'linear-gradient(135deg, #ffd6a5, #ff9f68)'
-  },
-  {
-    id: 'wave',
-    label: 'Свежесть и движение',
-    emoji: '🌊',
-    gradient: 'linear-gradient(135deg, #7ac9ff, #3ea3ff)'
-  }
-]
+    {
+      id: 'focus',
+      label: 'Фокус и энергия',
+      emoji: '⚡️',
+      gradient: 'linear-gradient(135deg, #9fd8ff, #5bbcff)'
+    },
+    {
+      id: 'nature',
+      label: 'Баланс и природа',
+      emoji: '🌿',
+      gradient: 'linear-gradient(135deg, #baf4c8, #5be8a0)'
+    },
+    {
+      id: 'sunrise',
+      label: 'Новый день',
+      emoji: '🌅',
+      gradient: 'linear-gradient(135deg, #ffd6a5, #ff9f68)'
+    },
+    {
+      id: 'wave',
+      label: 'Свежесть и движение',
+      emoji: '🌊',
+      gradient: 'linear-gradient(135deg, #7ac9ff, #3ea3ff)'
+    }
+  ]
 
 const readStoredAvatar = (): AvatarStorageValue | null => {
   if (typeof window === 'undefined') return null
@@ -273,7 +273,7 @@ const readStoredAvatar = (): AvatarStorageValue | null => {
   return null
 }
 
-function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>){
+function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 40 40"
@@ -299,7 +299,7 @@ function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
-function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>){
+function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 40 40"
@@ -325,7 +325,7 @@ function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>){
   )
 }
 
-function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>){
+function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 20 20"
@@ -369,25 +369,27 @@ export default function ProfileSidebar({
   recommendedCalories,
   onEditProfile,
   profileUpdateNotice
-}: ProfileSidebarProps){
+}: ProfileSidebarProps) {
   const [showWallet, setShowWallet] = useState(false);
   const walletHintId = useId();
   const avatarPickerId = useId();
-  const fallbackDisplay = user?.username || 'Профиль';
-  const firstName = user?.first_name?.trim() ?? '';
-  const lastName = user?.last_name?.trim() ?? '';
+  const profileUser = (profile as ProfileT & { user?: User | null }).user ?? null;
+  const fallbackDisplay = (user?.username || profileUser?.username || '').trim() || 'Профиль';
+  const firstName = (user?.first_name ?? profileUser?.first_name ?? '').trim();
+  const lastName = (user?.last_name ?? profileUser?.last_name ?? '').trim();
   const middleName = profile.middle_name?.trim() ?? '';
   const fullNameParts = [lastName, firstName, middleName].filter(Boolean);
   const fullName = fullNameParts.length
     ? fullNameParts.join(' ')
     : [firstName, middleName, lastName].filter(Boolean).join(' ') || fallbackDisplay;
-  const email = user?.email?.trim() ?? '';
+  const email = (user?.email ?? profileUser?.email ?? '').trim();
   const emailDisplay = email || 'Email не указан';
-  const avatarUrl = user?.avatar_url || null;
+  const avatarUrl = user?.avatar_url ?? profileUser?.avatar_url ?? null;
   const initialsSource = fullName || fallbackDisplay;
   const initials = initialsSource.slice(0, 2).toUpperCase();
-  const city = profile.city?.trim() || user?.city?.trim() || '';
-  const phoneDisplay = user?.username ? formatPhoneInput(user.username) : null;
+  const city = profile.city?.trim() || profileUser?.city?.trim() || user?.city?.trim() || '';
+  const phoneRaw = user?.username || profileUser?.username || '';
+  const phoneDisplay = phoneRaw ? formatPhoneInput(phoneRaw) : null;
   const experienceLevelKey = (profile.experience_level ?? 'newbie') as ExperienceLevel;
   const experienceDetails = experienceLevelMeta[experienceLevelKey] ?? experienceLevelMeta.newbie;
   const experienceLabel = profile.experience_level_display || experienceDetails.title;
@@ -407,6 +409,7 @@ export default function ProfileSidebar({
   const avatarPickerRef = useRef<HTMLDivElement | null>(null)
   const avatarButtonRef = useRef<HTMLButtonElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const identityInnerRef = useRef<HTMLDivElement | null>(null)
   const frontFaceRef = useRef<HTMLDivElement | null>(null)
   const backFaceRef = useRef<HTMLDivElement | null>(null)
   const [identityHeight, setIdentityHeight] = useState<number | null>(null)
@@ -609,14 +612,15 @@ export default function ProfileSidebar({
   useIsomorphicLayoutEffect(() => {
     const frontEl = frontFaceRef.current
     const backEl = backFaceRef.current
+    const containerEl = identityInnerRef.current
 
     if (!frontEl || !backEl) {
       return
     }
 
     const readHeight = (element: HTMLElement) => {
-      const { height } = element.getBoundingClientRect()
-      return Math.max(Math.round(height), IDENTITY_FACE_MIN_HEIGHT)
+      const measured = element.scrollHeight
+      return Math.max(Math.round(measured), IDENTITY_FACE_MIN_HEIGHT)
     }
 
     const syncFrontHeight = () => {
@@ -638,6 +642,14 @@ export default function ProfileSidebar({
         return prev === next ? prev : next
       })
     }
+
+    if (containerEl) {
+      const previousTransition = containerEl.style.transition
+      containerEl.style.transition = 'none'
+      containerEl.getBoundingClientRect()
+      containerEl.style.transition = previousTransition
+    }
+
 
     syncFrontHeight()
     syncBackHeight()
@@ -662,7 +674,17 @@ export default function ProfileSidebar({
     return () => {
       observer.disconnect()
     }
-  }, [showWallet, avatarPickerOpen, emailDisplay, phoneDisplay, city, firstName, lastName, experienceLevelKey])
+  }, [
+    showWallet,
+    avatarPickerOpen,
+    emailDisplay,
+    phoneDisplay,
+    city,
+    firstName,
+    lastName,
+    middleName,
+    experienceLevelKey
+  ])
 
 
   const handleWalletClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -773,6 +795,7 @@ export default function ProfileSidebar({
           >
             <div
               className={`profile-sidebar__identity-inner ${showWallet ? 'is-flipped' : ''}`}
+              ref={identityInnerRef}
               style={identityHeight !== null ? { height: `${identityHeight}px` } : undefined}
             >
               <div
@@ -820,9 +843,8 @@ export default function ProfileSidebar({
                             <button
                               key={preset.id}
                               type="button"
-                              className={`profile-sidebar__avatar-option ${
-                                avatarState.kind === 'preset' && avatarState.id === preset.id ? 'is-active' : ''
-                              }`}
+                              className={`profile-sidebar__avatar-option ${avatarState.kind === 'preset' && avatarState.id === preset.id ? 'is-active' : ''
+                                }`}
                               style={{ background: preset.gradient }}
                               onClick={handlePresetClick(preset.id)}
                             >
@@ -874,14 +896,6 @@ export default function ProfileSidebar({
                       <span className="profile-sidebar__identity-level-chip">{experienceLabel}</span>
                       <span className="profile-sidebar__identity-level-hint">{experienceDetails.summary}</span>
                     </div>
-                    <div className="profile-sidebar__identity-basics">
-                      {basicIdentityItems.map(item => (
-                        <div key={item.label} className="profile-sidebar__identity-basic">
-                          <span className="profile-sidebar__identity-basic-label">{item.label}</span>
-                          <span className="profile-sidebar__identity-basic-value">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
                 <div className="profile-sidebar__identity-status">
@@ -923,6 +937,14 @@ export default function ProfileSidebar({
                 ref={backFaceRef}
               >
                 <div className="profile-sidebar__identity-back-overview">
+                  <div className="profile-sidebar__identity-basics">
+                    {basicIdentityItems.map(item => (
+                      <div key={item.label} className="profile-sidebar__identity-basic">
+                        <span className="profile-sidebar__identity-basic-label">{item.label}</span>
+                        <span className="profile-sidebar__identity-basic-value">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
                   <div className="profile-sidebar__identity-contacts profile-sidebar__identity-contacts--back">
                     {contactInfoItems.map(item => (
                       <div key={item.label} className="profile-sidebar__identity-contact">

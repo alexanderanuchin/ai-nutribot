@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { me } from '../api/auth'
 import type { Activity, Goal, Profile as ProfileT, User } from '../types'
-import { updateProfile, type ProfileUpdatePayload } from '../api/profile'
+import { updateProfile, type ProfileUpdatePayload, type ProfileResponse } from '../api/profile'
 import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
 
@@ -86,17 +86,57 @@ export default function Profile(){
   const [profileNotice, setProfileNotice] = useState<string | null>(null)
 
   useEffect(() => {
-    (async () => {
-      const u = await me()
-      setUser(u)
-      // получим текущую анкету
-      const { data } = await api.get('/users/profiles/')
-      const p = Array.isArray(data) && data.length ? data[0] : null
-       if (p){
-        setProfileId(p.id)
-        setProfile(prev => ({ ...prev, ...p }))
+    let cancelled = false
+
+    async function loadProfile(){
+      try {
+        const userData = await me()
+
+        if (cancelled) return
+
+        let profileData: ProfileResponse | null = null
+        try {
+          const response = await api.get<ProfileResponse>('/users/me/profile/')
+          profileData = response.data
+        } catch (profileError) {
+          console.error('Не удалось загрузить профиль', profileError)
+        }
+
+        if (cancelled) return
+
+        const mergedUser: User = (() => {
+          const profileUser = profileData?.user
+          if (!profileUser) return userData
+          return {
+            ...userData,
+            ...profileUser,
+            first_name: profileUser.first_name || userData.first_name,
+            last_name: profileUser.last_name || userData.last_name,
+            email: profileUser.email || userData.email,
+            username: profileUser.username || userData.username,
+            avatar_url: profileUser.avatar_url ?? userData.avatar_url,
+            city: profileUser.city || userData.city,
+            telegram_id: profileUser.telegram_id ?? userData.telegram_id
+          }
+        })()
+
+        setUser(mergedUser)
+
+        if (profileData) {
+          const { user: _profileUser, ...profilePayload } = profileData
+          setProfileId(profilePayload.id ?? null)
+          setProfile(prev => ({ ...prev, ...profilePayload }))
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить данные пользователя', error)
       }
-    })()
+    }
+
+    loadProfile()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
