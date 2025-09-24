@@ -9,8 +9,6 @@ from apps.users.models import Profile
 from apps.users.serializers import ProfileSerializer, ProfileUpdateSerializer
 
 
-
-
 class ProfileSerializerTest(TestCase):
     def test_wallet_fields_serialized(self):
         User = get_user_model()
@@ -214,6 +212,7 @@ class ProfileUpdateSerializerTest(TestCase):
         serializer = ProfileUpdateSerializer(self.profile, data=data, partial=True)
         self.assertFalse(serializer.is_valid())
         self.assertIn("email", serializer.errors)
+
 
 class MeProfileAPITest(TestCase):
     def setUp(self):
@@ -423,52 +422,53 @@ class MeProfileAPITest(TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("avatar_preferences", resp.json())
 
-    class AuthFlowAPITest(TestCase):
-        def setUp(self):
-            super().setUp()
-            self.client = APIClient()
-            self.User = get_user_model()
-            self.password = "StrongPass!1"
-            self.user = self.User.objects.create_user(
-                username="+79990000100",
-                password=self.password,
-                email="flow@example.com",
-            )
 
-        def test_token_issue_and_me_endpoint_access(self):
-            login_resp = self.client.post(
-                "/api/users/auth/token/",
-                {"username": self.user.username, "password": self.password},
-                format="json",
-            )
-            self.assertEqual(login_resp.status_code, 200)
-            tokens = login_resp.json()
-            self.assertIn("access", tokens)
-            self.assertIn("refresh", tokens)
+class AuthFlowAPITest(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.User = get_user_model()
+        self.password = "StrongPass!1"
+        self.user = self.User.objects.create_user(
+            username="+79990000100",
+            password=self.password,
+            email="flow@example.com",
+        )
 
-            access = tokens["access"]
-            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
-            me_resp = self.client.get("/api/users/me/")
-            self.assertEqual(me_resp.status_code, 200)
-            me_data = me_resp.json()
-            self.assertEqual(me_data["user"]["email"], "flow@example.com")
-            self.assertIn("profile", me_data)
+    def test_token_issue_and_me_endpoint_access(self):
+        login_resp = self.client.post(
+            "/api/users/auth/token/",
+            {"username": self.user.username, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login_resp.status_code, 200)
+        tokens = login_resp.json()
+        self.assertIn("access", tokens)
+        self.assertIn("refresh", tokens)
 
-        def test_refresh_flow_returns_new_access_token(self):
-            login_resp = self.client.post(
-                "/api/users/auth/token/",
-                {"username": self.user.username, "password": self.password},
-                format="json",
-            )
-            self.assertEqual(login_resp.status_code, 200)
-            refresh_token = login_resp.json()["refresh"]
+        access = tokens["access"]
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+        me_resp = self.client.get("/api/users/me/")
+        self.assertEqual(me_resp.status_code, 200)
+        me_data = me_resp.json()
+        self.assertEqual(me_data["user"]["email"], "flow@example.com")
+        self.assertIn("profile", me_data)
 
-            refresh_resp = self.client.post(
-                "/api/users/auth/refresh/",
-                {"refresh": refresh_token},
-                format="json",
-            )
+    def test_refresh_flow_returns_new_access_token(self):
+        login_resp = self.client.post(
+            "/api/users/auth/token/",
+            {"username": self.user.username, "password": self.password},
+            format="json",
+        )
+        self.assertEqual(login_resp.status_code, 200)
+        refresh_token = login_resp.json()["refresh"]
 
-            self.assertEqual(refresh_resp.status_code, 200)
-            refreshed = refresh_resp.json()
-            self.assertIn("access", refreshed)
+        refresh_resp = self.client.post(
+            "/api/users/auth/refresh/",
+            {"refresh": refresh_token},
+            format="json",
+        )
+
+        self.assertEqual(refresh_resp.status_code, 200)
+        refreshed = refresh_resp.json()
+        self.assertIn("access", refreshed)
