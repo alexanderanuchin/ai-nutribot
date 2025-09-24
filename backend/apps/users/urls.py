@@ -1,5 +1,5 @@
 # backend/apps/users/urls.py
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
@@ -12,13 +12,13 @@ from .views import (
     PasswordResetConfirmView,
     PhoneEmailTokenObtainPairView,
 )
+from .tg_auth import tg_exchange
 
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profile")
 
-me_profile = MeViewSet.as_view({"get": "profile"})
+me_endpoint = MeViewSet.as_view({"get": "me"})
 me_update = MeViewSet.as_view({"patch": "update_profile"})
-me_user = MeViewSet.as_view({"get": "user"})
 
 urlpatterns = [
     # JWT auth
@@ -33,10 +33,10 @@ urlpatterns = [
         PasswordResetConfirmView.as_view(),
         name="password-reset-confirm",
     ),
+    path("auth/tg_exchange/", tg_exchange, name="tg-exchange"),
 
     # Router + "me" ручки
     path("", include(router.urls)),
-    path("me/profile/", me_profile, name="me-profile"),
+    path("me/", me_endpoint, name="me"),
     path("me/profile/update/", me_update, name="me-profile-update"),
-    path("me/user/", me_user, name="me-user"),
 ]

@@ -1,7 +1,7 @@
 import api from './client'
 import { tokenStore } from '../utils/storage'
 import { normalizePhone } from '../utils/phone'
-import type { User } from '../types'
+import type { MeResponse } from '../types'
 
 export async function register(phone: string, email: string, password: string, smsCode?: string){
   const normalized = normalizePhone(phone)
@@ -33,10 +33,9 @@ export async function loginWithEmail(email: string, password: string){
 }
 
 
-export async function me(): Promise<User>{
-  const endpoint = '/users/me/user/' . replace ( /\s+/g , '' )
-  const { data } = await api.get(endpoint)
-  return data
+export async function me(): Promise<MeResponse>{
+  const { data } = await api.get('/users/me/')
+  return data as MeResponse
 }
 
 export async function requestPasswordReset(email: string){

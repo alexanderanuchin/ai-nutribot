@@ -40,18 +40,32 @@ class ProfileViewSet(viewsets.ModelViewSet):
 class MeViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
-    @decorators.action(detail=False, methods=["get"])
-    def profile(self, request):
-        prof, _ = Profile.objects.get_or_create(user=request.user)
-        return response.Response(ProfileSerializer(prof).data)
+    def _get_or_create_profile(self, user):
+        profile, _ = Profile.objects.get_or_create(user=user)
+        return profile
+
+    def _build_me_payload(self, user, profile):
+        profile_data = ProfileSerializer(profile, include_user=False).data
+        metrics = profile_data.get("metrics")
+        return {
+            "user": UserSerializer(user).data,
+            "profile": profile_data,
+            "metrics": metrics,
+        }
+
+    def me(self, request):
+        profile = self._get_or_create_profile(request.user)
+        payload = self._build_me_payload(request.user, profile)
+        return response.Response(payload)
 
     @decorators.action(detail=False, methods=["patch"])
     def update_profile(self, request):
-        prof, _ = Profile.objects.get_or_create(user=request.user)
+        prof = self._get_or_create_profile(request.user)
         ser = ProfileUpdateSerializer(prof, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         updated_profile = ser.save()
-        payload = ProfileSerializer(updated_profile).data
+        request.user.refresh_from_db()
+        payload = self._build_me_payload(request.user, updated_profile)
         if getattr(ser, "password_updated", False):
             refresh = RefreshToken.for_user(request.user)
             payload["tokens"] = {
@@ -59,10 +73,6 @@ class MeViewSet(viewsets.ViewSet):
                 "access": str(refresh.access_token),
             }
         return response.Response(payload, status=status.HTTP_200_OK)
-
-    @decorators.action(detail=False, methods=["get"])
-    def user(self, request):
-        return response.Response(UserSerializer(request.user).data)
 
 
 class RegisterView(generics.CreateAPIView):

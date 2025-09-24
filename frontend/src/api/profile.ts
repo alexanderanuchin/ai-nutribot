@@ -1,10 +1,9 @@
 import api from './client'
 import type {
-  Profile,
-  User,
   ExperienceLevel,
   AvatarPreferenceInput,
-  WalletSettingsInput
+  WalletSettingsInput,
+  MeResponse
 } from '../types'
 
 export interface ProfileUpdatePayload {
@@ -19,11 +18,7 @@ export interface ProfileUpdatePayload {
   wallet_settings?: WalletSettingsInput
 }
 
-export interface ProfileResponse extends Profile {
-  user: User
-}
-
-export interface ProfileUpdateResult extends ProfileResponse {
+export interface ProfileUpdateResult extends MeResponse {
   tokens?: {
     access: string
     refresh: string

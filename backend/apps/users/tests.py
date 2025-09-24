@@ -215,192 +215,260 @@ class ProfileUpdateSerializerTest(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("email", serializer.errors)
 
-    class MeProfileAPITest(TestCase):
+class MeProfileAPITest(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.client = APIClient()
+        self.User = get_user_model()
+        self.user = self.User.objects.create_user(
+            username="+79990000000",
+            password="StrongPass!1",
+            email="old@example.com",
+            first_name="Old",
+            last_name="Name",
+        )
+        self.profile = self.user.profile
+        self.client.force_authenticate(user=self.user)
+
+    def test_me_endpoint_returns_combined_payload(self):
+        self.profile.city = "Москва"
+        self.profile.daily_budget = Decimal("1350.50")
+        self.profile.telegram_stars_balance = 88
+        self.profile.telegram_stars_rate_rub = Decimal("5.15")
+        self.profile.calocoin_balance = Decimal("120.00")
+        self.profile.calocoin_rate_rub = Decimal("2.50")
+        self.profile.experience_level = Profile.ExperienceLevel.PRO
+        self.profile.wallet_settings = {"show_wallet": True}
+        self.profile.avatar_preferences = {"kind": "preset", "preset_id": "wave"}
+        self.profile.save()
+
+        resp = self.client.get("/api/users/me/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertIn("user", data)
+        self.assertIn("profile", data)
+        self.assertIn("metrics", data)
+
+        user_payload = data["user"]
+        self.assertEqual(user_payload["email"], "old@example.com")
+
+        profile_payload = data["profile"]
+        self.assertEqual(profile_payload["city"], "Москва")
+        self.assertEqual(profile_payload["daily_budget"], "1350.50")
+        self.assertEqual(profile_payload["telegram_stars_balance"], 88)
+        self.assertEqual(profile_payload["telegram_stars_rate_rub"], "5.15")
+        self.assertEqual(profile_payload["calocoin_balance"], "120.00")
+        self.assertEqual(profile_payload["calocoin_rate_rub"], "2.50")
+        self.assertEqual(profile_payload["experience_level"], Profile.ExperienceLevel.PRO)
+        self.assertEqual(profile_payload["wallet_settings"], {"show_wallet": True})
+        self.assertEqual(profile_payload["avatar_preferences"], {"kind": "preset", "preset_id": "wave"})
+        self.assertEqual(
+            profile_payload["experience_level_display"],
+            Profile.ExperienceLevel.PRO.label,
+        )
+        self.assertEqual(profile_payload.get("metrics"), data["metrics"])
+
+    def test_me_profile_patch_updates_contact_and_wallet_fields(self):
+        payload = {
+            "first_name": "Ирина",
+            "last_name": "Новая",
+            "email": "irina@example.com",
+            "phone": "+7 (912) 000-00-02",
+            "password": "NewStrong!2",
+            "city": "Казань",
+            "daily_budget": "1500.50",
+            "telegram_stars_balance": 321,
+            "telegram_stars_rate_rub": "5.75",
+            "calocoin_balance": "2100.00",
+            "calocoin_rate_rub": "3.40",
+            "experience_level": Profile.ExperienceLevel.LEGEND,
+            "wallet_settings": {"show_wallet": True},
+            "avatar_preferences": {"kind": "preset", "preset_id": "focus"},
+        }
+
+        resp = self.client.patch("/api/users/me/profile/update/", payload, format="json")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertIn("user", data)
+        self.assertIn("profile", data)
+        self.assertIn("metrics", data)
+        self.assertIn("tokens", data)
+
+        profile_payload = data["profile"]
+        self.assertEqual(profile_payload["city"], "Казань")
+        self.assertEqual(profile_payload["daily_budget"], "1500.50")
+        self.assertEqual(profile_payload["telegram_stars_balance"], 321)
+        self.assertEqual(profile_payload["telegram_stars_rate_rub"], "5.75")
+        self.assertEqual(profile_payload["calocoin_balance"], "2100.00")
+        self.assertEqual(profile_payload["calocoin_rate_rub"], "3.40")
+        self.assertEqual(profile_payload["experience_level"], Profile.ExperienceLevel.LEGEND)
+        self.assertEqual(
+            profile_payload["experience_level_display"],
+            Profile.ExperienceLevel.LEGEND.label,
+        )
+        self.assertEqual(profile_payload["wallet_settings"], {"show_wallet": True})
+        self.assertEqual(profile_payload["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
+        self.assertEqual(profile_payload.get("metrics"), data["metrics"])
+
+        tokens = data["tokens"]
+        self.assertIn("access", tokens)
+        self.assertIn("refresh", tokens)
+        self.assertTrue(tokens["access"])
+        self.assertTrue(tokens["refresh"])
+
+        user_payload = data["user"]
+        self.assertEqual(user_payload["first_name"], "Ирина")
+        self.assertEqual(user_payload["last_name"], "Новая")
+        self.assertEqual(user_payload["email"], "irina@example.com")
+        self.assertEqual(user_payload["username"], "+79120000002")
+
+        self.user.refresh_from_db()
+        self.profile.refresh_from_db()
+
+        self.assertEqual(self.user.first_name, "Ирина")
+        self.assertEqual(self.user.last_name, "Новая")
+        self.assertEqual(self.user.email, "irina@example.com")
+        self.assertEqual(self.user.username, "+79120000002")
+        self.assertTrue(self.user.check_password("NewStrong!2"))
+        self.assertEqual(self.profile.city, "Казань")
+        self.assertEqual(self.profile.daily_budget, Decimal("1500.50"))
+        self.assertEqual(self.profile.telegram_stars_balance, 321)
+        self.assertEqual(self.profile.telegram_stars_rate_rub, Decimal("5.75"))
+        self.assertEqual(self.profile.calocoin_balance, Decimal("2100.00"))
+        self.assertEqual(self.profile.calocoin_rate_rub, Decimal("3.40"))
+        self.assertEqual(self.profile.experience_level, Profile.ExperienceLevel.LEGEND)
+        self.assertEqual(self.profile.wallet_settings, {"show_wallet": True})
+        self.assertEqual(self.profile.avatar_preferences, {"kind": "preset", "preset_id": "focus"})
+
+    def test_me_profile_patch_rejects_duplicate_phone(self):
+        self.User.objects.create_user(
+            username="+79990000003",
+            password="StrongPass!3",
+        )
+
+        resp = self.client.patch(
+            "/api/users/me/profile/update/",
+            {"phone": "+7 (999) 000-00-03"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("phone", resp.json())
+
+    def test_me_profile_patch_rejects_duplicate_email(self):
+        self.User.objects.create_user(
+            username="+79990000004",
+            password="StrongPass!4",
+            email="existing@example.com",
+        )
+
+        resp = self.client.patch(
+            "/api/users/me/profile/update/",
+            {"email": "existing@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("email", resp.json())
+
+    def test_me_profile_patch_without_password_returns_no_tokens(self):
+        resp = self.client.patch(
+            "/api/users/me/profile/update/",
+            {"city": "Самара"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertIn("profile", data)
+        self.assertEqual(data["profile"]["city"], "Самара")
+        self.assertNotIn("tokens", data)
+
+    def test_me_profile_patch_updates_avatar_upload(self):
+        payload = {
+            "avatar_preferences": {
+                "kind": "upload",
+                "data_url": "data:image/png;base64,ZmFrZS1kYXRh",
+            }
+        }
+
+        resp = self.client.patch(
+            "/api/users/me/profile/update/", payload, format="json"
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        profile_payload = data["profile"]
+        self.assertEqual(
+            profile_payload["avatar_preferences"],
+            {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
+        )
+
+        self.profile.refresh_from_db()
+        self.assertEqual(
+            self.profile.avatar_preferences,
+            {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
+        )
+
+    def test_me_profile_patch_rejects_invalid_avatar_preferences(self):
+        resp = self.client.patch(
+            "/api/users/me/profile/update/",
+            {"avatar_preferences": {"kind": "preset"}},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("avatar_preferences", resp.json())
+
+    class AuthFlowAPITest(TestCase):
         def setUp(self):
             super().setUp()
             self.client = APIClient()
             self.User = get_user_model()
+            self.password = "StrongPass!1"
             self.user = self.User.objects.create_user(
-                username="+79990000000",
-                password="StrongPass!1",
-                email="old@example.com",
-                first_name="Old",
-                last_name="Name",
+                username="+79990000100",
+                password=self.password,
+                email="flow@example.com",
             )
-            self.profile = self.user.profile
-            self.client.force_authenticate(user=self.user)
 
-        def test_me_profile_returns_full_wallet_payload(self):
-            self.profile.city = "Москва"
-            self.profile.daily_budget = Decimal("1350.50")
-            self.profile.telegram_stars_balance = 88
-            self.profile.telegram_stars_rate_rub = Decimal("5.15")
-            self.profile.calocoin_balance = Decimal("120.00")
-            self.profile.calocoin_rate_rub = Decimal("2.50")
-            self.profile.experience_level = Profile.ExperienceLevel.PRO
-            self.profile.wallet_settings = {"show_wallet": True}
-            self.profile.avatar_preferences = {"kind": "preset", "preset_id": "wave"}
-            self.profile.save()
-
-            resp = self.client.get("/api/users/me/profile/")
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-
-            self.assertEqual(data["city"], "Москва")
-            self.assertEqual(data["daily_budget"], "1350.50")
-            self.assertEqual(data["telegram_stars_balance"], 88)
-            self.assertEqual(data["telegram_stars_rate_rub"], "5.15")
-            self.assertEqual(data["calocoin_balance"], "120.00")
-            self.assertEqual(data["calocoin_rate_rub"], "2.50")
-            self.assertEqual(data["experience_level"], Profile.ExperienceLevel.PRO)
-            self.assertEqual(data["wallet_settings"], {"show_wallet": True})
-            self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "wave"})
-            self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.PRO.label)
-            self.assertIn("user", data)
-            self.assertEqual(data["user"]["email"], "old@example.com")
-
-        def test_me_profile_patch_updates_contact_and_wallet_fields(self):
-            payload = {
-                "first_name": "Ирина",
-                "last_name": "Новая",
-                "email": "irina@example.com",
-                "phone": "+7 (912) 000-00-02",
-                "password": "NewStrong!2",
-                "city": "Казань",
-                "daily_budget": "1500.50",
-                "telegram_stars_balance": 321,
-                "telegram_stars_rate_rub": "5.75",
-                "calocoin_balance": "2100.00",
-                "calocoin_rate_rub": "3.40",
-                "experience_level": Profile.ExperienceLevel.LEGEND,
-                "wallet_settings": {"show_wallet": True},
-                "avatar_preferences": {"kind": "preset", "preset_id": "focus"},
-            }
-
-            resp = self.client.patch("/api/users/me/profile/update/", payload, format="json")
-
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-
-            # contract matches GET representation
-            self.assertIn("user", data)
-            self.assertNotIn("first_name", data)
-            self.assertNotIn("last_name", data)
-            self.assertEqual(data["city"], "Казань")
-            self.assertEqual(data["daily_budget"], "1500.50")
-            self.assertEqual(data["telegram_stars_balance"], 321)
-            self.assertEqual(data["telegram_stars_rate_rub"], "5.75")
-            self.assertEqual(data["calocoin_balance"], "2100.00")
-            self.assertEqual(data["calocoin_rate_rub"], "3.40")
-            self.assertEqual(data["experience_level"], Profile.ExperienceLevel.LEGEND)
-            self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.LEGEND.label)
-            self.assertEqual(data["wallet_settings"], {"show_wallet": True})
-            self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
-            self.assertIn("tokens", data)
-            tokens = data["tokens"]
+        def test_token_issue_and_me_endpoint_access(self):
+            login_resp = self.client.post(
+                "/api/users/auth/token/",
+                {"username": self.user.username, "password": self.password},
+                format="json",
+            )
+            self.assertEqual(login_resp.status_code, 200)
+            tokens = login_resp.json()
             self.assertIn("access", tokens)
             self.assertIn("refresh", tokens)
-            self.assertTrue(tokens["access"])
-            self.assertTrue(tokens["refresh"])
 
-            user_payload = data["user"]
-            self.assertEqual(user_payload["first_name"], "Ирина")
-            self.assertEqual(user_payload["last_name"], "Новая")
-            self.assertEqual(user_payload["email"], "irina@example.com")
-            self.assertEqual(user_payload["username"], "+79120000002")
+            access = tokens["access"]
+            self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")
+            me_resp = self.client.get("/api/users/me/")
+            self.assertEqual(me_resp.status_code, 200)
+            me_data = me_resp.json()
+            self.assertEqual(me_data["user"]["email"], "flow@example.com")
+            self.assertIn("profile", me_data)
 
-            self.user.refresh_from_db()
-            self.profile.refresh_from_db()
-
-            self.assertEqual(self.user.first_name, "Ирина")
-            self.assertEqual(self.user.last_name, "Новая")
-            self.assertEqual(self.user.email, "irina@example.com")
-            self.assertEqual(self.user.username, "+79120000002")
-            self.assertTrue(self.user.check_password("NewStrong!2"))
-            self.assertEqual(self.profile.city, "Казань")
-            self.assertEqual(self.profile.daily_budget, Decimal("1500.50"))
-            self.assertEqual(self.profile.telegram_stars_balance, 321)
-            self.assertEqual(self.profile.telegram_stars_rate_rub, Decimal("5.75"))
-            self.assertEqual(self.profile.calocoin_balance, Decimal("2100.00"))
-            self.assertEqual(self.profile.calocoin_rate_rub, Decimal("3.40"))
-            self.assertEqual(self.profile.experience_level, Profile.ExperienceLevel.LEGEND)
-            self.assertEqual(self.profile.wallet_settings, {"show_wallet": True})
-            self.assertEqual(self.profile.avatar_preferences, {"kind": "preset", "preset_id": "focus"})
-
-        def test_me_profile_patch_rejects_duplicate_phone(self):
-            self.User.objects.create_user(
-                username="+79990000003",
-                password="StrongPass!3",
+        def test_refresh_flow_returns_new_access_token(self):
+            login_resp = self.client.post(
+                "/api/users/auth/token/",
+                {"username": self.user.username, "password": self.password},
+                format="json",
             )
+            self.assertEqual(login_resp.status_code, 200)
+            refresh_token = login_resp.json()["refresh"]
 
-            resp = self.client.patch(
-                "/api/users/me/profile/update/",
-                {"phone": "+7 (999) 000-00-03"},
+            refresh_resp = self.client.post(
+                "/api/users/auth/refresh/",
+                {"refresh": refresh_token},
                 format="json",
             )
 
-            self.assertEqual(resp.status_code, 400)
-            self.assertIn("phone", resp.json())
-
-        def test_me_profile_patch_rejects_duplicate_email(self):
-            self.User.objects.create_user(
-                username="+79990000004",
-                password="StrongPass!4",
-                email="existing@example.com",
-            )
-
-            resp = self.client.patch(
-                "/api/users/me/profile/update/",
-                {"email": "existing@example.com"},
-                format="json",
-            )
-
-            self.assertEqual(resp.status_code, 400)
-            self.assertIn("email", resp.json())
-
-        def test_me_profile_patch_without_password_returns_no_tokens(self):
-            resp = self.client.patch(
-                "/api/users/me/profile/update/",
-                {"city": "Самара"},
-                format="json",
-            )
-
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-            self.assertEqual(data["city"], "Самара")
-            self.assertNotIn("tokens", data)
-
-        def test_me_profile_patch_updates_avatar_upload(self):
-            payload = {
-                "avatar_preferences": {
-                    "kind": "upload",
-                    "data_url": "data:image/png;base64,ZmFrZS1kYXRh",
-                }
-            }
-
-            resp = self.client.patch(
-                "/api/users/me/profile/update/", payload, format="json"
-            )
-
-            self.assertEqual(resp.status_code, 200)
-            data = resp.json()
-            self.assertEqual(
-                data["avatar_preferences"],
-                {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
-            )
-
-            self.profile.refresh_from_db()
-            self.assertEqual(
-                self.profile.avatar_preferences,
-                {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
-            )
-
-        def test_me_profile_patch_rejects_invalid_avatar_preferences(self):
-            resp = self.client.patch(
-                "/api/users/me/profile/update/",
-                {"avatar_preferences": {"kind": "preset"}},
-                format="json",
-            )
-
-            self.assertEqual(resp.status_code, 400)
-            self.assertIn("avatar_preferences", resp.json())
+            self.assertEqual(refresh_resp.status_code, 200)
+            refreshed = refresh_resp.json()
+            self.assertIn("access", refreshed)

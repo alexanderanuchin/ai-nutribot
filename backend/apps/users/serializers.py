@@ -40,6 +40,7 @@ def validate_password_strength(value: str) -> str:
         raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
     return value
 
+
 AVATAR_ALLOWED_KINDS = {"initials", "preset", "upload"}
 MAX_AVATAR_DATA_URL_LENGTH = 5_000_000
 
@@ -200,6 +201,12 @@ class ProfileSerializer(serializers.ModelSerializer):
             "metrics",
             "created_at", "updated_at",
         )
+
+    def __init__(self, *args, **kwargs):
+        include_user = kwargs.pop("include_user", True)
+        super().__init__(*args, **kwargs)
+        if not include_user:
+            self.fields.pop("user", None)
 
     def get_experience_level_display(self, obj):
         return obj.get_experience_level_display()

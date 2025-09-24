@@ -78,7 +78,11 @@ export interface User {
   telegram_id?: number | null
   profile?: Profile
 }
-
+export interface MeResponse {
+  user: User
+  profile: Profile
+  metrics: ProfileMetrics | null
+}
 export interface Targets {
   calories: number
   protein_g: number
