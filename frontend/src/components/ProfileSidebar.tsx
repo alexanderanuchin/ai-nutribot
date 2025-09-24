@@ -393,6 +393,8 @@ export default function ProfileSidebar({
   const experienceLevelKey = (profile.experience_level ?? 'newbie') as ExperienceLevel;
   const experienceDetails = experienceLevelMeta[experienceLevelKey] ?? experienceLevelMeta.newbie;
   const experienceLabel = profile.experience_level_display || experienceDetails.title;
+  const metricsAgeDisplay = profile.metrics?.age_display ?? null;
+  const sidebarAgeDisplay = metricsAgeDisplay ?? (age !== null ? `${age} лет` : null);
   const friendlyName = firstName || fullName || 'Вы';
   const [avatarState, setAvatarState] = useState<AvatarState>(() => {
     const stored = readStoredAvatar()
@@ -796,7 +798,7 @@ export default function ProfileSidebar({
             <div
               className={`profile-sidebar__identity-inner ${showWallet ? 'is-flipped' : ''}`}
               ref={identityInnerRef}
-              style={identityHeight !== null ? { height: `${identityHeight}px` } : undefined}
+              style={showWallet && identityHeight !== null ? { height: `${identityHeight}px` } : undefined}
             >
               <div
                 className="profile-sidebar__identity-face profile-sidebar__identity-face--front"
@@ -1090,7 +1092,7 @@ export default function ProfileSidebar({
       <div className="profile-sidebar__metrics">
         <div className="profile-sidebar__metric">
           <div className="profile-sidebar__metric-label">Возраст</div>
-          <div className="profile-sidebar__metric-value">{age !== null ? `${age} лет` : 'Укажите'}</div>
+          <div className="profile-sidebar__metric-value">{sidebarAgeDisplay ?? 'Укажите'}</div>
         </div>
         <div className="profile-sidebar__metric">
           <div className="profile-sidebar__metric-label">ИМТ</div>

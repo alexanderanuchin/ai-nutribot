@@ -2,6 +2,23 @@ export type Sex = 'm' | 'f'
 export type Activity = 'sedentary'|'light'|'moderate'|'high'|'athlete'
 export type Goal = 'lose'|'maintain'|'gain'|'recomp'
 export type ExperienceLevel = 'newbie'|'enthusiast'|'pro'|'legend'
+export interface MacroBreakdown {
+  label: string
+  grams: number
+  ratio: number
+  color?: string | null
+}
+
+export interface ProfileMetrics {
+  age: number | null
+  age_display: string | null
+  bmi: number | null
+  bmi_status: string | null
+  bmr: number | null
+  tdee: number | null
+  recommended_calories: number | null
+  macros: MacroBreakdown[]
+}
 
 export interface Profile {
   id?: number
@@ -24,6 +41,7 @@ export interface Profile {
   middle_name?: string
   experience_level?: ExperienceLevel
   experience_level_display?: string
+  metrics?: ProfileMetrics | null
 }
 
 export interface User {

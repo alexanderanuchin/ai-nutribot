@@ -760,17 +760,30 @@ label {
     gap: 10px;
     margin-top: 12px;
 }
-
+.profile-sidebar__identity-face--back .profile-sidebar__identity-basics {
+    margin-top: 0;
+    gap: 12px;
+}
 .profile-sidebar__identity-basic {
     border-radius: 14px;
-    border: 1px solid rgba(91, 188, 255, .22);
-    background: linear-gradient(135deg, rgba(91, 188, 255, .16), rgba(142, 240, 166, .12));
     padding: 10px 12px;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
+.profile-sidebar__identity-face--front .profile-sidebar__identity-basic {
+    border: 1px solid rgba(91, 188, 255, .22);
+    background: linear-gradient(135deg, rgba(91, 188, 255, .16), rgba(142, 240, 166, .12));
+    color: var(--text);
+}
 
+.profile-sidebar__identity-face--back .profile-sidebar__identity-basic {
+    border: 1px solid rgba(248, 251, 255, .22);
+    background: rgba(255, 255, 255, .08);
+    color: rgba(248, 251, 255, .92);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+    backdrop-filter: blur(12px);
+}
 .profile-sidebar__identity-basic-label {
     font-size: 11px;
     text-transform: uppercase;
@@ -783,7 +796,13 @@ label {
     font-weight: 600;
     color: var(--text);
 }
+.profile-sidebar__identity-face--back .profile-sidebar__identity-basic-label {
+    color: rgba(248, 251, 255, .65);
+}
 
+.profile-sidebar__identity-face--back .profile-sidebar__identity-basic-value {
+    color: rgba(248, 251, 255, .95);
+}
 .profile-sidebar__identity-back-overview {
     display: flex;
     flex-direction: column;

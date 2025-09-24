@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { me } from '../api/auth'
-import type { Activity, Goal, Profile as ProfileT, User } from '../types'
+import type { Activity, Goal, MacroBreakdown, Profile as ProfileT, User } from '../types'
 import { updateProfile, type ProfileUpdatePayload, type ProfileResponse } from '../api/profile'
 import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
@@ -25,22 +25,8 @@ const emptyProfile: ProfileT = {
   calocoin_rate_rub: 0,
   middle_name: '',
   experience_level: 'newbie',
-  experience_level_display: 'Новичок'
-}
-
-const activityFactors: Record<Activity, number> = {
-  sedentary: 1.2,
-  light: 1.375,
-  moderate: 1.55,
-  high: 1.725,
-  athlete: 1.9
-}
-
-const goalAdjustments: Record<Goal, number> = {
-  lose: -450,
-  maintain: 0,
-  gain: 350,
-  recomp: -150
+  experience_level_display: 'Новичок',
+  metrics: null
 }
 
 const goalLabels: Record<Goal, string> = {
@@ -66,12 +52,7 @@ function formatYears(age: number){
   return `${age} лет`
 }
 
-interface MacroSuggestion {
-  label: string
-  grams: number
-  ratio: number
-  color: string
-}
+type MacroSuggestion = MacroBreakdown & { color: string }
 
 
 export default function Profile(){
@@ -148,92 +129,30 @@ export default function Profile(){
   const change = (key: keyof ProfileT, v: any) => setProfile(prev => ({...prev, [key]: v}))
   const allergyStr = useMemo(()=> profile.allergies.join(', '), [profile])
   const exclStr = useMemo(()=> profile.exclusions.join(', '), [profile])
-
-    const age = useMemo(() => {
-    if (!profile.birth_date) return null
-    const birth = new Date(profile.birth_date)
-    if (Number.isNaN(birth.getTime())) return null
-    const now = new Date()
-    let years = now.getFullYear() - birth.getFullYear()
-    const hasHadBirthday =
-      now.getMonth() > birth.getMonth() ||
-      (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate())
-    if (!hasHadBirthday) years -= 1
-    return years > 0 ? years : null
-  }, [profile.birth_date])
-
-  const bmi = useMemo(() => {
-    if (!profile.height_cm || !profile.weight_kg) return null
-    const heightMeters = profile.height_cm / 100
-    if (!heightMeters) return null
-    const value = profile.weight_kg / (heightMeters * heightMeters)
-    return Number.isFinite(value) ? Number(value.toFixed(1)) : null
-  }, [profile.height_cm, profile.weight_kg])
-
-  const bmiStatus = useMemo(() => {
-    if (!bmi) return null
-    if (bmi < 18.5) return 'Недостаточная масса'
-    if (bmi < 25) return 'Норма'
-    if (bmi < 30) return 'Избыточная масса'
-    return 'Требуется внимание'
-  }, [bmi])
-
-  const bmr = useMemo(() => {
-    if (!profile.height_cm || !profile.weight_kg) return null
-    const ageForCalc = age ?? 30
-    const height = profile.height_cm
-    const weight = profile.weight_kg
-    const base = profile.sex === 'm'
-      ? 88.36 + 13.4 * weight + 4.8 * height - 5.7 * ageForCalc
-      : 447.6 + 9.2 * weight + 3.1 * height - 4.3 * ageForCalc
-    return Math.round(base)
-  }, [profile.height_cm, profile.weight_kg, profile.sex, age])
-
-  const tdee = useMemo(() => {
-    if (!bmr) return null
-    const multiplier = activityFactors[profile.activity_level] ?? 1.2
-    return Math.round(bmr * multiplier)
-  }, [bmr, profile.activity_level])
-
-  const recommendedCalories = useMemo(() => {
-    if (!tdee) return null
-    const adjustment = goalAdjustments[profile.goal] ?? 0
-    const value = tdee + adjustment
-    return Math.max(1200, Math.round(value))
-  }, [tdee, profile.goal])
+  const metrics = profile.metrics ?? null
+  const metricsAge = metrics?.age ?? null
+  const ageDisplay = metrics?.age_display ?? (metricsAge !== null ? formatYears(metricsAge) : null)
+  const bmi = metrics?.bmi ?? null
+  const bmiStatus = metrics?.bmi_status ?? null
+  const tdee = metrics?.tdee ?? null
+  const recommendedCalories = metrics?.recommended_calories ?? null
+  const age = metricsAge
 
   const macros = useMemo<MacroSuggestion[] | null>(() => {
-    if (!recommendedCalories) return null
-    const proteinRatio = profile.goal === 'gain' ? 0.28 : profile.goal === 'lose' ? 0.32 : profile.goal === 'recomp' ? 0.3 : 0.27
-    const fatRatio = profile.goal === 'lose' ? 0.27 : 0.28
-    const carbRatio = Math.max(0, 1 - proteinRatio - fatRatio)
-    return [
-      {
-        label: 'Белки',
-        grams: Math.round((recommendedCalories * proteinRatio) / 4),
-        ratio: proteinRatio,
-        color: 'var(--primary)'
-      },
-      {
-        label: 'Жиры',
-        grams: Math.round((recommendedCalories * fatRatio) / 9),
-        ratio: fatRatio,
-        color: 'var(--accent)'
-      },
-      {
-        label: 'Углеводы',
-        grams: Math.round((recommendedCalories * carbRatio) / 4),
-        ratio: carbRatio,
-        color: 'rgba(124, 211, 255, 0.6)'
-      }
-    ]
-  }, [recommendedCalories, profile.goal])
+    const macroList = metrics?.macros ?? []
+    if (!macroList.length) return null
+    const palette = ['var(--primary)', 'var(--accent)', 'rgba(124, 211, 255, 0.6)']
+    return macroList.map((macro, index) => ({
+      ...macro,
+      color: macro.color ?? palette[index % palette.length]
+    }))
+  }, [metrics])
 
   const summaryStats = useMemo(() => ([
     {
       label: 'Возраст',
-      value: age ? formatYears(age) : 'Добавьте дату',
-      hint: age ? 'Используется в расчётах BMR' : 'Укажите дату рождения для точности'
+      value: ageDisplay ?? 'Добавьте дату',
+      hint: metricsAge !== null ? 'Используется в расчётах BMR' : 'Укажите дату рождения для точности'
     },
     {
       label: 'ИМТ',
@@ -250,7 +169,7 @@ export default function Profile(){
       value: recommendedCalories ? `${recommendedCalories} ккал` : '—',
       hint: goalLabels[profile.goal]
     }
-  ]), [age, bmi, bmiStatus, tdee, recommendedCalories, profile.goal])
+  ]), [ageDisplay, metricsAge, bmi, bmiStatus, tdee, recommendedCalories, profile.goal])
 
   const aiCapabilities = [
     {

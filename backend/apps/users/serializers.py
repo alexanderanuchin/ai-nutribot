@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from .models import Profile
+from .services import build_profile_metrics
 import re
 
 User = get_user_model()
@@ -89,6 +90,7 @@ class EmailCheckSerializer(serializers.Serializer):
 class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     experience_level_display = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -103,11 +105,15 @@ class ProfileSerializer(serializers.ModelSerializer):
             "telegram_stars_balance", "telegram_stars_rate_rub",
             "calocoin_balance", "calocoin_rate_rub",
             "experience_level", "experience_level_display",
+            "metrics",
             "created_at", "updated_at",
         )
 
     def get_experience_level_display(self, obj):
         return obj.get_experience_level_display()
+
+    def get_metrics(self, obj):
+        return build_profile_metrics(obj)
 
 
 class ProfileUpdateSerializer(ProfileSerializer):

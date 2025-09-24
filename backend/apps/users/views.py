@@ -50,7 +50,10 @@ class MeViewSet(viewsets.ViewSet):
         ser = ProfileUpdateSerializer(prof, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
         ser.save()
-        return response.Response(ser.data, status=status.HTTP_200_OK)
+        return response.Response(
+            ProfileSerializer(prof).data,
+            status=status.HTTP_200_OK,
+        )
 
     @decorators.action(detail=False, methods=["get"])
     def user(self, request):
