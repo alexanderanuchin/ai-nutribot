@@ -8,6 +8,14 @@ def _list_default():
     return []
 
 
+def _avatar_preferences_default():
+    return {"kind": "initials"}
+
+
+def _wallet_settings_default():
+    return {"show_wallet": False}
+
+
 class Profile(models.Model):
     class Sex(models.TextChoices):
         MALE = "m", "Male"
@@ -33,7 +41,6 @@ class Profile(models.Model):
         PRO = "pro", "Профи"
         LEGEND = "legend", "Легенда"
 
-
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
 
     # переносим сюда «юзерские» поля
@@ -45,7 +52,6 @@ class Profile(models.Model):
         choices=ExperienceLevel.choices,
         default=ExperienceLevel.NEWBIE,
     )
-
 
     sex = models.CharField(max_length=1, choices=Sex.choices, default=Sex.MALE)
     birth_date = models.DateField(null=True, blank=True)
@@ -81,6 +87,9 @@ class Profile(models.Model):
         default=Decimal("0.00"),
         help_text="Сколько рублей стоит один CaloCoin",
     )
+
+    avatar_preferences = models.JSONField(default=_avatar_preferences_default, blank=True)
+    wallet_settings = models.JSONField(default=_wallet_settings_default, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

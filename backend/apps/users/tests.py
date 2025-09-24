@@ -23,6 +23,8 @@ class ProfileSerializerTest(TestCase):
         profile.calocoin_rate_rub = Decimal("3.20")
         profile.daily_budget = Decimal("1500.50")
         profile.experience_level = Profile.ExperienceLevel.LEGEND
+        profile.avatar_preferences = {"kind": "preset", "preset_id": "focus"}
+        profile.wallet_settings = {"show_wallet": True}
         profile.save(update_fields=[
             "city",
             "telegram_stars_balance",
@@ -31,6 +33,8 @@ class ProfileSerializerTest(TestCase):
             "calocoin_rate_rub",
             "daily_budget",
             "experience_level",
+            "avatar_preferences",
+            "wallet_settings",
         ])
 
         data = ProfileSerializer(profile).data
@@ -43,6 +47,8 @@ class ProfileSerializerTest(TestCase):
         self.assertEqual(data["daily_budget"], "1500.50")
         self.assertEqual(data["experience_level"], Profile.ExperienceLevel.LEGEND)
         self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.LEGEND.label)
+        self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
+        self.assertEqual(data["wallet_settings"], {"show_wallet": True})
 
     def test_metrics_calculated(self):
         User = get_user_model()
@@ -141,6 +147,49 @@ class ProfileUpdateSerializerTest(TestCase):
         self.assertEqual(updated_profile.telegram_stars_rate_rub, Decimal("6.45"))
         self.assertEqual(updated_profile.calocoin_balance, Decimal("1500.00"))
         self.assertEqual(updated_profile.calocoin_rate_rub, Decimal("4.15"))
+        self.assertTrue(getattr(serializer, "password_updated", False))
+
+    def test_updates_avatar_and_wallet_preferences(self):
+        data = {
+            "avatar_preferences": {"kind": "preset", "preset_id": "sunrise"},
+            "wallet_settings": {"show_wallet": True},
+        }
+
+        serializer = ProfileUpdateSerializer(self.profile, data=data, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        updated_profile = serializer.save()
+
+        updated_profile.refresh_from_db()
+
+        self.assertEqual(updated_profile.avatar_preferences, {"kind": "preset", "preset_id": "sunrise"})
+        self.assertEqual(updated_profile.wallet_settings, {"show_wallet": True})
+        self.assertFalse(getattr(serializer, "password_updated", False))
+
+    def test_avatar_preferences_require_valid_payload(self):
+        serializer = ProfileUpdateSerializer(
+            self.profile,
+            data={"avatar_preferences": {"kind": "preset"}},
+            partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("avatar_preferences", serializer.errors)
+
+        serializer = ProfileUpdateSerializer(
+            self.profile,
+            data={"avatar_preferences": {"kind": "upload", "data_url": "invalid"}},
+            partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("avatar_preferences", serializer.errors)
+
+    def test_wallet_settings_requires_boolean(self):
+        serializer = ProfileUpdateSerializer(
+            self.profile,
+            data={"wallet_settings": {"show_wallet": "yes"}},
+            partial=True,
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("wallet_settings", serializer.errors)
 
     def test_phone_must_be_unique(self):
         other = self.User.objects.create_user(
@@ -189,6 +238,8 @@ class ProfileUpdateSerializerTest(TestCase):
             self.profile.calocoin_balance = Decimal("120.00")
             self.profile.calocoin_rate_rub = Decimal("2.50")
             self.profile.experience_level = Profile.ExperienceLevel.PRO
+            self.profile.wallet_settings = {"show_wallet": True}
+            self.profile.avatar_preferences = {"kind": "preset", "preset_id": "wave"}
             self.profile.save()
 
             resp = self.client.get("/api/users/me/profile/")
@@ -202,6 +253,8 @@ class ProfileUpdateSerializerTest(TestCase):
             self.assertEqual(data["calocoin_balance"], "120.00")
             self.assertEqual(data["calocoin_rate_rub"], "2.50")
             self.assertEqual(data["experience_level"], Profile.ExperienceLevel.PRO)
+            self.assertEqual(data["wallet_settings"], {"show_wallet": True})
+            self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "wave"})
             self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.PRO.label)
             self.assertIn("user", data)
             self.assertEqual(data["user"]["email"], "old@example.com")
@@ -220,6 +273,8 @@ class ProfileUpdateSerializerTest(TestCase):
                 "calocoin_balance": "2100.00",
                 "calocoin_rate_rub": "3.40",
                 "experience_level": Profile.ExperienceLevel.LEGEND,
+                "wallet_settings": {"show_wallet": True},
+                "avatar_preferences": {"kind": "preset", "preset_id": "focus"},
             }
 
             resp = self.client.patch("/api/users/me/profile/update/", payload, format="json")
@@ -239,6 +294,14 @@ class ProfileUpdateSerializerTest(TestCase):
             self.assertEqual(data["calocoin_rate_rub"], "3.40")
             self.assertEqual(data["experience_level"], Profile.ExperienceLevel.LEGEND)
             self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.LEGEND.label)
+            self.assertEqual(data["wallet_settings"], {"show_wallet": True})
+            self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
+            self.assertIn("tokens", data)
+            tokens = data["tokens"]
+            self.assertIn("access", tokens)
+            self.assertIn("refresh", tokens)
+            self.assertTrue(tokens["access"])
+            self.assertTrue(tokens["refresh"])
 
             user_payload = data["user"]
             self.assertEqual(user_payload["first_name"], "Ирина")
@@ -261,6 +324,8 @@ class ProfileUpdateSerializerTest(TestCase):
             self.assertEqual(self.profile.calocoin_balance, Decimal("2100.00"))
             self.assertEqual(self.profile.calocoin_rate_rub, Decimal("3.40"))
             self.assertEqual(self.profile.experience_level, Profile.ExperienceLevel.LEGEND)
+            self.assertEqual(self.profile.wallet_settings, {"show_wallet": True})
+            self.assertEqual(self.profile.avatar_preferences, {"kind": "preset", "preset_id": "focus"})
 
         def test_me_profile_patch_rejects_duplicate_phone(self):
             self.User.objects.create_user(
@@ -292,3 +357,50 @@ class ProfileUpdateSerializerTest(TestCase):
 
             self.assertEqual(resp.status_code, 400)
             self.assertIn("email", resp.json())
+
+        def test_me_profile_patch_without_password_returns_no_tokens(self):
+            resp = self.client.patch(
+                "/api/users/me/profile/update/",
+                {"city": "Самара"},
+                format="json",
+            )
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data["city"], "Самара")
+            self.assertNotIn("tokens", data)
+
+        def test_me_profile_patch_updates_avatar_upload(self):
+            payload = {
+                "avatar_preferences": {
+                    "kind": "upload",
+                    "data_url": "data:image/png;base64,ZmFrZS1kYXRh",
+                }
+            }
+
+            resp = self.client.patch(
+                "/api/users/me/profile/update/", payload, format="json"
+            )
+
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(
+                data["avatar_preferences"],
+                {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
+            )
+
+            self.profile.refresh_from_db()
+            self.assertEqual(
+                self.profile.avatar_preferences,
+                {"kind": "upload", "data_url": "data:image/png;base64,ZmFrZS1kYXRh"},
+            )
+
+        def test_me_profile_patch_rejects_invalid_avatar_preferences(self):
+            resp = self.client.patch(
+                "/api/users/me/profile/update/",
+                {"avatar_preferences": {"kind": "preset"}},
+                format="json",
+            )
+
+            self.assertEqual(resp.status_code, 400)
+            self.assertIn("avatar_preferences", resp.json())

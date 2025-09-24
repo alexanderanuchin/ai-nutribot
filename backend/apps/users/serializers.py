@@ -1,3 +1,4 @@
+from typing import Any, Dict
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
@@ -38,6 +39,94 @@ def validate_password_strength(value: str) -> str:
     if not re.search(r"[^\w\s]", value):
         raise serializers.ValidationError("Пароль должен содержать хотя бы один специальный символ")
     return value
+
+AVATAR_ALLOWED_KINDS = {"initials", "preset", "upload"}
+MAX_AVATAR_DATA_URL_LENGTH = 5_000_000
+
+
+class AvatarPreferencesField(serializers.Field):
+    default_error_messages = {
+        "invalid": "Некорректный формат настроек аватара",
+    }
+
+    def get_default(self):
+        return {"kind": "initials"}
+
+    def to_representation(self, value: Any) -> Dict[str, Any]:
+        if not isinstance(value, dict):
+            return {"kind": "initials"}
+
+        kind = value.get("kind") or "initials"
+        if kind == "preset":
+            preset_id = value.get("preset_id")
+            if isinstance(preset_id, str) and preset_id:
+                return {"kind": "preset", "preset_id": preset_id}
+            return {"kind": "initials"}
+        if kind == "upload":
+            data_url = value.get("data_url")
+            if isinstance(data_url, str) and data_url:
+                return {"kind": "upload", "data_url": data_url}
+            return {"kind": "initials"}
+        return {"kind": "initials"}
+
+    def to_internal_value(self, data: Any) -> Dict[str, Any]:
+        if not isinstance(data, dict):
+            raise serializers.ValidationError(self.error_messages["invalid"])
+
+        kind = data.get("kind")
+        if kind not in AVATAR_ALLOWED_KINDS:
+            raise serializers.ValidationError({"kind": "Недопустимый тип аватара"})
+
+        if kind == "preset":
+            preset_id = data.get("preset_id")
+            if not isinstance(preset_id, str) or not preset_id.strip():
+                raise serializers.ValidationError({"preset_id": "Укажите идентификатор пресета"})
+            if len(preset_id.strip()) > 64:
+                raise serializers.ValidationError({"preset_id": "Слишком длинный идентификатор пресета"})
+            return {"kind": "preset", "preset_id": preset_id.strip()}
+
+        if kind == "upload":
+            data_url = data.get("data_url")
+            if not isinstance(data_url, str) or not data_url.strip():
+                raise serializers.ValidationError({"data_url": "Передайте изображение для аватара"})
+            normalized = data_url.strip()
+            if not normalized.startswith("data:image/"):
+                raise serializers.ValidationError({"data_url": "Ожидается data URL изображения"})
+            if len(normalized) > MAX_AVATAR_DATA_URL_LENGTH:
+                raise serializers.ValidationError({"data_url": "Размер изображения превышает допустимый лимит"})
+            return {"kind": "upload", "data_url": normalized}
+
+        return {"kind": "initials"}
+
+
+class WalletSettingsField(serializers.Field):
+    default_error_messages = {
+        "invalid": "Некорректный формат настроек кошелька",
+    }
+
+    def get_default(self):
+        return {"show_wallet": False}
+
+    def to_representation(self, value: Any) -> Dict[str, Any]:
+        base = {"show_wallet": False}
+        if isinstance(value, dict):
+            show_wallet = value.get("show_wallet")
+            if isinstance(show_wallet, bool):
+                base["show_wallet"] = show_wallet
+        return base
+
+    def to_internal_value(self, data: Any) -> Dict[str, Any]:
+        if not isinstance(data, dict):
+            raise serializers.ValidationError(self.error_messages["invalid"])
+
+        result: Dict[str, Any] = {}
+        if "show_wallet" in data:
+            show_wallet = data.get("show_wallet")
+            if not isinstance(show_wallet, bool):
+                raise serializers.ValidationError({"show_wallet": "Ожидается булево значение"})
+            result["show_wallet"] = show_wallet
+
+        return result
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -91,6 +180,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     experience_level_display = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
+    avatar_preferences = AvatarPreferencesField(required=False)
+    wallet_settings = WalletSettingsField(required=False)
 
     class Meta:
         model = Profile
@@ -105,6 +196,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "telegram_stars_balance", "telegram_stars_rate_rub",
             "calocoin_balance", "calocoin_rate_rub",
             "experience_level", "experience_level_display",
+            "avatar_preferences", "wallet_settings",
             "metrics",
             "created_at", "updated_at",
         )
@@ -160,6 +252,7 @@ class ProfileUpdateSerializer(ProfileSerializer):
     def update(self, instance, validated_data):
         user = instance.user
         update_fields = set()
+        password_changed = False
 
         first_name = validated_data.pop("first_name", serializers.empty)
         if first_name is not serializers.empty:
@@ -185,9 +278,12 @@ class ProfileUpdateSerializer(ProfileSerializer):
         if password is not serializers.empty:
             user.set_password(password)
             update_fields.add("password")
+            password_changed = True
 
         if update_fields:
             user.save(update_fields=list(update_fields))
+
+            self.password_updated = password_changed
 
         return super().update(instance, validated_data)
 

@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, decorators, response, status, generics
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
@@ -49,11 +50,15 @@ class MeViewSet(viewsets.ViewSet):
         prof, _ = Profile.objects.get_or_create(user=request.user)
         ser = ProfileUpdateSerializer(prof, data=request.data, partial=True)
         ser.is_valid(raise_exception=True)
-        ser.save()
-        return response.Response(
-            ProfileSerializer(prof).data,
-            status=status.HTTP_200_OK,
-        )
+        updated_profile = ser.save()
+        payload = ProfileSerializer(updated_profile).data
+        if getattr(ser, "password_updated", False):
+            refresh = RefreshToken.for_user(request.user)
+            payload["tokens"] = {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            }
+        return response.Response(payload, status=status.HTTP_200_OK)
 
     @decorators.action(detail=False, methods=["get"])
     def user(self, request):

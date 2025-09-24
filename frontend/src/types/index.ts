@@ -20,6 +20,27 @@ export interface ProfileMetrics {
   macros: MacroBreakdown[]
 }
 
+export type AvatarPreferenceKind = 'initials' | 'preset' | 'upload'
+
+export interface AvatarPreferences {
+  kind: AvatarPreferenceKind
+  preset_id?: string | null
+  data_url?: string | null
+}
+
+export type AvatarPreferenceInput =
+  | { kind: 'initials' }
+  | { kind: 'preset'; preset_id: string }
+  | { kind: 'upload'; data_url: string }
+
+export interface WalletSettings {
+  show_wallet: boolean
+}
+
+export interface WalletSettingsInput {
+  show_wallet?: boolean
+}
+
 export interface Profile {
   id?: number
   sex: Sex
@@ -42,6 +63,8 @@ export interface Profile {
   experience_level?: ExperienceLevel
   experience_level_display?: string
   metrics?: ProfileMetrics | null
+  avatar_preferences?: AvatarPreferences | null
+  wallet_settings?: WalletSettings | null
 }
 
 export interface User {

@@ -1,8 +1,11 @@
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ExperienceLevel, Profile as ProfileT, User } from '../types'
+import type { ProfileUpdatePayload } from '../api/profile'
 import { formatPhoneInput } from '../utils/phone'
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
+type ProfilePreferencesUpdatePayload = Pick<ProfileUpdatePayload, 'avatar_preferences' | 'wallet_settings'>
 
 interface ProfileSidebarProps {
   user: User | null
@@ -14,6 +17,7 @@ interface ProfileSidebarProps {
   recommendedCalories: number | null
   onEditProfile?: () => void
   profileUpdateNotice?: string | null
+  onPreferencesUpdate?: (payload: ProfilePreferencesUpdatePayload) => Promise<unknown>
 }
 
 const goalLabels: Record<ProfileT['goal'], string> = {
@@ -212,7 +216,6 @@ const walletPerks = [
 const STARS_REWARD_TARGET = 500
 const CALO_REWARD_TARGET = 1200
 
-const AVATAR_STORAGE_KEY = 'profile:avatar-preference'
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 type AvatarState =
@@ -221,7 +224,6 @@ type AvatarState =
   | { kind: 'preset'; id: string }
   | { kind: 'upload'; dataUrl: string }
 
-type AvatarStorageValue = Extract<AvatarState, { kind: 'preset' } | { kind: 'upload' }>
 
 const avatarPresets: Array<{
   id: string
@@ -255,22 +257,57 @@ const avatarPresets: Array<{
     }
   ]
 
-const readStoredAvatar = (): AvatarStorageValue | null => {
-  if (typeof window === 'undefined') return null
-  const raw = window.localStorage.getItem(AVATAR_STORAGE_KEY)
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && parsed.kind === 'preset' && typeof parsed.id === 'string') {
-      return { kind: 'preset', id: parsed.id }
+const deriveAvatarState = (
+  preferences: ProfileT['avatar_preferences'] | null | undefined,
+  avatarUrl: string | null
+): AvatarState => {
+  if (preferences) {
+    if (preferences.kind === 'preset' && preferences.preset_id) {
+      return { kind: 'preset', id: preferences.preset_id }
     }
-    if (parsed && parsed.kind === 'upload' && typeof parsed.dataUrl === 'string') {
-      return { kind: 'upload', dataUrl: parsed.dataUrl }
+    if (preferences.kind === 'upload' && preferences.data_url) {
+      return { kind: 'upload', dataUrl: preferences.data_url }
     }
-  } catch (error) {
-    void error
+    if (preferences.kind === 'initials') {
+      return { kind: 'initials' }
+    }
   }
-  return null
+  if (avatarUrl) {
+    return { kind: 'external', url: avatarUrl }
+  }
+  return { kind: 'initials' }
+}
+
+const isSameAvatarState = (a: AvatarState, b: AvatarState): boolean => {
+  if (a.kind !== b.kind) return false
+  switch (a.kind) {
+    case 'initials':
+      return true
+    case 'external':
+      return a.url === (b as typeof a).url
+    case 'preset':
+      return a.id === (b as typeof a).id
+    case 'upload':
+      return a.dataUrl === (b as typeof a).dataUrl
+    default:
+      return false
+  }
+}
+
+const avatarStateToPreferencesPayload = (
+  state: AvatarState
+): ProfilePreferencesUpdatePayload | null => {
+  switch (state.kind) {
+    case 'preset':
+      return { avatar_preferences: { kind: 'preset', preset_id: state.id } }
+    case 'upload':
+      return { avatar_preferences: { kind: 'upload', data_url: state.dataUrl } }
+    case 'external':
+    case 'initials':
+      return { avatar_preferences: { kind: 'initials' } }
+    default:
+      return null
+  }
 }
 
 function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -368,9 +405,10 @@ export default function ProfileSidebar({
   tdee,
   recommendedCalories,
   onEditProfile,
-  profileUpdateNotice
+  profileUpdateNotice,
+  onPreferencesUpdate
 }: ProfileSidebarProps) {
-  const [showWallet, setShowWallet] = useState(false);
+  const [showWallet, setShowWallet] = useState(() => Boolean(profile.wallet_settings?.show_wallet));
   const walletHintId = useId();
   const avatarPickerId = useId();
   const profileUser = (profile as ProfileT & { user?: User | null }).user ?? null;
@@ -396,16 +434,9 @@ export default function ProfileSidebar({
   const metricsAgeDisplay = profile.metrics?.age_display ?? null;
   const sidebarAgeDisplay = metricsAgeDisplay ?? (age !== null ? `${age} лет` : null);
   const friendlyName = firstName || fullName || 'Вы';
-  const [avatarState, setAvatarState] = useState<AvatarState>(() => {
-    const stored = readStoredAvatar()
-    if (stored) {
-      return stored
-    }
-    if (avatarUrl) {
-      return { kind: 'external', url: avatarUrl }
-    }
-    return { kind: 'initials' }
-  })
+  const [avatarState, setAvatarState] = useState<AvatarState>(() =>
+    deriveAvatarState(profile.avatar_preferences ?? null, avatarUrl)
+  )
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false)
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const avatarPickerRef = useRef<HTMLDivElement | null>(null)
@@ -453,6 +484,45 @@ export default function ProfileSidebar({
         'AI-ассистент мягко подскажет, когда сделать паузу и пополнить воду.'
       ].filter(Boolean) as string[]
     )
+  )
+
+  useEffect(() => {
+    const preferred = Boolean(profile.wallet_settings?.show_wallet)
+    setShowWallet(prev => (prev === preferred ? prev : preferred))
+  }, [profile.wallet_settings?.show_wallet])
+
+  useEffect(() => {
+    const derived = deriveAvatarState(profile.avatar_preferences ?? null, avatarUrl)
+    setAvatarState(prev => (isSameAvatarState(prev, derived) ? prev : derived))
+  }, [profile.avatar_preferences, avatarUrl])
+
+  const persistWalletState = useCallback(
+    (next: boolean, previous: boolean) => {
+      if (!onPreferencesUpdate) return
+      onPreferencesUpdate({ wallet_settings: { show_wallet: next } }).catch(error => {
+        console.error('Не удалось сохранить настройки кошелька', error)
+        setShowWallet(previous)
+      })
+    },
+    [onPreferencesUpdate]
+  )
+
+  const persistAvatarState = useCallback(
+    (nextState: AvatarState, previousState: AvatarState) => {
+      if (!onPreferencesUpdate) return
+      const payload = avatarStateToPreferencesPayload(nextState)
+      if (!payload) return
+      onPreferencesUpdate(payload)
+        .then(() => {
+          setAvatarError(null)
+        })
+        .catch(error => {
+          console.error('Не удалось сохранить образ', error)
+          setAvatarError('Не удалось сохранить образ. Попробуйте ещё раз.')
+          setAvatarState(previousState)
+        })
+    },
+    [onPreferencesUpdate]
   )
 
   const basicIdentityItems: Array<{ label: string; value: string }> = [
@@ -551,38 +621,15 @@ export default function ProfileSidebar({
     if (!showWallet) return
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault()
+        const previous = true
         setShowWallet(false)
+        persistWalletState(false, previous)
       }
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [showWallet])
-
-  useEffect(() => {
-    if (!avatarUrl) {
-      setAvatarState(prev => {
-        if (prev.kind === 'preset' || prev.kind === 'upload') return prev
-        if (prev.kind === 'initials') return prev
-        return { kind: 'initials' }
-      })
-      return
-    }
-    setAvatarState(prev => {
-      if (prev.kind === 'preset' || prev.kind === 'upload') return prev
-      if (prev.kind === 'external' && prev.url === avatarUrl) return prev
-      return { kind: 'external', url: avatarUrl }
-    })
-  }, [avatarUrl])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (avatarState.kind === 'preset' || avatarState.kind === 'upload') {
-      const toStore: AvatarStorageValue = avatarState
-      window.localStorage.setItem(AVATAR_STORAGE_KEY, JSON.stringify(toStore))
-    } else {
-      window.localStorage.removeItem(AVATAR_STORAGE_KEY)
-    }
-  }, [avatarState])
+  }, [showWallet, persistWalletState])
 
   useEffect(() => {
     if (!avatarPickerOpen) return
@@ -692,7 +739,10 @@ export default function ProfileSidebar({
   const handleWalletClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
     if (target.closest('a, button')) return
-    setShowWallet(prev => !prev)
+    const previous = showWallet
+    const next = !previous
+    setShowWallet(next)
+    persistWalletState(next, previous)
   }
 
   const handleWalletKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -705,11 +755,16 @@ export default function ProfileSidebar({
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      setShowWallet(prev => !prev)
+      const previous = showWallet
+      const next = !previous
+      setShowWallet(next)
+      persistWalletState(next, previous)
     }
     if (event.key === 'Escape' && showWallet) {
       event.preventDefault()
+      const previous = showWallet
       setShowWallet(false)
+      persistWalletState(false, previous)
     }
   }
 
@@ -720,9 +775,12 @@ export default function ProfileSidebar({
 
   const handlePresetClick = (presetId: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    setAvatarState({ kind: 'preset', id: presetId })
+    const previous = avatarState
+    const nextState: AvatarState = { kind: 'preset', id: presetId }
+    setAvatarState(nextState)
     setAvatarPickerOpen(false)
     setAvatarError(null)
+    persistAvatarState(nextState, previous)
   }
 
   const handleAvatarUploadClick = () => {
@@ -750,12 +808,15 @@ export default function ProfileSidebar({
     }
 
     const reader = new FileReader()
+    const previous = avatarState
     reader.onload = () => {
       const result = reader.result
       if (typeof result === 'string') {
-        setAvatarState({ kind: 'upload', dataUrl: result })
+        const nextState: AvatarState = { kind: 'upload', dataUrl: result }
+        setAvatarState(nextState)
         setAvatarPickerOpen(false)
         setAvatarError(null)
+        persistAvatarState(nextState, previous)
       } else {
         setAvatarError('Не удалось прочитать файл изображения')
       }
@@ -767,16 +828,15 @@ export default function ProfileSidebar({
   }
 
   const handleAvatarReset = () => {
-    if (avatarUrl) {
-      setAvatarState({ kind: 'external', url: avatarUrl })
-    } else {
-      setAvatarState({ kind: 'initials' })
-    }
+    const previous = avatarState
+    const nextState: AvatarState = avatarUrl ? { kind: 'external', url: avatarUrl } : { kind: 'initials' }
+    setAvatarState(nextState)
     setAvatarPickerOpen(false)
     setAvatarError(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+    persistAvatarState(nextState, previous)
   }
 
 

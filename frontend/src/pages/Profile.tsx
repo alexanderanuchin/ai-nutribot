@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { me } from '../api/auth'
 import type { Activity, Goal, MacroBreakdown, Profile as ProfileT, User } from '../types'
-import { updateProfile, type ProfileUpdatePayload, type ProfileResponse } from '../api/profile'
+import { updateProfile, type ProfileUpdatePayload, type ProfileUpdateResult, type ProfileResponse } from '../api/profile'
 import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
+import { tokenStore } from '../utils/storage'
 
 const emptyProfile: ProfileT = {
   sex: 'm',
@@ -26,7 +27,9 @@ const emptyProfile: ProfileT = {
   middle_name: '',
   experience_level: 'newbie',
   experience_level_display: 'Новичок',
-  metrics: null
+  metrics: null,
+  avatar_preferences: { kind: 'initials' },
+  wallet_settings: { show_wallet: false }
 }
 
 const goalLabels: Record<Goal, string> = {
@@ -65,6 +68,28 @@ export default function Profile(){
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [profileNotice, setProfileNotice] = useState<string | null>(null)
+
+  const syncProfileState = (data: ProfileUpdateResult) => {
+    const { user: updatedUser, tokens, ...profilePayload } = data
+    if (profilePayload.id) {
+      setProfileId(profilePayload.id)
+    }
+    setProfile(prev => ({ ...prev, ...profilePayload }))
+    setUser(prev => (prev ? { ...prev, ...updatedUser } : updatedUser))
+    if (tokens) {
+      if (tokens.refresh) {
+        tokenStore.refresh = tokens.refresh
+      }
+      tokenStore.access = tokens.access
+    }
+    return data
+  }
+
+  const submitProfileUpdate = async (payload: ProfileUpdatePayload) => {
+    const data = await updateProfile(payload)
+    return syncProfileState(data)
+  }
+
 
   useEffect(() => {
     let cancelled = false
@@ -204,13 +229,7 @@ export default function Profile(){
     setEditSubmitting(true)
     setEditError(null)
     try {
-      const data = await updateProfile(payload)
-      const { user: updatedUser, ...profilePayload } = data
-      if (profilePayload.id) {
-        setProfileId(profilePayload.id)
-      }
-      setProfile(prev => ({ ...prev, ...profilePayload }))
-      setUser(prev => (prev ? { ...prev, ...updatedUser } : updatedUser))
+      await submitProfileUpdate(payload)
       setProfileNotice('Профиль обновлён — изменения применены.')
       setEditOpen(false)
     } catch (error) {
@@ -237,6 +256,9 @@ export default function Profile(){
     } finally {
       setEditSubmitting(false)
     }
+  }
+  const handlePreferencesUpdate = async (payload: Pick<ProfileUpdatePayload, 'avatar_preferences' | 'wallet_settings'>) => {
+    return submitProfileUpdate(payload)
   }
 
   const openEditDialog = () => {
@@ -272,6 +294,7 @@ export default function Profile(){
         recommendedCalories={recommendedCalories}
         onEditProfile={openEditDialog}
         profileUpdateNotice={profileNotice}
+        onPreferencesUpdate={handlePreferencesUpdate}
       />
       <div className="profile-main">
         <div className="profile-main-columns">
