@@ -89,15 +89,33 @@ export interface Targets {
   fat_g: number
   carbs_g: number
 }
+export interface MealNutrients {
+  calories: number
+  protein: number
+  fat: number
+  carbs: number
+}
+
+export type PlanStatus = 'generated' | 'accepted' | 'rejected' | 'recalculated'
 
 export interface PlanMeal {
   item_id: number
   title?: string
   qty: number
   time_hint: string
+  price?: number
+  tags?: string[]
+  nutrients?: MealNutrients
 }
 
 export interface MenuPlanResponse {
+  id: number
+  plan_id: number
+  date: string
+  created_at: string
+  status: PlanStatus
+  status_display: string
+  provider?: string
   targets: Targets
   plan: PlanMeal[]
 }

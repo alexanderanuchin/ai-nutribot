@@ -144,6 +144,16 @@ button {
     font-weight: 600;
     transition: background .25s ease, color .25s ease, box-shadow .25s ease;
 }
+button.ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+button.ghost:not(:disabled):hover {
+    background: var(--surface);
+    color: var(--text);
+}
 
 button:disabled {
     background: var(--button-disabled-bg);

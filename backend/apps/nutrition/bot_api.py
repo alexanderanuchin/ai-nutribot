@@ -6,8 +6,8 @@ from rest_framework import status
 from apps.common.permissions import HasBotKey
 from apps.users.models import Profile
 from .planner import build_menu_for_user
-from .models import MenuPlan, PlanMeal
-from apps.catalog.models import MenuItem
+from .models import MenuPlan
+
 
 User = get_user_model()
 
@@ -64,22 +64,21 @@ def generate_and_save(request):
 
     data = build_menu_for_user(user)
 
-    # Сохраним план
-    today = date.today()
-    plan = MenuPlan.objects.create(
+    plan = MenuPlan.create_from_payload(
         user=user,
-        date=today,
-        target_calories=data["targets"]["calories"],
-        target_protein=data["targets"]["protein_g"],
-        target_fat=data["targets"]["fat_g"],
-        target_carbs=data["targets"]["carbs_g"],
-        provider="hybrid"
+        payload=data,
+        plan_date=date.today(),
+        provider="hybrid",
     )
-    for m in data["plan"]:
-        try:
-            item = MenuItem.objects.get(id=m["item_id"])
-        except MenuItem.DoesNotExist:
-            continue
-        PlanMeal.objects.create(plan=plan, item=item, qty=float(m.get("qty",1)), time_hint=m.get("time_hint","any"))
+    payload = dict(data)
+    payload.update(
+        {
+            "plan_id": plan.id,
+            "status": plan.status,
+            "status_display": plan.get_status_display(),
+            "date": plan.date.isoformat(),
+            "created_at": plan.created_at.isoformat(),
+        }
+    )
 
-    return Response(data)
+    return Response(payload)
