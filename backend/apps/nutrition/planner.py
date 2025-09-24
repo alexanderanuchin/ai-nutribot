@@ -1,7 +1,11 @@
+import logging
 from typing import List, Dict
 from apps.catalog.models import MenuItem
 from .services import tdee, Targets
 from .llm_provider import get_provider
+
+logger = logging.getLogger(__name__)
+
 
 def filter_items(city: str | None, allergies: list, exclusions: list, budget: int | None) -> List[MenuItem]:
     qs = MenuItem.objects.filter(is_available=True)
@@ -13,16 +17,18 @@ def filter_items(city: str | None, allergies: list, exclusions: list, budget: in
         qs = qs.filter(price__lte=budget)
     return list(qs[:300])
 
+
 def greedy_knapsack(items: List[MenuItem], targets: Targets) -> List[Dict]:
     picked = []
     remain = targets.calories
-    for it in sorted(items, key=lambda x: abs(x.nutrients.calories - remain/3)):
+    for it in sorted(items, key=lambda x: abs(x.nutrients.calories - remain / 3)):
         if remain <= 0:
             break
         qty = max(1.0, round(remain / max(1.0, it.nutrients.calories)))
         picked.append({"item_id": it.id, "title": it.title, "qty": min(qty, 3.0), "time_hint": "any"})
         remain -= int(it.nutrients.calories * min(qty, 3.0))
     return picked
+
 
 def build_menu_for_user(user) -> Dict:
     prof = user.profile
@@ -49,6 +55,7 @@ def build_menu_for_user(user) -> Dict:
     try:
         plan = get_provider().compose_menu(context)
     except Exception:
+        logger.exception("LLM provider failed to compose menu")
         plan = []
 
     if not plan:
