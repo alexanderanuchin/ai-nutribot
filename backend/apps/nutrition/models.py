@@ -11,6 +11,7 @@ class MenuPlan(models.Model):
         ACCEPTED = "accepted", "Принят"
         REJECTED = "rejected", "Отклонён"
         RECALCULATED = "recalculated", "Пересчитан"
+        PROCESSING = "processing", "В обработке"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     date = models.DateField()
@@ -105,3 +106,4 @@ class PlanMeal(models.Model):
     item = models.ForeignKey(MenuItem, on_delete=models.PROTECT)
     qty = models.FloatField(default=1.0)
     time_hint = models.CharField(max_length=16, default="any")
+    user_note = models.TextField(blank=True, default="")

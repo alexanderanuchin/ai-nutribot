@@ -25,6 +25,21 @@ class MenuItemViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = MenuItemSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        search = self.request.query_params.get("search")
+        if isinstance(search, str) and search.strip():
+            qs = qs.filter(title__icontains=search.strip())
+
+        try:
+            limit = int(self.request.query_params.get("limit", "30"))
+        except (TypeError, ValueError):
+            limit = 30
+        limit = max(1, min(limit, 200))
+
+        return qs.order_by("title")[:limit]
+
 
 @api_view(["GET"])
 @permission_classes([AllowAny])

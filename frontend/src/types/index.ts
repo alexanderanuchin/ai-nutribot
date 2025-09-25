@@ -96,9 +96,10 @@ export interface MealNutrients {
   carbs: number
 }
 
-export type PlanStatus = 'generated' | 'accepted' | 'rejected' | 'recalculated'
+export type PlanStatus = 'generated' | 'accepted' | 'rejected' | 'recalculated' | 'processing'
 
 export interface PlanMeal {
+  id: number
   item_id: number
   title?: string
   qty: number
@@ -106,6 +107,7 @@ export interface PlanMeal {
   price?: number
   tags?: string[]
   nutrients?: MealNutrients
+  user_note?: string
 }
 
 export interface MenuPlanResponse {
