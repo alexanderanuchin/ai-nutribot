@@ -408,7 +408,11 @@ export default function ProfileSidebar({
   profileUpdateNotice,
   onPreferencesUpdate
 }: ProfileSidebarProps) {
-  const [showWallet, setShowWallet] = useState(() => Boolean(profile.wallet_settings?.show_wallet));
+  const sidebarMeta = profile.sidebar_meta ?? null
+  const walletMeta = sidebarMeta?.wallet ?? null
+  const walletLinks = walletMeta?.links ?? null
+  const walletOnboardingMessages = walletMeta?.onboarding?.messages ?? []
+  const [showWallet, setShowWallet] = useState(() => Boolean(profile.wallet_settings?.show_wallet ?? walletMeta?.show_wallet));
   const walletHintId = useId();
   const avatarPickerId = useId();
   const profileUser = (profile as ProfileT & { user?: User | null }).user ?? null;
@@ -481,15 +485,18 @@ export default function ProfileSidebar({
         profileUpdateNotice?.trim() || null,
         `${friendlyName}, режим «${experienceLabel}» активирован — двигаемся в комфортном темпе.`,
         experienceDetails.extra,
-        'AI-ассистент мягко подскажет, когда сделать паузу и пополнить воду.'
+        'AI-ассистент мягко подскажет, когда сделать паузу и пополнить воду.',
+        ...walletOnboardingMessages
       ].filter(Boolean) as string[]
     )
   )
 
   useEffect(() => {
-    const preferred = Boolean(profile.wallet_settings?.show_wallet)
+    const preferred = Boolean(
+      profile.wallet_settings?.show_wallet ?? walletMeta?.show_wallet
+    )
     setShowWallet(prev => (prev === preferred ? prev : preferred))
-  }, [profile.wallet_settings?.show_wallet])
+  }, [profile.wallet_settings?.show_wallet, walletMeta?.show_wallet])
 
   useEffect(() => {
     const derived = deriveAvatarState(profile.avatar_preferences ?? null, avatarUrl)
@@ -572,33 +579,8 @@ export default function ProfileSidebar({
     }
   ]
 
-  const aiConsultantActive = Boolean(profile.telegram_id || user?.telegram_id)
-  const personalTrainerConnected = experienceLevelKey === 'pro' || experienceLevelKey === 'legend'
-
-  const services = [
-    {
-      key: 'ai',
-      state: aiConsultantActive ? 'active' : 'inactive',
-      badge: aiConsultantActive ? 'активно' : 'доступно',
-      title: aiConsultantActive ? 'AI консультант подключён' : 'AI консультант ещё не активирован',
-      description: aiConsultantActive
-        ? 'Алгоритм обновляет меню и гидратацию каждые 6 часов и пишет ненавязчивые сообщения в @CaloIQ_bot.'
-        : 'Оформите AI-консультанта — он будет подсказывать мягко и без спама, синхронизируясь с вашим расписанием.',
-      action: aiConsultantActive ? 'Открыть сценарии' : 'Подключить AI-консультанта',
-      href: 'https://t.me/CaloIQ_bot'
-    },
-    {
-      key: 'trainer',
-      state: personalTrainerConnected ? 'active' : 'inactive',
-      badge: personalTrainerConnected ? 'подключено' : 'маркетплейс',
-      title: personalTrainerConnected ? 'Личный тренер синхронизирован' : 'Личный тренер не выбран',
-      description: personalTrainerConnected
-        ? 'Ваш тренер недели: Полина Хак — рейтинг 4.9 из 5 (128 отзывов). План тренировок уже учтён в рекомендациях.'
-        : 'Выберите тренера в маркетплейсе — покажем ТОП экспертов с рейтингами и отзывами, чтобы старт был комфортным.',
-      action: personalTrainerConnected ? 'Перейти к программе' : 'Подобрать тренера',
-      href: 'https://t.me/CaloIQ_bot?start=market'
-    }
-  ] as Array<{
+  const assistantMeta = sidebarMeta?.assistants ?? []
+  type ServiceCard = {
     key: string
     state: 'active' | 'inactive'
     badge: string
@@ -606,7 +588,57 @@ export default function ProfileSidebar({
     description: string
     action: string
     href: string
-  }>
+    statusLabel?: string | null
+    rawState?: string
+  }
+
+  const services: ServiceCard[] = assistantMeta.length
+    ? assistantMeta.map(item => {
+        const normalizedState = item.state === 'active' ? 'active' : 'inactive'
+        return {
+          key: item.key,
+          state: normalizedState,
+          rawState: item.state,
+          badge: item.badge ?? item.status_label ?? (item.state === 'active' ? 'активно' : 'доступно'),
+          title: item.title,
+          description: item.description,
+          action: item.action_label ?? (item.state === 'active' ? 'Открыть' : 'Подключить'),
+          href: item.href ?? 'https://t.me/CaloIQ_bot',
+          statusLabel: item.status_label
+        }
+      })
+    : (() => {
+        const aiConsultantActive = Boolean(profile.telegram_id || user?.telegram_id)
+        const personalTrainerConnected = experienceLevelKey === 'pro' || experienceLevelKey === 'legend'
+        return [
+          {
+            key: 'ai',
+            state: aiConsultantActive ? 'active' : 'inactive',
+            rawState: aiConsultantActive ? 'active' : 'inactive',
+            badge: aiConsultantActive ? 'активно' : 'доступно',
+            title: aiConsultantActive ? 'AI консультант подключён' : 'AI консультант ещё не активирован',
+            description: aiConsultantActive
+              ? 'Алгоритм обновляет меню и гидратацию каждые 6 часов и пишет ненавязчивые сообщения в @CaloIQ_bot.'
+              : 'Оформите AI-консультанта — он будет подсказывать мягко и без спама, синхронизируясь с вашим расписанием.',
+            action: aiConsultantActive ? 'Открыть сценарии' : 'Подключить AI-консультанта',
+            href: 'https://t.me/CaloIQ_bot',
+            statusLabel: aiConsultantActive ? 'Активен' : 'Подключите'
+          },
+          {
+            key: 'trainer',
+            state: personalTrainerConnected ? 'active' : 'inactive',
+            rawState: personalTrainerConnected ? 'active' : 'inactive',
+            badge: personalTrainerConnected ? 'подключено' : 'маркетплейс',
+            title: personalTrainerConnected ? 'Личный тренер синхронизирован' : 'Личный тренер не выбран',
+            description: personalTrainerConnected
+              ? 'Ваш тренер недели: Полина Хак — рейтинг 4.9 из 5 (128 отзывов). План тренировок уже учтён в рекомендациях.'
+              : 'Выберите тренера в маркетплейсе — покажем ТОП экспертов с рейтингами и отзывами, чтобы старт был комфортным.',
+            action: personalTrainerConnected ? 'Перейти к программе' : 'Подобрать тренера',
+            href: 'https://t.me/CaloIQ_bot?start=market',
+            statusLabel: personalTrainerConnected ? 'Подключено' : 'Доступно'
+          }
+        ]
+      })()
 
   const walletAriaLabel = showWallet ? 'Скрыть финансовую панель' : 'Показать финансовую панель'
   const walletHint = showWallet
@@ -977,6 +1009,13 @@ export default function ProfileSidebar({
                         <div className="profile-sidebar__service-header">
                           <span className="profile-sidebar__service-badge">{service.badge}</span>
                           <span className="profile-sidebar__service-title">{service.title}</span>
+                          {service.statusLabel && (
+                            <span
+                              className={`profile-sidebar__service-status profile-sidebar__service-status--${service.rawState ?? service.state}`}
+                            >
+                              {service.statusLabel}
+                            </span>
+                          )}
                         </div>
                         <p className="profile-sidebar__service-description">{service.description}</p>
                         <a
@@ -1041,7 +1080,9 @@ export default function ProfileSidebar({
                     </div>
                     <a
                       className="profile-sidebar__wallet-action"
-                      href={hasTelegramLink ? 'https://t.me/wallet?start=star-topup' : 'https://t.me/CaloIQ_bot'}
+                      href={hasTelegramLink
+                        ? walletLinks?.topup ?? 'https://t.me/wallet?start=star-topup'
+                        : walletLinks?.topup_onboarding ?? 'https://t.me/CaloIQ_bot'}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -1063,7 +1104,7 @@ export default function ProfileSidebar({
                     </div>
                     <a
                       className="profile-sidebar__wallet-action"
-                      href="https://t.me/CaloIQ_bot?start=calopro"
+                      href={walletLinks?.pro ?? 'https://t.me/CaloIQ_bot?start=calopro'}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -1119,7 +1160,7 @@ export default function ProfileSidebar({
                 <div className="profile-sidebar__wallet-follow">
                   <a
                     className="profile-sidebar__wallet-action"
-                    href="https://t.me/CaloIQ_bot"
+                    href={walletLinks?.bot ?? 'https://t.me/CaloIQ_bot'}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -1127,7 +1168,7 @@ export default function ProfileSidebar({
                   </a>
                   <a
                     className="profile-sidebar__wallet-link"
-                    href="https://t.me/CaloIQ_bot?start=autopay"
+                    href={walletLinks?.autopay ?? 'https://t.me/CaloIQ_bot?start=autopay'}
                     target="_blank"
                     rel="noopener noreferrer"
                   >

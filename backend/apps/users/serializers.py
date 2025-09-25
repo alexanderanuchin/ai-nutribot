@@ -4,6 +4,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from .models import Profile
 from .services import build_profile_metrics
+from .sidebar import build_profile_sidebar_meta
 import re
 
 User = get_user_model()
@@ -183,6 +184,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     metrics = serializers.SerializerMethodField()
     avatar_preferences = AvatarPreferencesField(required=False)
     wallet_settings = WalletSettingsField(required=False)
+    sidebar_meta = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -198,6 +200,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "calocoin_balance", "calocoin_rate_rub",
             "experience_level", "experience_level_display",
             "avatar_preferences", "wallet_settings",
+            "sidebar_meta",
             "metrics",
             "created_at", "updated_at",
         )
@@ -213,6 +216,9 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_metrics(self, obj):
         return build_profile_metrics(obj)
+
+    def get_sidebar_meta(self, obj):
+        return build_profile_sidebar_meta(obj)
 
 
 class ProfileUpdateSerializer(ProfileSerializer):

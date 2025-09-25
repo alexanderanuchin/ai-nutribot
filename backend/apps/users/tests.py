@@ -15,6 +15,7 @@ class ProfileSerializerTest(TestCase):
         user = User.objects.create_user(username="wallet_tester", password="StrongPass!1")
         profile = user.profile
         profile.city = "Москва"
+        profile.telegram_id = 777
         profile.telegram_stars_balance = 125
         profile.telegram_stars_rate_rub = Decimal("7.50")
         profile.calocoin_balance = Decimal("1250.00")
@@ -25,6 +26,7 @@ class ProfileSerializerTest(TestCase):
         profile.wallet_settings = {"show_wallet": True}
         profile.save(update_fields=[
             "city",
+            "telegram_id",
             "telegram_stars_balance",
             "telegram_stars_rate_rub",
             "calocoin_balance",
@@ -47,6 +49,23 @@ class ProfileSerializerTest(TestCase):
         self.assertEqual(data["experience_level_display"], Profile.ExperienceLevel.LEGEND.label)
         self.assertEqual(data["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
         self.assertEqual(data["wallet_settings"], {"show_wallet": True})
+
+        sidebar_meta = data["sidebar_meta"]
+        self.assertIn("wallet", sidebar_meta)
+        self.assertIn("assistants", sidebar_meta)
+        self.assertIn("services", sidebar_meta)
+
+        wallet_meta = sidebar_meta["wallet"]
+        self.assertFalse(wallet_meta["onboarding"]["needs_balance"])
+        self.assertFalse(wallet_meta["onboarding"]["needs_city"])
+        self.assertEqual(wallet_meta["links"]["topup"], "https://t.me/wallet?start=star-topup")
+        self.assertEqual(wallet_meta["links"]["bot"], "https://t.me/CaloIQ_bot")
+
+        assistants = sidebar_meta["assistants"]
+        self.assertEqual(assistants[0]["state"], "active")
+        self.assertEqual(assistants[0]["status_label"], "Активен")
+        self.assertEqual(assistants[1]["state"], "active")
+        self.assertEqual(assistants[1]["status_label"], "Подключено")
 
     def test_metrics_calculated(self):
         User = get_user_model()
@@ -268,6 +287,11 @@ class MeProfileAPITest(TestCase):
         )
         self.assertEqual(profile_payload.get("metrics"), data["metrics"])
 
+        sidebar_meta = profile_payload["sidebar_meta"]
+        self.assertEqual(sidebar_meta["wallet"]["links"]["autopay"], "https://t.me/CaloIQ_bot?start=autopay")
+        self.assertEqual(sidebar_meta["assistants"][0]["state"], "inactive")
+        self.assertEqual(sidebar_meta["services"][0]["status_label"], "Доступно")
+
     def test_me_profile_patch_updates_contact_and_wallet_fields(self):
         payload = {
             "first_name": "Ирина",
@@ -311,6 +335,11 @@ class MeProfileAPITest(TestCase):
         self.assertEqual(profile_payload["wallet_settings"], {"show_wallet": True})
         self.assertEqual(profile_payload["avatar_preferences"], {"kind": "preset", "preset_id": "focus"})
         self.assertEqual(profile_payload.get("metrics"), data["metrics"])
+
+        sidebar_meta = profile_payload["sidebar_meta"]
+        self.assertEqual(sidebar_meta["wallet"]["links"]["pro"], "https://t.me/CaloIQ_bot?start=calopro")
+        self.assertEqual(sidebar_meta["assistants"][0]["state"], "inactive")
+        self.assertEqual(sidebar_meta["services"][1]["action_label"], "Настроить")
 
         tokens = data["tokens"]
         self.assertIn("access", tokens)

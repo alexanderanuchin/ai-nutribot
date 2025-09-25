@@ -173,35 +173,85 @@ export default function Profile(){
     }
   ]), [ageDisplay, metricsAge, bmi, bmiStatus, tdee, recommendedCalories, profile.goal])
 
-  const aiCapabilities = [
-    {
-      title: 'AI-сценарии питания',
-      description: 'Алгоритм синхронизирует меню с тренировками, сном и расписанием встреч.'
-    },
-    {
-      title: 'Превентивные уведомления',
-      description: 'Ранние сигналы, если калорийность, сон или активность выходят из баланса.'
-    },
-    {
-      title: 'Совместная работа с экспертами',
-      description: 'Общий чат и заметки для нутрициолога, тренера и врача.'
+  const assistantFeatures = useMemo(() => {
+    const meta = profile.sidebar_meta?.assistants ?? []
+    if (!meta.length) {
+      return [
+        {
+          title: 'AI-сценарии питания',
+          description: 'Алгоритм синхронизирует меню с тренировками, сном и расписанием встреч.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        },
+        {
+          title: 'Превентивные уведомления',
+          description: 'Ранние сигналы, если калорийность, сон или активность выходят из баланса.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        },
+        {
+          title: 'Совместная работа с экспертами',
+          description: 'Общий чат и заметки для нутрициолога, тренера и врача.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        }
+      ]
     }
-  ]
+    return meta.map(item => ({
+      title: item.title,
+      description: item.description,
+      status: item.status_label,
+      action: item.action_label ?? null,
+      href: item.href ?? null,
+      state: item.state
+    }))
+  }, [profile.sidebar_meta])
 
-  const serviceHighlights = [
-    {
-      title: 'Умная доставка еды',
-      description: 'Подбор сервисов и расписание заказов под ваш план и бюджет.'
-    },
-    {
-      title: 'Конструктор продуктовых наборов',
-      description: 'Соберите боксы под разные сценарии: офис, тренировки, путешествия.'
-    },
-    {
-      title: 'Управление запасами',
-      description: 'Ведите учёт суперфудов, добавок и автоматически пополняйте их.'
+  const serviceHighlights = useMemo(() => {
+    const meta = profile.sidebar_meta?.services ?? []
+    if (!meta.length) {
+      return [
+        {
+          title: 'Умная доставка еды',
+          description: 'Подбор сервисов и расписание заказов под ваш план и бюджет.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        },
+        {
+          title: 'Конструктор продуктовых наборов',
+          description: 'Соберите боксы под разные сценарии: офис, тренировки, путешествия.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        },
+        {
+          title: 'Управление запасами',
+          description: 'Ведите учёт суперфудов, добавок и автоматически пополняйте их.',
+          status: null,
+          action: null,
+          href: null,
+          state: 'inactive' as const
+        }
+      ]
     }
-  ]
+    return meta.map(item => ({
+      title: item.title,
+      description: item.description,
+      status: item.status_label,
+      action: item.action_label ?? null,
+      href: item.href ?? null,
+      state: item.state
+    }))
+  }, [profile.sidebar_meta])
   const handleProfileEditSubmit = async (payload: ProfileUpdatePayload) => {
     setEditSubmitting(true)
     setEditError(null)
@@ -406,10 +456,27 @@ export default function Profile(){
               <h3 className="profile-section-subtitle">Интеллектуальные ассистенты</h3>
               <p className="small">Комбинируйте автоматизацию и живых экспертов для идеального самочувствия.</p>
               <ul className="profile-feature-list">
-                {aiCapabilities.map(item => (
+                {assistantFeatures.map(item => (
                   <li key={item.title} className="profile-feature-item">
-                    <div className="profile-feature-item__title">{item.title}</div>
+                    <div className="profile-feature-item__header">
+                      <div className="profile-feature-item__title">{item.title}</div>
+                      {item.status && (
+                        <span className={`profile-feature-item__status profile-feature-item__status--${item.state}`}>
+                          {item.status}
+                        </span>
+                      )}
+                    </div>
                     <div className="profile-feature-item__description small">{item.description}</div>
+                    {item.href && (
+                      <a
+                        className="profile-feature-item__link"
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.action ?? 'Открыть'}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -421,8 +488,25 @@ export default function Profile(){
               <ul className="profile-feature-list">
                 {serviceHighlights.map(item => (
                   <li key={item.title} className="profile-feature-item">
-                    <div className="profile-feature-item__title">{item.title}</div>
+                    <div className="profile-feature-item__header">
+                      <div className="profile-feature-item__title">{item.title}</div>
+                      {item.status && (
+                        <span className={`profile-feature-item__status profile-feature-item__status--${item.state}`}>
+                          {item.status}
+                        </span>
+                      )}
+                    </div>
                     <div className="profile-feature-item__description small">{item.description}</div>
+                    {item.href && (
+                      <a
+                        className="profile-feature-item__link"
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {item.action ?? 'Открыть'}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

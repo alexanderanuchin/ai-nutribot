@@ -40,6 +40,44 @@ export interface WalletSettings {
 export interface WalletSettingsInput {
   show_wallet?: boolean
 }
+export type FeatureState = 'active' | 'inactive' | 'onboarding'
+
+export interface ProfileSidebarFeature {
+  key: string
+  title: string
+  description: string
+  href?: string | null
+  state: FeatureState
+  status_label: string
+  action_label?: string | null
+  badge?: string | null
+}
+
+export interface ProfileWalletLinks {
+  bot: string
+  topup: string
+  topup_onboarding: string
+  autopay: string
+  pro: string
+}
+
+export interface ProfileWalletOnboarding {
+  needs_balance: boolean
+  needs_city: boolean
+  messages: string[]
+}
+
+export interface ProfileSidebarWalletMeta {
+  show_wallet: boolean
+  links: ProfileWalletLinks
+  onboarding: ProfileWalletOnboarding
+}
+
+export interface ProfileSidebarMeta {
+  wallet: ProfileSidebarWalletMeta
+  assistants: ProfileSidebarFeature[]
+  services: ProfileSidebarFeature[]
+}
 
 export interface Profile {
   id?: number
@@ -65,6 +103,7 @@ export interface Profile {
   metrics?: ProfileMetrics | null
   avatar_preferences?: AvatarPreferences | null
   wallet_settings?: WalletSettings | null
+  sidebar_meta?: ProfileSidebarMeta | null
 }
 
 export interface User {
