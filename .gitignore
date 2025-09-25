@@ -11,3 +11,4 @@ media/
 .idea/
 .vscode/
 db-data/
+backend/db.sqlite3

@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "name": "Fit Kitchen",
+    "city": "Москва"
+  },
+  {
+    "id": 2,
+    "name": "Vegan Mood",
+    "city": "Санкт-Петербург"
+  },
+  {
+    "id": 3,
+    "name": "Nordic Fuel",
+    "city": "Казань"
+  }
+]

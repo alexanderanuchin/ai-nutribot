@@ -1,16 +1,21 @@
 from django.db import models
 
+
 class Restaurant(models.Model):
     name = models.CharField(max_length=200)
     city = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
+
     def __str__(self): return self.name
+
 
 class Store(models.Model):
     name = models.CharField(max_length=200)
     city = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
+
     def __str__(self): return self.name
+
 
 class Nutrients(models.Model):
     calories = models.FloatField()
@@ -20,10 +25,12 @@ class Nutrients(models.Model):
     fiber = models.FloatField(default=0)
     sodium = models.FloatField(default=0)
 
+
 class MenuItem(models.Model):
-    SOURCE_CHOICES = [("restaurant","restaurant"),("store","store")]
+    SOURCE_CHOICES = [("restaurant", "restaurant"), ("store", "store")]
     source = models.CharField(max_length=16, choices=SOURCE_CHOICES)
     source_id = models.PositiveIntegerField()
+    external_id = models.CharField(max_length=64, null=True, blank=True, unique=True)
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     price = models.PositiveIntegerField(default=0)
@@ -34,6 +41,6 @@ class MenuItem(models.Model):
     nutrients = models.OneToOneField(Nutrients, on_delete=models.CASCADE, related_name="item")
 
     class Meta:
-        indexes = [models.Index(fields=["source","source_id","is_available"])]
+        indexes = [models.Index(fields=["source", "source_id", "is_available"])]
 
     def __str__(self): return self.title

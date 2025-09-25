@@ -1,0 +1,134 @@
+  {
+    "external_id": "seed-fit-01",
+    "source": "restaurant",
+    "source_id": 1,
+    "title": "Буррито с индейкой и киноа",
+    "description": "Запечённая индейка, киноа, фасоль, свежие овощи и соус йогурт-чили.",
+    "price": 490,
+    "tags": ["high-protein", "lunch", "spicy"],
+    "allergens": ["milk", "gluten"],
+    "exclusions": ["vegan"],
+    "nutrients": {
+      "calories": 520,
+      "protein": 42,
+      "fat": 14,
+      "carbs": 58,
+      "fiber": 9,
+      "sodium": 780
+    }
+  },
+  {
+    "external_id": "seed-fit-02",
+    "source": "restaurant",
+    "source_id": 1,
+    "title": "Боул с лососем и авокадо",
+    "description": "Тёплый киноа, слабосолёный лосось, авокадо, брокколи и лаймовый соус.",
+    "price": 560,
+    "tags": ["omega3", "gluten-free", "dinner"],
+    "allergens": ["fish"],
+    "exclusions": ["vegan"],
+    "nutrients": {
+      "calories": 610,
+      "protein": 45,
+      "fat": 28,
+      "carbs": 46,
+      "fiber": 8,
+      "sodium": 640
+    }
+  },
+  {
+    "external_id": "seed-vegan-01",
+    "source": "restaurant",
+    "source_id": 2,
+    "title": "Зелёный детокс-крем суп",
+    "description": "Крем-суп из шпината, брокколи и гороха на кокосовом молоке с семенами чиа.",
+    "price": 390,
+    "tags": ["vegan", "gluten-free", "detox"],
+    "allergens": ["coconut"],
+    "exclusions": ["low-fodmap"],
+    "nutrients": {
+      "calories": 280,
+      "protein": 13,
+      "fat": 16,
+      "carbs": 25,
+      "fiber": 7,
+      "sodium": 420
+    }
+  },
+  {
+    "external_id": "seed-nordic-01",
+    "source": "restaurant",
+    "source_id": 3,
+    "title": "Сканди завтра хаш",
+    "description": "Запечённый картофель, яйцо су-вид, слабосолёная форель и квашеная капуста.",
+    "price": 430,
+    "tags": ["breakfast", "fermented", "nordic"],
+    "allergens": ["fish", "egg"],
+    "exclusions": ["vegan"],
+    "nutrients": {
+      "calories": 450,
+      "protein": 27,
+      "fat": 20,
+      "carbs": 38,
+      "fiber": 6,
+      "sodium": 510
+    }
+  },
+  {
+    "external_id": "seed-store-01",
+    "source": "store",
+    "source_id": 1,
+    "title": "Готовый салат с киноа и нута",
+    "description": "Порция для перекуса с киноа, нутом, гранатом и цитрусовой заправкой.",
+    "price": 320,
+    "tags": ["plant-based", "fiber", "on-the-go"],
+    "allergens": ["sesame"],
+    "exclusions": ["keto"],
+    "nutrients": {
+      "calories": 360,
+      "protein": 14,
+      "fat": 12,
+      "carbs": 48,
+      "fiber": 10,
+      "sodium": 360
+    }
+  },
+  {
+    "external_id": "seed-store-02",
+    "source": "store",
+    "source_id": 2,
+    "title": "Веганский протеиновый батончик",
+    "description": "Орехи, семена тыквы, финики и гороховый протеин, покрытые темным шоколадом.",
+    "price": 210,
+    "tags": ["snack", "vegan", "high-protein"],
+    "allergens": ["nuts"],
+    "exclusions": ["nut-free"],
+    "nutrients": {
+      "calories": 290,
+      "protein": 16,
+      "fat": 12,
+      "carbs": 32,
+      "fiber": 6,
+      "sodium": 160
+    }
+  },
+  {
+    "external_id": "seed-store-03",
+    "source": "store",
+    "source_id": 3,
+    "title": "Овсяный йогурт с манго",
+    "description": "Растительный йогурт на овсяной основе с кусочками манго и куркумой.",
+    "price": 180,
+    "tags": ["breakfast", "plant-based", "gut-health"],
+    "allergens": ["gluten"],
+    "exclusions": ["gluten-free"],
+    "nutrients": {
+      "calories": 240,
+      "protein": 8,
+      "fat": 9,
+      "carbs": 32,
+      "fiber": 4,
+      "sodium": 220
+    }
+  }
+]
