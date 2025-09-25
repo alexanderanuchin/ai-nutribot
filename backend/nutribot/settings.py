@@ -118,3 +118,5 @@ EMAIL_BACKEND = os.getenv(
 )
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@example.com")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+CATALOG_MINIMUM_AVAILABLE_ITEMS = int(os.getenv("CATALOG_MINIMUM_AVAILABLE_ITEMS", "120"))

@@ -134,3 +134,12 @@ def test_menu_selection_service_uses_fallback(monkeypatch):
     assert context["targets"]["protein"] == targets.protein_g
     assert context["restrictions"]["allergies"] == ["milk"]
     assert context["restrictions"]["exclusions"] == []
+
+
+@pytest.mark.django_db
+def test_menu_filter_service_handles_empty_result():
+    service = MenuFilterService()
+
+    result = service.filter(city="Неизвестный город", allergies=["none"], exclusions=["none"], budget=1)
+
+    assert result == []

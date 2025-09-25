@@ -6,6 +6,11 @@ class Restaurant(models.Model):
     city = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["city", "is_active"], name="cat_rest_city_active_idx"),
+        ]
+
     def __str__(self): return self.name
 
 
@@ -13,6 +18,11 @@ class Store(models.Model):
     name = models.CharField(max_length=200)
     city = models.CharField(max_length=120)
     is_active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["city", "is_active"], name="cat_store_city_active_idx"),
+        ]
 
     def __str__(self): return self.name
 
@@ -41,6 +51,13 @@ class MenuItem(models.Model):
     nutrients = models.OneToOneField(Nutrients, on_delete=models.CASCADE, related_name="item")
 
     class Meta:
-        indexes = [models.Index(fields=["source", "source_id", "is_available"])]
+        indexes = [
+            models.Index(fields=["source", "source_id", "is_available"], name="cat_menuitem_source_idx"),
+            models.Index(fields=["is_available", "price"], name="cat_menuitem_avail_price_idx"),
+            models.Index(fields=["tags"], name="cat_menuitem_tags_idx"),
+            models.Index(fields=["allergens"], name="cat_menuitem_allergens_idx"),
+            models.Index(fields=["exclusions"], name="cat_menuitem_exclusions_idx"),
+        ]
+
 
     def __str__(self): return self.title
