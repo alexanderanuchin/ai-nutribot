@@ -3,8 +3,80 @@
 from django.db import migrations
 
 
-class Migration(migrations.Migration):
+def _rename_index(schema_editor, *, table, columns, old_name, new_name) -> None:
+    vendor = schema_editor.connection.vendor
+    columns_sql = ", ".join(f'"{column}"' for column in columns)
 
+    if vendor == "sqlite":
+        # SQLite не поддерживает ALTER INDEX, поэтому пересоздаём индекс вручную.
+        schema_editor.execute(f'DROP INDEX IF EXISTS "{new_name}";')
+        schema_editor.execute(f'DROP INDEX IF EXISTS "{old_name}";')
+        schema_editor.execute(
+            f'CREATE INDEX "{new_name}" ON "{table}" ({columns_sql});'
+        )
+        return
+
+    if vendor == "postgresql":
+        schema_editor.execute(
+            f'ALTER INDEX IF EXISTS "{old_name}" RENAME TO "{new_name}";'
+        )
+        return
+
+    # На остальных СУБД пробуем выполнить универсальный SQL.
+    schema_editor.execute(f'ALTER INDEX "{old_name}" RENAME TO "{new_name}";')
+
+
+def _reverse_rename_index(schema_editor, *, table, columns, old_name, new_name) -> None:
+    _rename_index(
+        schema_editor,
+        table=table,
+        columns=columns,
+        old_name=new_name,
+        new_name=old_name,
+    )
+
+
+def _rename_walletperk_index(apps, schema_editor):
+    _rename_index(
+        schema_editor,
+        table="orders_walletperk",
+        columns=("profile_id", "is_active"),
+        old_name="orders_wperk_profile_active_idx",
+        new_name="orders_wall_profile_740eac_idx",
+    )
+
+
+def _reverse_walletperk_index(apps, schema_editor):
+    _reverse_rename_index(
+        schema_editor,
+        table="orders_walletperk",
+        columns=("profile_id", "is_active"),
+        old_name="orders_wperk_profile_active_idx",
+        new_name="orders_wall_profile_740eac_idx",
+    )
+
+
+def _rename_wallettarget_index(apps, schema_editor):
+    _rename_index(
+        schema_editor,
+        table="orders_wallettarget",
+        columns=("profile_id", "currency", "is_active"),
+        old_name="orders_wtarget_profile_curr_active_idx",
+        new_name="orders_wall_profile_a7537c_idx",
+    )
+
+
+def _reverse_wallettarget_index(apps, schema_editor):
+    _reverse_rename_index(
+        schema_editor,
+        table="orders_wallettarget",
+        columns=("profile_id", "currency", "is_active"),
+        old_name="orders_wtarget_profile_curr_active_idx",
+        new_name="orders_wall_profile_a7537c_idx",
+    )
+
+
+class Migration(migrations.Migration):
     dependencies = [
         ("orders", "0002_wallet_targets_perks_resilient"),
     ]
@@ -19,9 +91,9 @@ class Migration(migrations.Migration):
                 ),
             ],
             database_operations=[
-                migrations.RunSQL(
-                    sql="ALTER INDEX IF EXISTS orders_wperk_profile_active_idx RENAME TO orders_wall_profile_740eac_idx;",
-                    reverse_sql="ALTER INDEX IF EXISTS orders_wall_profile_740eac_idx RENAME TO orders_wperk_profile_active_idx;",
+                migrations.RunPython(
+                    _rename_walletperk_index,
+                    reverse_code=_reverse_walletperk_index,
                 ),
             ],
         ),
@@ -34,9 +106,9 @@ class Migration(migrations.Migration):
                 ),
             ],
             database_operations=[
-                migrations.RunSQL(
-                    sql="ALTER INDEX IF EXISTS orders_wtarget_profile_curr_active_idx RENAME TO orders_wall_profile_a7537c_idx;",
-                    reverse_sql="ALTER INDEX IF EXISTS orders_wall_profile_a7537c_idx RENAME TO orders_wtarget_profile_curr_active_idx;",
+                migrations.RunPython(
+                    _rename_wallettarget_index,
+                    reverse_code=_reverse_wallettarget_index,
                 ),
             ],
         ),

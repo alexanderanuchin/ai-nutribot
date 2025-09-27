@@ -235,6 +235,12 @@ class Order(models.Model):
         DELIVERED = "delivered", "Доставлен"
         CANCELLED = "cancelled", "Отменён"
 
+    class Kind(models.TextChoices):
+        PRO_SUBSCRIPTION = "pro_subscription", "PRO подписка"
+        CONSULTATION = "consultation", "Консультация"
+        DIGITAL_PRODUCT = "digital_product", "Цифровой продукт"
+        OTHER = "other", "Другое"
+
     class Currency(models.TextChoices):
         RUB = "RUB", "Рубли"
         TELEGRAM_STARS = "STARS", "Telegram Stars"
@@ -242,6 +248,13 @@ class Order(models.Model):
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255, blank=True)
+    description = models.CharField(max_length=255, blank=True)
+    kind = models.CharField(
+        max_length=32,
+        choices=Kind.choices,
+        default=Kind.PRO_SUBSCRIPTION,
+    )
     subscription = models.ForeignKey(
         MealSubscription,
         on_delete=models.SET_NULL,
@@ -265,6 +278,8 @@ class Order(models.Model):
         DeliveryService,
         on_delete=models.PROTECT,
         related_name="orders",
+        null=True,
+        blank=True,
     )
     delivery_window = models.ForeignKey(
         DeliveryWindow,
@@ -272,9 +287,9 @@ class Order(models.Model):
         null=True,
         blank=True,
     )
-    delivery_date = models.DateField()
-    city = models.CharField(max_length=120)
-    address_line = models.CharField(max_length=255)
+    delivery_date = models.DateField(null=True, blank=True)
+    city = models.CharField(max_length=120, blank=True)
+    address_line = models.CharField(max_length=255, blank=True)
     apartment = models.CharField(max_length=32, blank=True)
     entrance = models.CharField(max_length=32, blank=True)
     intercom_code = models.CharField(max_length=32, blank=True)
@@ -308,7 +323,15 @@ class Order(models.Model):
         help_text="ID заказа в системе доставки",
     )
     tracking_url = models.URLField(blank=True)
+    reference = models.CharField(max_length=64, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    payment_transaction = models.OneToOneField(
+        "orders.WalletTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_order",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -322,6 +345,14 @@ class Order(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Order<{self.id}:{self.status}>"
+
+    @property
+    def amount(self) -> Decimal:
+        return self.total_price
+
+    @property
+    def is_paid(self) -> bool:
+        return self.status == self.Status.PAID or self.payment_transaction_id is not None
 
     def mark_paid(self, *, wallet_currency: str | None = None) -> None:
         """Utility to move the order into paid/confirmed state."""

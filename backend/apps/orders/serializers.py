@@ -53,7 +53,7 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
 
 
 class WalletOperationSerializer(serializers.Serializer):
-    currency = serializers.ChoiceField(choices=WalletTransaction.Currency.choices)
+    currency = serializers.CharField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     description = serializers.CharField(required=False, allow_blank=True, max_length=255)
     reference = serializers.CharField(required=False, allow_blank=True, max_length=64)
@@ -63,6 +63,13 @@ class WalletOperationSerializer(serializers.Serializer):
         if value <= 0:
             raise serializers.ValidationError("Сумма должна быть положительной")
         return value
+
+    def validate_currency(self, value: str) -> str:
+        normalized = value.upper()
+        valid = {choice for choice, _ in WalletTransaction.Currency.choices}
+        if normalized not in valid:
+            raise serializers.ValidationError("Неизвестная валюта")
+        return normalized
 
     def create_transaction(self, *, profile) -> WalletTransaction:
         raise NotImplementedError
@@ -97,7 +104,7 @@ class WalletWithdrawSerializer(WalletOperationSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
-    currency = serializers.ChoiceField(choices=WalletTransaction.Currency.choices)
+    currency = serializers.CharField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     pay_with_wallet = serializers.BooleanField(write_only=True, required=False, default=False)
 
@@ -129,6 +136,9 @@ class OrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data: Dict[str, Any]) -> Order:
         pay_with_wallet = validated_data.pop("pay_with_wallet", False)
         profile = self.context["profile"]
+        currency = validated_data.get("currency")
+        if isinstance(currency, str):
+            validated_data["currency"] = currency.upper()
         order = create_order(profile, **validated_data)
         if pay_with_wallet:
             try:
@@ -139,12 +149,20 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance: Order) -> Dict[str, Any]:
         data = super().to_representation(instance)
-        amount = instance.amount
+        amount = instance.total_price
         if instance.currency == WalletTransaction.Currency.TELEGRAM_STARS:
             data["amount"] = int(amount)
         else:
             data["amount"] = float(amount)
+        data["currency"] = instance.currency.lower()
         return data
+
+    def validate_currency(self, value: str) -> str:
+        normalized = value.upper()
+        valid = {choice for choice, _ in WalletTransaction.Currency.choices}
+        if normalized not in valid:
+            raise serializers.ValidationError("Неизвестная валюта")
+        return normalized
 
 
 class OrderPaymentSerializer(serializers.Serializer):

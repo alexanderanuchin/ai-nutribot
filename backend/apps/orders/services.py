@@ -77,6 +77,7 @@ def wallet_topup(
     description: str | None = None,
     reference: str | None = None,
     metadata: Dict[str, Any] | None = None,
+    related_order: Order | None = None,
 ) -> WalletTransaction:
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
@@ -95,6 +96,7 @@ def wallet_topup(
             description=description or "Пополнение баланса",
             reference=reference or "",
             metadata=meta,
+            related_order=related_order,
         )
         return transaction_record
 
@@ -107,6 +109,7 @@ def wallet_withdraw(
     description: str | None = None,
     reference: str | None = None,
     metadata: Dict[str, Any] | None = None,
+    related_order: Order | None = None,
 ) -> WalletTransaction:
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
@@ -127,6 +130,7 @@ def wallet_withdraw(
             description=description or "Списание средств",
             reference=reference or "",
             metadata=meta,
+            related_order=related_order,
         )
         return transaction_record
 
@@ -146,6 +150,7 @@ def create_order(
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
     order = Order.objects.create(
+        user=profile.user,
         profile=profile,
         title=title,
         currency=currency,
@@ -154,7 +159,7 @@ def create_order(
         kind=kind or Order.Kind.PRO_SUBSCRIPTION,
         reference=reference or "",
         metadata=meta,
-        status=status or Order.Status.PENDING,
+        status=status or Order.Status.PENDING_PAYMENT,
     )
     return order
 
@@ -176,13 +181,14 @@ def pay_order_from_wallet(
         tx = wallet_withdraw(
             locked.profile,
             currency=locked.currency,
-            amount=locked.amount,
+            amount=locked.total_price,
             description=description or f"Оплата заказа #{locked.pk}",
             reference=reference or locked.reference,
             metadata={**meta, "order_id": locked.pk},
         )
         locked.payment_transaction = tx
         locked.status = Order.Status.PAID
+        locked.wallet_currency = locked.wallet_currency or locked.currency
         locked.paid_at = timezone.now()
         locked.save(update_fields=["payment_transaction", "status", "paid_at", "updated_at"])
         return locked, tx
@@ -334,7 +340,7 @@ def _resolve_wallet_perks(profile: Profile) -> list[str]:
 def _serialize_transaction(tx: WalletTransaction) -> Dict[str, Any]:
     return {
         "id": tx.pk,
-        "currency": tx.currency,
+        "currency": tx.currency.lower(),
         "direction": tx.direction,
         "amount": _format_decimal(tx.amount, tx.currency),
         "balance_after": _format_decimal(tx.balance_after, tx.currency),
@@ -352,8 +358,8 @@ def _serialize_order(order: Order) -> Dict[str, Any]:
         "title": order.title,
         "status": order.status,
         "status_display": order.get_status_display(),
-        "currency": order.currency,
-        "amount": _format_decimal(order.amount, order.currency),
+        "currency": order.currency.lower(),
+        "amount": _format_decimal(order.total_price, order.currency),
         "description": order.description or "",
         "reference": order.reference or None,
         "kind": order.kind,
@@ -378,7 +384,7 @@ def build_wallet_summary(
     targets_payload: Dict[str, Any] = {}
     for currency, config in target_configs.items():
         balance = balances.get(currency, Decimal("0"))
-        targets_payload[currency] = _build_target_payload(currency, balance, config)
+        targets_payload[currency.lower()] = _build_target_payload(currency, balance, config)
 
     transactions = list(
         WalletTransaction.objects.filter(profile=profile)
