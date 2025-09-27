@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+import uuid
 
 from django.conf import settings
 from django.db import models
@@ -468,10 +469,14 @@ class WalletTransaction(models.Model):
     )
     idempotency_key = models.CharField(
         max_length=128,
+        default=uuid.uuid4,
         help_text="Используется для защиты от двойного списания",
     )
+    description = models.CharField(max_length=255, blank=True)
+    reference = models.CharField(max_length=64, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
     occurred_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "Транзакция кошелька"
