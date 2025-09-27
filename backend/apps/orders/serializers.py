@@ -9,6 +9,7 @@ from apps.orders.models import Order, WalletTransaction
 from apps.orders.services import (
     build_wallet_summary,
     create_order,
+    normalize_transaction_direction,
     pay_order_from_wallet,
     wallet_topup,
     wallet_withdraw,
@@ -50,6 +51,13 @@ class WalletTransactionSerializer(serializers.ModelSerializer):
 
     def get_balance_after(self, obj: WalletTransaction) -> float | int:
         return self._format(obj.balance_after, obj.currency)
+
+    def to_representation(self, instance: WalletTransaction) -> Dict[str, Any]:
+        data = super().to_representation(instance)
+        data["currency"] = instance.currency.lower()
+        data["direction"] = normalize_transaction_direction(instance.direction)
+        data["reference"] = data.get("reference") or None
+        return data
 
 
 class WalletOperationSerializer(serializers.Serializer):

@@ -38,7 +38,8 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     )
     assert resp.status_code == 201
     data = resp.json()
-    assert data["direction"] == WalletTransaction.Direction.CREDIT
+    assert data["direction"] == "in"
+    assert data["currency"] == "stars"
     user.profile.refresh_from_db()
     assert user.profile.telegram_stars_balance == 300
 
@@ -48,6 +49,9 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
         format="json",
     )
     assert resp.status_code == 201
+    withdraw_payload = resp.json()
+    assert withdraw_payload["direction"] == "out"
+    assert withdraw_payload["currency"] == "stars"
     user.profile.refresh_from_db()
     assert user.profile.telegram_stars_balance == 180
 
@@ -93,7 +97,10 @@ def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient
     assert calo_target.get("label") == "До расширенного PRO"
     assert calo_target.get("progress_message").startswith("Осталось")
     assert calo_target.get("completed_message").startswith("CaloCoin достаточно")
-    assert any(tx["description"] == "Первый платёж" for tx in data["recent_transactions"])
+    assert any(
+        tx["description"] == "Первый платёж" and tx["currency"] == "calo" and tx["direction"] == "in"
+        for tx in data["recent_transactions"]
+    )
     assert "Бесплатная доставка — для заказов от 2000₽" in data["perks"]
 
 

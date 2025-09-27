@@ -70,14 +70,14 @@ def _set_profile_balance(profile: Profile, currency: str, balance: Decimal) -> N
 
 
 def wallet_topup(
-    profile: Profile,
-    *,
-    currency: str,
-    amount: Any,
-    description: str | None = None,
-    reference: str | None = None,
-    metadata: Dict[str, Any] | None = None,
-    related_order: Order | None = None,
+        profile: Profile,
+        *,
+        currency: str,
+        amount: Any,
+        description: str | None = None,
+        reference: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+        related_order: Order | None = None,
 ) -> WalletTransaction:
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
@@ -102,14 +102,14 @@ def wallet_topup(
 
 
 def wallet_withdraw(
-    profile: Profile,
-    *,
-    currency: str,
-    amount: Any,
-    description: str | None = None,
-    reference: str | None = None,
-    metadata: Dict[str, Any] | None = None,
-    related_order: Order | None = None,
+        profile: Profile,
+        *,
+        currency: str,
+        amount: Any,
+        description: str | None = None,
+        reference: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+        related_order: Order | None = None,
 ) -> WalletTransaction:
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
@@ -136,16 +136,16 @@ def wallet_withdraw(
 
 
 def create_order(
-    profile: Profile,
-    *,
-    title: str,
-    currency: str,
-    amount: Any,
-    description: str | None = None,
-    kind: str | None = None,
-    reference: str | None = None,
-    metadata: Dict[str, Any] | None = None,
-    status: str | None = None,
+        profile: Profile,
+        *,
+        title: str,
+        currency: str,
+        amount: Any,
+        description: str | None = None,
+        kind: str | None = None,
+        reference: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+        status: str | None = None,
 ) -> Order:
     normalized_amount = _normalize_amount(currency, amount)
     meta = metadata or {}
@@ -165,11 +165,11 @@ def create_order(
 
 
 def pay_order_from_wallet(
-    order: Order,
-    *,
-    description: str | None = None,
-    reference: str | None = None,
-    metadata: Dict[str, Any] | None = None,
+        order: Order,
+        *,
+        description: str | None = None,
+        reference: str | None = None,
+        metadata: Dict[str, Any] | None = None,
 ) -> Tuple[Order, WalletTransaction]:
     if order.is_paid:
         return order, order.payment_transaction  # type: ignore[return-value]
@@ -210,7 +210,8 @@ def _format_value_for_message(value: Decimal, currency: str) -> str:
     return format(normalized, "f")
 
 
-def _render_target_message(template: str | None, *, currency: str, left: Decimal, target: Decimal, balance: Decimal, progress: int) -> str:
+def _render_target_message(template: str | None, *, currency: str, left: Decimal, target: Decimal, balance: Decimal,
+                           progress: int) -> str:
     if not template:
         return ""
     replacements = {
@@ -299,7 +300,8 @@ def _build_target_payload(currency: str, balance: Decimal, config: Dict[str, Any
         payload["label"] = label
 
     progress_template = config.get("progress_template") or _DEFAULT_TARGETS.get(currency, {}).get("progress_template")
-    completed_template = config.get("completed_template") or _DEFAULT_TARGETS.get(currency, {}).get("completed_template")
+    completed_template = config.get("completed_template") or _DEFAULT_TARGETS.get(currency, {}).get(
+        "completed_template")
 
     progress_message = _render_target_message(
         progress_template,
@@ -337,11 +339,21 @@ def _resolve_wallet_perks(profile: Profile) -> list[str]:
     return list(_DEFAULT_WALLET_PERKS)
 
 
+def normalize_transaction_direction(direction: str) -> str:
+    mapping = {
+        WalletTransaction.Direction.CREDIT: "in",
+        WalletTransaction.Direction.RELEASE: "in",
+        WalletTransaction.Direction.DEBIT: "out",
+        WalletTransaction.Direction.HOLD: "out",
+    }
+    return mapping.get(direction, "out")
+
+
 def _serialize_transaction(tx: WalletTransaction) -> Dict[str, Any]:
     return {
         "id": tx.pk,
         "currency": tx.currency.lower(),
-        "direction": tx.direction,
+        "direction": normalize_transaction_direction(tx.direction),
         "amount": _format_decimal(tx.amount, tx.currency),
         "balance_after": _format_decimal(tx.balance_after, tx.currency),
         "balance_before": _format_decimal(tx.balance_before, tx.currency),
@@ -369,10 +381,10 @@ def _serialize_order(order: Order) -> Dict[str, Any]:
 
 
 def build_wallet_summary(
-    profile: Profile,
-    *,
-    transactions_limit: int = 5,
-    orders_limit: int = 3,
+        profile: Profile,
+        *,
+        transactions_limit: int = 5,
+        orders_limit: int = 3,
 ) -> Dict[str, Any]:
     balances: Dict[str, Decimal] = {
         WalletTransaction.Currency.TELEGRAM_STARS: Decimal(profile.telegram_stars_balance or 0),
@@ -413,4 +425,5 @@ __all__ = [
     "build_wallet_summary",
     "STARS_CONSULTATION_TARGET",
     "CALO_PRO_TARGET",
+    "normalize_transaction_direction",
 ]
