@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Profile from './pages/Profile'
+import Orders from './pages/Orders'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -44,6 +45,9 @@ export default function App(){
           } />
           <Route path="/profile" element={
             <ProtectedRoute><Profile /></ProtectedRoute>
+          } />
+          <Route path="/orders" element={
+            <ProtectedRoute><Orders /></ProtectedRoute>
           } />
           <Route path="*" element={<div className="card">Страница не найдена</div>} />
         </Routes>

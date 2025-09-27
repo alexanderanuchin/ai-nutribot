@@ -19,6 +19,7 @@ export default function Navbar(){
         <nav className="nav-links" aria-label="Основная навигация">
           <Link to="/dashboard" className={linkClass('/dashboard')}>План</Link>
           <Link to="/profile" className={linkClass('/profile')}>Профиль</Link>
+          <Link to="/orders" className={linkClass('/orders')}>Монетизация</Link>
         </nav>
       )}
       <div className="right">

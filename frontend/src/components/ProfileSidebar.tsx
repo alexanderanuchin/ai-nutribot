@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { ExperienceLevel, Profile as ProfileT, User } from '../types'
+import type { ExperienceLevel, Profile as ProfileT, User, WalletSummary, WalletTransactionRecord } from '../types'
 import type { ProfileUpdatePayload } from '../api/profile'
 import { formatPhoneInput } from '../utils/phone'
 
@@ -18,6 +18,7 @@ interface ProfileSidebarProps {
   onEditProfile?: () => void
   profileUpdateNotice?: string | null
   onPreferencesUpdate?: (payload: ProfilePreferencesUpdatePayload) => Promise<unknown>
+  walletSummary?: WalletSummary | null
 }
 
 const goalLabels: Record<ProfileT['goal'], string> = {
@@ -108,10 +109,29 @@ const integerFormatter = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 0
 })
 
+const decimalFormatter = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2
+})
+
+const transactionDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit'
+})
+
 const parseNumber = (value: unknown): number | null => {
   if (value === null || value === undefined || value === '') return null
   const numeric = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(numeric) ? numeric : null
+}
+
+const applyTemplate = (template: string | null | undefined, fallback: string, replacements: Record<string, string>): string => {
+  const source = (template ?? '').trim() || fallback
+  return source.replace(/\{(\w+)\}/g, (_match, key: string) => {
+    return Object.prototype.hasOwnProperty.call(replacements, key) ? replacements[key] : ''
+  })
 }
 
 const NAV_SECTIONS = [
@@ -207,15 +227,21 @@ const NAV_SECTIONS = [
   }
 ]
 
-const walletPerks = [
+const DEFAULT_WALLET_PERKS = [
   'Эксклюзивные планы питания с адаптацией под ваши тренировки',
   'Доступ к мини-курсам и лайв-сессиям нутрициологов каждую неделю',
   'Экспериментальные фичи AI-куратора без ограничений'
 ]
 
-const STARS_REWARD_TARGET = 500
-const CALO_REWARD_TARGET = 1200
+const DEFAULT_STARS_REWARD_TARGET = 500
+const DEFAULT_CALO_REWARD_TARGET = 1200
 
+const DEFAULT_STARS_TARGET_LABEL = 'До клубной консультации'
+const DEFAULT_STARS_PROGRESS_TEMPLATE = 'Ещё {left} Stars — и куратор свяжется с вами.'
+const DEFAULT_STARS_COMPLETED_TEMPLATE = 'Доступ к консультациям открыт — напишите куратору в @CaloIQ_bot.'
+const DEFAULT_CALO_TARGET_LABEL = 'До PRO-доступа'
+const DEFAULT_CALO_PROGRESS_TEMPLATE = 'Накопите ещё {left} CaloCoin для полного PRO.'
+const DEFAULT_CALO_COMPLETED_TEMPLATE = 'Баланс позволяет активировать PRO прямо сейчас.'
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 type AvatarState =
@@ -406,12 +432,22 @@ export default function ProfileSidebar({
   recommendedCalories,
   onEditProfile,
   profileUpdateNotice,
-  onPreferencesUpdate
+  onPreferencesUpdate,
+  walletSummary
 }: ProfileSidebarProps) {
   const sidebarMeta = profile.sidebar_meta ?? null
   const walletMeta = sidebarMeta?.wallet ?? null
   const walletLinks = walletMeta?.links ?? null
   const walletOnboardingMessages = walletMeta?.onboarding?.messages ?? []
+  const summaryTargets = walletSummary?.targets ?? walletMeta?.targets ?? null
+  const walletPerksList = (walletSummary?.perks && walletSummary.perks.length > 0)
+    ? walletSummary.perks
+    : (walletMeta?.perks && walletMeta.perks.length > 0)
+      ? walletMeta.perks
+      : DEFAULT_WALLET_PERKS
+  const recentTransactions = (walletSummary?.recent_transactions ?? walletMeta?.recent_transactions ?? []).slice(0, 3)
+  const recentOrders = walletSummary?.recent_orders ?? walletMeta?.recent_orders ?? []
+  const latestOrder = recentOrders.length > 0 ? recentOrders[0] : null
   const [showWallet, setShowWallet] = useState(() => Boolean(profile.wallet_settings?.show_wallet ?? walletMeta?.show_wallet));
   const walletHintId = useId();
   const avatarPickerId = useId();
@@ -467,6 +503,16 @@ export default function ProfileSidebar({
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+  const starsTargetConfig = summaryTargets?.stars ?? null
+  const caloTargetConfig = summaryTargets?.calo ?? null
+  const starsTargetValue = starsTargetConfig?.target ?? DEFAULT_STARS_REWARD_TARGET
+  const caloTargetValue = caloTargetConfig?.target ?? DEFAULT_CALO_REWARD_TARGET
+  const starsTargetBalance = typeof starsTargetConfig?.balance === 'number'
+    ? Math.max(0, starsTargetConfig.balance)
+    : starsBalance
+  const caloTargetBalance = typeof caloTargetConfig?.balance === 'number'
+    ? Math.max(0, caloTargetConfig.balance)
+    : Math.max(0, caloBalanceValue)
   const currentPreset = avatarState.kind === 'preset' ? avatarPresets.find(preset => preset.id === avatarState.id) || null : null
   const avatarImageSrc =
     avatarState.kind === 'external'
@@ -644,10 +690,44 @@ export default function ProfileSidebar({
   const walletHint = showWallet
     ? 'Скрыть финансовый блок и бонусы'
     : 'Разверните панель, чтобы увидеть бонусы, подписки и оплату'
-  const starsTargetLeft = Math.max(STARS_REWARD_TARGET - starsBalance, 0)
-  const starProgress = Math.min(100, Math.round((starsBalance / STARS_REWARD_TARGET) * 100))
-  const caloTargetLeft = Math.max(CALO_REWARD_TARGET - Math.floor(caloBalanceValue), 0)
-  const caloProgress = Math.min(100, Math.round((caloBalanceValue / CALO_REWARD_TARGET) * 100))
+  const starsTargetLeft = typeof starsTargetConfig?.left === 'number'
+    ? Math.max(0, starsTargetConfig.left)
+    : Math.max(starsTargetValue - starsTargetBalance, 0)
+  const starProgress = typeof starsTargetConfig?.progress === 'number'
+    ? Math.max(0, Math.min(100, starsTargetConfig.progress))
+    : Math.min(
+        100,
+        starsTargetValue > 0 ? Math.round((starsTargetBalance / starsTargetValue) * 100) : 0
+      )
+  const caloTargetLeft = typeof caloTargetConfig?.left === 'number'
+    ? Math.max(0, caloTargetConfig.left)
+    : Math.max(caloTargetValue - caloTargetBalance, 0)
+  const caloProgress = typeof caloTargetConfig?.progress === 'number'
+    ? Math.max(0, Math.min(100, caloTargetConfig.progress))
+    : Math.min(
+        100,
+        caloTargetValue > 0 ? Math.round((caloTargetBalance / caloTargetValue) * 100) : 0
+      )
+  const starsTargetTitle = (starsTargetConfig?.label?.trim() || DEFAULT_STARS_TARGET_LABEL)
+  const caloTargetTitle = (caloTargetConfig?.label?.trim() || DEFAULT_CALO_TARGET_LABEL)
+  const starTemplateReplacements = {
+    left: integerFormatter.format(Math.max(0, Math.round(starsTargetLeft))),
+    target: integerFormatter.format(Math.max(0, Math.round(starsTargetValue))),
+    balance: integerFormatter.format(Math.max(0, Math.round(starsTargetBalance))),
+    progress: starProgress.toString()
+  }
+  const caloTemplateReplacements = {
+    left: decimalFormatter.format(Math.max(0, caloTargetLeft)),
+    target: decimalFormatter.format(Math.max(0, caloTargetValue)),
+    balance: decimalFormatter.format(Math.max(0, caloTargetBalance)),
+    progress: caloProgress.toString()
+  }
+  const starProgressMessage = starsTargetLeft > 0
+    ? applyTemplate(starsTargetConfig?.progress_message ?? null, DEFAULT_STARS_PROGRESS_TEMPLATE, starTemplateReplacements)
+    : applyTemplate(starsTargetConfig?.completed_message ?? null, DEFAULT_STARS_COMPLETED_TEMPLATE, starTemplateReplacements)
+  const caloProgressMessage = caloTargetLeft > 0
+    ? applyTemplate(caloTargetConfig?.progress_message ?? null, DEFAULT_CALO_PROGRESS_TEMPLATE, caloTemplateReplacements)
+    : applyTemplate(caloTargetConfig?.completed_message ?? null, DEFAULT_CALO_COMPLETED_TEMPLATE, caloTemplateReplacements)
 
   useEffect(() => {
     if (!showWallet) return
@@ -1115,33 +1195,65 @@ export default function ProfileSidebar({
                 <div className="profile-sidebar__wallet-progress" aria-live="polite">
                   <div className="profile-sidebar__wallet-progress-item">
                     <div className="profile-sidebar__wallet-progress-header">
-                      <span className="profile-sidebar__wallet-progress-title">До клубной консультации</span>
+                      <span className="profile-sidebar__wallet-progress-title">{starsTargetTitle}</span>
                       <span className="profile-sidebar__wallet-progress-value">{starProgress}%</span>
                     </div>
                     <div className="profile-sidebar__wallet-progress-bar" aria-hidden="true">
                       <span style={{ width: `${starProgress}%` }} />
                     </div>
-                    <p className="profile-sidebar__wallet-progress-hint small">
-                      {starsTargetLeft > 0
-                        ? `Ещё ${integerFormatter.format(starsTargetLeft)} Stars — и куратор свяжется с вами.`
-                        : 'Доступ к консультациям открыт — напишите куратору в @CaloIQ_bot.'}
-                    </p>
+                    <p className="profile-sidebar__wallet-progress-hint small">{starProgressMessage}</p>
                   </div>
                   <div className="profile-sidebar__wallet-progress-item">
                     <div className="profile-sidebar__wallet-progress-header">
-                      <span className="profile-sidebar__wallet-progress-title">До PRO-доступа</span>
+                      <span className="profile-sidebar__wallet-progress-title">{caloTargetTitle}</span>
                       <span className="profile-sidebar__wallet-progress-value">{caloProgress}%</span>
                     </div>
                     <div className="profile-sidebar__wallet-progress-bar" aria-hidden="true">
                       <span style={{ width: `${caloProgress}%` }} />
                     </div>
-                    <p className="profile-sidebar__wallet-progress-hint small">
-                      {caloTargetLeft > 0
-                        ? `Накопите ещё ${integerFormatter.format(caloTargetLeft)} CaloCoin для полного PRO.`
-                        : 'Баланс позволяет активировать PRO прямо сейчас.'}
-                    </p>
+                    <p className="profile-sidebar__wallet-progress-hint small">{caloProgressMessage}</p>
                   </div>
                 </div>
+                {recentTransactions.length > 0 && (
+                  <div className="profile-sidebar__wallet-history" aria-live="polite">
+                    <div className="profile-sidebar__wallet-history-title">Последние операции</div>
+                    <ul className="profile-sidebar__wallet-history-list">
+                      {recentTransactions.map((tx: WalletTransactionRecord) => {
+                        const isCredit = tx.direction === 'in'
+                        const amountFormatter = tx.currency === 'stars' ? integerFormatter : decimalFormatter
+                        const amountValue = Math.abs(Number(tx.amount) || 0)
+                        const amountDisplay = `${isCredit ? '+' : '−'} ${amountFormatter.format(amountValue)} ${tx.currency === 'stars' ? 'Stars' : 'CaloCoin'}`
+                        const created = new Date(tx.created_at)
+                        const dateDisplay = Number.isNaN(created.getTime())
+                          ? ''
+                          : transactionDateFormatter.format(created)
+                        const description = tx.description?.trim() || (isCredit ? 'Пополнение кошелька' : 'Списание средств')
+                        return (
+                          <li key={tx.id} className="profile-sidebar__wallet-history-item">
+                            <div>
+                              <div className="profile-sidebar__wallet-history-description">{description}</div>
+                              <div className="profile-sidebar__wallet-history-date small">{dateDisplay}</div>
+                            </div>
+                            <div className={`profile-sidebar__wallet-history-amount ${isCredit ? 'is-credit' : 'is-debit'}`}>
+                              {amountDisplay}
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
+                {latestOrder && (
+                  <div className="profile-sidebar__wallet-order small">
+                    Последний заказ: <strong>{latestOrder.title}</strong> — {latestOrder.status_display}
+                    {(() => {
+                      const created = new Date(latestOrder.created_at)
+                      if (Number.isNaN(created.getTime())) return null
+                      return ` · ${transactionDateFormatter.format(created)}`
+                    })()}
+                  </div>
+                )}
+
                 <div className="profile-sidebar__wallet-meta small">
                   {hasTelegramLink
                     ? 'Telegram Mini App подключён — пополнения синхронизируются автоматически.'
@@ -1153,7 +1265,7 @@ export default function ProfileSidebar({
                     : 'Добавьте дневной бюджет, чтобы CaloCoin планировал траты.'}
                 </div>
                 <ul className="profile-sidebar__wallet-perks">
-                  {walletPerks.map(perk => (
+                  {walletPerksList.map(perk => (
                     <li key={perk}>{perk}</li>
                   ))}
                 </ul>

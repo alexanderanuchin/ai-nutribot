@@ -60,6 +60,13 @@ class ProfileSerializerTest(TestCase):
         self.assertFalse(wallet_meta["onboarding"]["needs_city"])
         self.assertEqual(wallet_meta["links"]["topup"], "https://t.me/wallet?start=star-topup")
         self.assertEqual(wallet_meta["links"]["bot"], "https://t.me/CaloIQ_bot")
+        self.assertIn("targets", wallet_meta)
+        self.assertIn("perks", wallet_meta)
+        self.assertIn("recent_transactions", wallet_meta)
+        targets = wallet_meta["targets"]
+        self.assertEqual(targets["stars"]["balance"], 125)
+        self.assertEqual(int(targets["stars"]["target"]), 500)
+        self.assertGreaterEqual(targets["calo"]["balance"], 1250.0)
 
         assistants = sidebar_meta["assistants"]
         self.assertEqual(assistants[0]["state"], "active")

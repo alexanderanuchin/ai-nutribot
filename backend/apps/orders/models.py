@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
-
+# Заказы реализуем на следующих шагах
 from django.utils import timezone
 
 from apps.catalog.models import MenuItem
@@ -50,7 +50,7 @@ class DeliveryService(models.Model):
             models.Index(fields=["city", "is_active"], name="orders_delivery_city_active"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.name} ({self.city})"
 
 
@@ -77,7 +77,7 @@ class DeliveryWindow(models.Model):
         unique_together = ("service", "city", "start_time", "end_time")
         ordering = ("city", "start_time")
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.city}: {self.start_time:%H:%M}-{self.end_time:%H:%M}"
 
 
@@ -149,7 +149,7 @@ class SubscriptionPlan(models.Model):
             models.Index(fields=["city", "is_active"], name="orders_sub_city_active"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"{self.name} ({self.billing_period})"
 
 
@@ -216,7 +216,7 @@ class MealSubscription(models.Model):
             models.Index(fields=["next_billing_at"], name="orders_sub_billing_idx"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"Subscription<{self.user_id}:{self.plan.slug}>"
 
 
@@ -319,12 +319,11 @@ class Order(models.Model):
             models.Index(fields=["external_order_id"], name="orders_order_external_idx"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"Order<{self.id}:{self.status}>"
 
     def mark_paid(self, *, wallet_currency: str | None = None) -> None:
         """Utility to move the order into paid/confirmed state."""
-
         self.status = self.Status.PAID
         self.wallet_currency = wallet_currency or self.wallet_currency
         self.paid_at = timezone.now()
@@ -359,7 +358,7 @@ class OrderItem(models.Model):
             models.Index(fields=["order", "menu_item"], name="orders_orderitem_menu_idx"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"OrderItem<{self.order_id}:{self.menu_item_id}>"
 
 
@@ -429,7 +428,7 @@ class PaymentAttempt(models.Model):
             models.Index(fields=["external_payment_id"], name="orders_payment_external_idx"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         target = self.order_id or self.subscription_id
         return f"PaymentAttempt<{self.provider}:{target}>"
 
@@ -482,8 +481,22 @@ class WalletTransaction(models.Model):
             models.Index(fields=["currency", "occurred_at"], name="orders_wallet_currency_date"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"WalletTransaction<{self.profile_id}:{self.direction}:{self.amount}>"
+
+    @property
+    def signed_amount(self) -> Decimal:
+        """
+        Удобный «подписанный» размер операции:
+          +amount для CREDIT,
+          -amount для DEBIT,
+           0      для HOLD/RELEASE.
+        """
+        if self.direction == self.Direction.CREDIT:
+            return self.amount
+        if self.direction == self.Direction.DEBIT:
+            return -self.amount
+        return Decimal("0")
 
 
 class IntegrationWebhookEvent(models.Model):
@@ -533,5 +546,87 @@ class IntegrationWebhookEvent(models.Model):
             models.Index(fields=["external_event_id"], name="orders_webhook_external_idx"),
         ]
 
-    def __str__(self) -> str:  # pragma: no cover - human readable representation
+    def __str__(self) -> str:  # pragma: no cover
         return f"Webhook<{self.source}:{self.event_type}>"
+
+
+# === ДОБАВЛЕНО: цели и «перки» кошелька ===============================
+
+class WalletTarget(models.Model):
+    """
+    Цель накопления по конкретной валюте (например, накопить 1000 CALO).
+    Использует те же коды валют, что и WalletTransaction.Currency (STARS/CALO).
+    """
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="wallet_targets",
+    )
+    currency = models.CharField(max_length=16, choices=WalletTransaction.Currency.choices)
+    target_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    priority = models.PositiveSmallIntegerField(default=0)
+    label = models.CharField(max_length=255, blank=True)
+    progress_template = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Сообщение при неполном прогрессе. Плейсхолдеры {left}, {target}, {balance}.",
+    )
+    completed_template = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Сообщение при достижении цели. Плейсхолдеры {left}, {target}, {balance}.",
+    )
+    is_active = models.BooleanField(default=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("priority", "currency", "id")
+        indexes = [
+            models.Index(fields=("profile", "currency", "is_active")),
+        ]
+        unique_together = ("profile", "currency", "priority")
+        verbose_name = "Цель кошелька"
+        verbose_name_plural = "Цели кошелька"
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"WalletTarget<{self.pk}:{self.currency}:{self.target_amount}>"
+
+
+class WalletPerk(models.Model):
+    """
+    «Перки»/бенефиты в ЛК: карточки с заголовком, описанием и CTA.
+    Не влияет на биллинг, чисто UI/маркетинг, но хранится рядом с кошельком.
+    """
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="wallet_perks",
+    )
+    title = models.CharField(max_length=255)
+    description = models.CharField(max_length=255, blank=True)
+    cta_label = models.CharField(max_length=128, blank=True)
+    cta_url = models.URLField(blank=True)
+    is_active = models.BooleanField(default=True)
+    priority = models.PositiveSmallIntegerField(default=0)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("priority", "id")
+        indexes = [
+            models.Index(fields=("profile", "is_active")),
+        ]
+        verbose_name = "Перк кошелька"
+        verbose_name_plural = "Перки кошелька"
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"WalletPerk<{self.pk}:{self.title}>"
+
+    @property
+    def display_text(self) -> str:
+        if self.description:
+            return f"{self.title} — {self.description}"
+        return self.title

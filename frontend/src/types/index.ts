@@ -53,6 +53,8 @@ export interface ProfileSidebarFeature {
   badge?: string | null
 }
 
+export type WalletCurrency = 'stars' | 'calo'
+
 export interface ProfileWalletLinks {
   bot: string
   topup: string
@@ -67,10 +69,61 @@ export interface ProfileWalletOnboarding {
   messages: string[]
 }
 
+export interface WalletTarget {
+  target: number
+  balance: number
+  progress: number
+  left: number
+  label?: string | null
+  progress_message?: string | null
+  completed_message?: string | null
+}
+
+export interface WalletTransactionRecord {
+  id: number
+  currency: WalletCurrency
+  direction: 'in' | 'out'
+  amount: number
+  balance_after: number
+  balance_before: number
+  description?: string | null
+  reference?: string | null
+  metadata?: Record<string, unknown> | null
+  created_at: string
+}
+
+export interface WalletOrderRecord {
+  id: number
+  title: string
+  kind: string
+  status: string
+  status_display: string
+  currency: WalletCurrency
+  amount: number
+  reference?: string | null
+  description?: string | null
+  paid_at?: string | null
+  created_at: string
+}
+
+export interface WalletSummary {
+  perks: string[]
+  targets: {
+    stars: WalletTarget
+    calo: WalletTarget
+  }
+  recent_transactions: WalletTransactionRecord[]
+  recent_orders: WalletOrderRecord[]
+}
+
 export interface ProfileSidebarWalletMeta {
   show_wallet: boolean
   links: ProfileWalletLinks
   onboarding: ProfileWalletOnboarding
+  perks?: string[]
+  targets?: WalletSummary['targets']
+  recent_transactions?: WalletTransactionRecord[]
+  recent_orders?: WalletOrderRecord[]
 }
 
 export interface ProfileSidebarMeta {
@@ -104,6 +157,14 @@ export interface Profile {
   avatar_preferences?: AvatarPreferences | null
   wallet_settings?: WalletSettings | null
   sidebar_meta?: ProfileSidebarMeta | null
+}
+
+export interface WalletOperationPayload {
+  currency: WalletCurrency
+  amount: number
+  description?: string
+  reference?: string
+  metadata?: Record<string, unknown>
 }
 
 export interface User {

@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, Dict, List
 
 from apps.users.models import Profile
+from apps.orders.services import build_wallet_summary
 
 
 _CALO_BOT_LINK = "https://t.me/CaloIQ_bot"
@@ -169,6 +170,13 @@ def build_profile_sidebar_meta(profile: Profile) -> Dict[str, Any]:
         "links": wallet_links,
         "onboarding": wallet_onboarding,
     }
+
+    try:
+        summary = build_wallet_summary(profile)
+    except Exception:  # pragma: no cover - fallback for unexpected errors
+        summary = {}
+    else:
+        wallet_payload.update(summary)
 
     return {
         "wallet": wallet_payload,

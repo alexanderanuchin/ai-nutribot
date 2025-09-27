@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api/client'
 import { me } from '../api/auth'
-import type { Activity, Goal, MacroBreakdown, Profile as ProfileT, User } from '../types'
+import type { Activity, Goal, MacroBreakdown, Profile as ProfileT, User, WalletSummary } from '../types'
 import { updateProfile, type ProfileUpdatePayload, type ProfileUpdateResult } from '../api/profile'
 import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
 import { tokenStore } from '../utils/storage'
+import { fetchWalletSummary } from '../api/orders'
 
 const emptyProfile: ProfileT = {
   sex: 'm',
@@ -68,6 +69,7 @@ export default function Profile(){
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [profileNotice, setProfileNotice] = useState<string | null>(null)
+  const [walletSummary, setWalletSummary] = useState<WalletSummary | null>(null)
 
   const syncProfileState = (data: ProfileUpdateResult) => {
     const { user: updatedUser, profile: profilePayload, metrics, tokens } = data
@@ -127,6 +129,25 @@ export default function Profile(){
     const timer = window.setTimeout(() => setProfileNotice(null), 6000)
     return () => window.clearTimeout(timer)
   }, [profileNotice])
+
+  useEffect(() => {
+    if (!profileId) return
+    let cancelled = false
+    async function loadWalletSummary(){
+      try {
+        const summary = await fetchWalletSummary()
+        if (!cancelled) {
+          setWalletSummary(summary)
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить данные кошелька', error)
+      }
+    }
+    loadWalletSummary()
+    return () => {
+      cancelled = true
+    }
+  }, [profileId])
 
   const change = (key: keyof ProfileT, v: any) => setProfile(prev => ({...prev, [key]: v}))
   const allergyStr = useMemo(()=> profile.allergies.join(', '), [profile])
@@ -311,18 +332,19 @@ export default function Profile(){
   return (
     <>
       <div className="profile-layout">
-      <ProfileSidebar
-        user={user}
-        profile={profile}
-        age={age}
-        bmi={bmi}
-        bmiStatus={bmiStatus}
-        tdee={tdee}
-        recommendedCalories={recommendedCalories}
-        onEditProfile={openEditDialog}
-        profileUpdateNotice={profileNotice}
-        onPreferencesUpdate={handlePreferencesUpdate}
-      />
+        <ProfileSidebar
+          user={user}
+          profile={profile}
+          age={age}
+          bmi={bmi}
+          bmiStatus={bmiStatus}
+          tdee={tdee}
+          recommendedCalories={recommendedCalories}
+          onEditProfile={openEditDialog}
+          profileUpdateNotice={profileNotice}
+          onPreferencesUpdate={handlePreferencesUpdate}
+          walletSummary={walletSummary}
+        />
       <div className="profile-main">
         <div className="profile-main-columns">
           <div className="profile-main-col">
