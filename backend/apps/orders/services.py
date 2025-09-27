@@ -154,7 +154,7 @@ def create_order(
         profile=profile,
         title=title,
         currency=currency,
-        amount=normalized_amount,
+        total_price=normalized_amount,
         description=description or "",
         kind=kind or Order.Kind.PRO_SUBSCRIPTION,
         reference=reference or "",

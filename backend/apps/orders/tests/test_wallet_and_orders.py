@@ -163,3 +163,27 @@ def test_order_pay_endpoint(auth_client: APIClient, user: User):
     assert list_resp.status_code == 200
     items = list_resp.json()
     assert any(item["id"] == order_id for item in items)
+
+
+@pytest.mark.django_db
+def test_wallet_summary_creates_profile_if_missing(api_client: APIClient):
+    user = User.objects.create_user(
+        username="no-profile",
+        email="orphan@example.com",
+        password="StrongPass!1",
+    )
+    # Simulate legacy accounts created before automatic profile creation
+    user.profile.delete()
+
+    api_client.force_authenticate(user=user)
+    resp = api_client.get("/api/orders/wallet/summary/")
+
+    assert resp.status_code == 200
+    # A new profile should be created transparently
+    user = User.objects.get(pk=user.pk)
+    assert hasattr(user, "profile")
+    assert user.profile is not None
+
+    payload = resp.json()
+    assert "targets" in payload
+    assert payload["targets"]["stars"]["balance"] == 0
