@@ -7,3 +7,9 @@ class ProfileWizard(StatesGroup):
     allergies = State()
     goals = State()
     confirm = State()
+
+
+class PlanGeneration(StatesGroup):
+    choosing_period = State()
+    awaiting_job = State()
+    awaiting_regen_choice = State()

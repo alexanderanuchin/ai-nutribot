@@ -107,3 +107,19 @@ class PlanMeal(models.Model):
     qty = models.FloatField(default=1.0)
     time_hint = models.CharField(max_length=16, default="any")
     user_note = models.TextField(blank=True, default="")
+
+
+class MenuPlanSnapshot(models.Model):
+    plan = models.OneToOneField(MenuPlan, on_delete=models.CASCADE, related_name="snapshot")
+    summary = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["updated_at"], name="nutriplan_snapshot_updated_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - representation helper
+        return f"MenuPlanSnapshot<{self.plan_id}>"

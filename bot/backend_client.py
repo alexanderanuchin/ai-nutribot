@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp
@@ -28,16 +29,23 @@ class BackendValidationError(BackendError):
         self.errors = errors
 
 
+@dataclass(slots=True)
+class AuthResult:
+    payload: Dict[str, Any]
+    access: str | None
+    refresh: str | None
+
+
 class BackendClient:
-    """Small wrapper around aiohttp with retries and logging."""
+    """Small wrapper around aiohttp with retries, refresh and logging."""
 
     def __init__(
-        self,
-        base_url: str,
-        *,
-        timeout: float = 10.0,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
+            self,
+            base_url: str,
+            *,
+            timeout: float = 10.0,
+            max_retries: int = 3,
+            retry_delay: float = 1.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self._timeout = timeout
@@ -58,12 +66,12 @@ class BackendClient:
         return self._session
 
     async def _request(
-        self,
-        method: str,
-        path: str,
-        *,
-        json: Any | None = None,
-        headers: Dict[str, str] | None = None,
+            self,
+            method: str,
+            path: str,
+            *,
+            json: Any | None = None,
+            headers: Dict[str, str] | None = None,
     ) -> Any:
         url = f"{self.base_url}{path}"
         last_error: Optional[BackendError] = None
@@ -81,7 +89,7 @@ class BackendClient:
                         raise BackendNetworkError(f"Server error {resp.status}")
                     if resp.status == 401:
                         raise BackendAuthError("Unauthorized")
-                    if resp.status == 400:
+                    if resp.status in {400, 422}:
                         errors = data if isinstance(data, dict) else {"detail": data}
                         raise BackendValidationError(errors)
                     if resp.status >= 400:
@@ -114,6 +122,41 @@ class BackendClient:
         assert last_error is not None
         raise last_error
 
+    async def _authorized(
+            self,
+            method: str,
+            path: str,
+            *,
+            access: str | None,
+            refresh: str | None,
+            json: Any | None = None,
+    ) -> AuthResult:
+        if not access:
+            raise BackendAuthError("Access token required")
+        try:
+            payload = await self._request(
+                method,
+                path,
+                json=json,
+                headers={"Authorization": f"Bearer {access}"},
+            )
+            return AuthResult(payload=payload, access=access, refresh=refresh)
+        except BackendAuthError:
+            if not refresh:
+                raise
+            tokens = await self.refresh_tokens(refresh)
+            new_access = tokens.get("access")
+            new_refresh = tokens.get("refresh") or refresh
+            if not new_access:
+                raise BackendAuthError("Failed to refresh token")
+            payload = await self._request(
+                method,
+                path,
+                json=json,
+                headers={"Authorization": f"Bearer {new_access}"},
+            )
+            return AuthResult(payload=payload, access=new_access, refresh=new_refresh)
+
     async def ping(self) -> bool:
         try:
             await self._request("GET", "/api/nutrition/ping/")
@@ -132,6 +175,18 @@ class BackendClient:
         )
         if not isinstance(result, dict):
             raise BackendError("Unexpected payload from tg_exchange")
+        return result
+
+    async def refresh_tokens(self, refresh_token: str) -> Dict[str, Any]:
+        if not refresh_token:
+            raise BackendAuthError("Refresh token required")
+        result = await self._request(
+            "POST",
+            "/api/users/auth/refresh/",
+            json={"refresh": refresh_token},
+        )
+        if not isinstance(result, dict):
+            raise BackendError("Unexpected payload from refresh endpoint")
         return result
 
     async def get_me(self, access_token: str) -> Dict[str, Any]:
@@ -158,3 +213,96 @@ class BackendClient:
         if not isinstance(result, dict):
             raise BackendError("Unexpected payload from profile update")
         return result
+
+    async def generate_plan(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        payload: Dict[str, Any],
+    ) -> AuthResult:
+        return await self._authorized(
+            "POST",
+            "/api/nutrition/generate_and_save/",
+            access=access_token,
+            refresh=refresh_token,
+            json=payload,
+        )
+
+    async def job_status(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        job_id: str,
+    ) -> AuthResult:
+        return await self._authorized(
+            "GET",
+            f"/api/nutrition/jobs/{job_id}/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def get_latest_plan(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+    ) -> AuthResult:
+        return await self._authorized(
+            "GET",
+            "/api/nutrition/plans/latest/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def get_history(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        limit: int = 10,
+    ) -> AuthResult:
+        return await self._authorized(
+            "GET",
+            f"/api/nutrition/plans/history/?limit={int(limit)}",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def accept_plan(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        plan_id: int,
+    ) -> AuthResult:
+        return await self._authorized(
+            "POST",
+            f"/api/nutrition/plans/{plan_id}/accept/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def reject_plan(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        plan_id: int,
+    ) -> AuthResult:
+        return await self._authorized(
+            "POST",
+            f"/api/nutrition/plans/{plan_id}/reject/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def regenerate_plan(
+        self,
+        access_token: str | None,
+        refresh_token: str | None,
+        plan_id: int,
+        overrides: Dict[str, Any] | None = None,
+    ) -> AuthResult:
+        return await self._authorized(
+            "POST",
+            f"/api/nutrition/plans/{plan_id}/regenerate/",
+            access=access_token,
+            refresh=refresh_token,
+            json={"overrides": overrides} if overrides else {},
+        )

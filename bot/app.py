@@ -25,6 +25,7 @@ if __package__ in {None, ""}:
 
 from bot.backend_client import BackendClient
 from bot.handlers.menu import router as menu_router
+from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
 from bot.middlewares.access_token import AccessTokenMiddleware
 from bot.middlewares.store import StoreMiddleware
@@ -67,12 +68,15 @@ async def main() -> None:
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 
     dp.include_router(menu_router)
+    dp.include_router(plan_router)
     dp.include_router(wizard_router)
 
     await bot.set_my_commands(
         [
             BotCommand(command="start", description="Запуск"),
             BotCommand(command="profile", description="Анкета профиля"),
+            BotCommand(command="plan", description="Новый план питания"),
+            BotCommand(command="history", description="История планов"),
             BotCommand(command="cancel", description="Отмена"),
         ]
     )

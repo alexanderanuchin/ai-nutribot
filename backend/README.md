@@ -21,6 +21,28 @@ The command downloads the JSON snapshot hosted on GitHub, enriches the entries w
 
 To execute the import asynchronously you can dispatch the Celery task `catalog.sync_usda_catalog` with optional `limit` or `dry_run` arguments.
 
+## Nutrition plan worker
+
+Menu generation tasks are executed by Celery. Ensure Redis is running (see `REDIS_URL`) and start a worker with:
+
+```
+USE_SQLITE=1 celery -A nutribot worker -l info -Q nutrition,celery
+```
+
+The nutrition endpoints rely on the following environment variables:
+
+- `REDIS_URL` — broker/result backend for Celery (defaults to `redis://redis:6379/0`).
+- `JWT_SECRET` — shared secret for issuing access/refresh tokens.
+- `OPENAI_API_KEY` (optional) — enables the LLM-based planner; fallback heuristics are used otherwise.
+
+### Quick manual check
+
+1. Run `python manage.py migrate` and `python manage.py load_seeds`.
+2. Start the Django dev server (`python manage.py runserver 0.0.0.0:8000`).
+3. Launch the Celery worker as shown above.
+4. Authorise via the WebApp or `/profile` flow, then in Telegram send `/plan` → выберите период → дождитесь генерации.
+5. Кнопками «Принять»/«Отклонить» проверьте обновление статуса, затем `/history` для просмотра последних планов.
+
 ## JWT authentication secrets
 
 Simple JWT is configured to sign access and refresh tokens with the value of the `JWT_SECRET` environment variable. If the variable is missing, Django will fall back to `DJANGO_SECRET_KEY`, which means that rotating either secret will instantly invalidate every issued token.
