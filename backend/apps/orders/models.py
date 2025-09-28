@@ -460,6 +460,14 @@ class PaymentAttempt(models.Model):
             models.Index(fields=["external_payment_id"], name="orders_payment_external_idx"),
         ]
 
+        constraints = [
+            models.UniqueConstraint(
+                fields=["provider", "external_payment_id"],
+                name="orders_payment_provider_external_unique",
+                condition=models.Q(external_payment_id__gt=""),
+            )
+        ]
+
     def __str__(self) -> str:  # pragma: no cover
         target = self.order_id or self.subscription_id
         return f"PaymentAttempt<{self.provider}:{target}>"

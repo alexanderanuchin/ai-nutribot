@@ -14,6 +14,7 @@ from apps.orders.services import (
     wallet_topup,
     wallet_withdraw,
 )
+from apps.orders.services.wallet import WalletInsufficientFunds
 
 
 class WalletTransactionSerializer(serializers.ModelSerializer):
@@ -92,6 +93,7 @@ class WalletTopUpSerializer(WalletOperationSerializer):
             description=self.validated_data.get("description"),
             reference=self.validated_data.get("reference"),
             metadata=self.validated_data.get("metadata"),
+            idempotency_key=self.context.get("idempotency_key"),
         )
 
 
@@ -105,8 +107,9 @@ class WalletWithdrawSerializer(WalletOperationSerializer):
                 description=self.validated_data.get("description"),
                 reference=self.validated_data.get("reference"),
                 metadata=self.validated_data.get("metadata"),
+                idempotency_key=self.context.get("idempotency_key"),
             )
-        except ValueError as exc:
+        except WalletInsufficientFunds as exc:
             raise serializers.ValidationError({"amount": str(exc)}) from exc
 
 

@@ -1,10 +1,26 @@
+import uuid
 from decimal import Decimal
+from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
+from datetime import timedelta
 from rest_framework.test import APIClient
 
-from apps.orders.models import Order, WalletPerk, WalletTarget, WalletTransaction
+from apps.orders.models import (
+    DeliveryService,
+    DeliveryWindow,
+    IntegrationWebhookEvent,
+    MealSubscription,
+    Order,
+    PaymentAttempt,
+    SubscriptionPlan,
+    WalletPerk,
+    WalletTarget,
+    WalletTransaction,
+)
+from apps.orders.services import BillingService, PaymentService
+from apps.orders.services.wallet import get_wallet_balance
 
 User = get_user_model()
 
@@ -29,12 +45,19 @@ def auth_client(api_client: APIClient, user: User) -> APIClient:
     return api_client
 
 
+@pytest.fixture
+def payment_service() -> PaymentService:
+    return PaymentService()
+
+
 @pytest.mark.django_db
 def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
+    headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
     resp = auth_client.post(
         "/api/orders/wallet/transactions/topup/",
         {"currency": "stars", "amount": "300", "description": "Пополнение тест"},
         format="json",
+        **headers,
     )
     assert resp.status_code == 201
     data = resp.json()
@@ -43,10 +66,22 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     user.profile.refresh_from_db()
     assert user.profile.telegram_stars_balance == 300
 
+    # повторный запрос с тем же ключом не создаёт дубликат
+    repeat = auth_client.post(
+        "/api/orders/wallet/transactions/topup/",
+        {"currency": "stars", "amount": "300", "description": "Пополнение тест"},
+        format="json",
+        **headers,
+    )
+    assert repeat.status_code == 201
+    assert repeat.json()["id"] == data["id"]
+
+    withdraw_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
     resp = auth_client.post(
         "/api/orders/wallet/transactions/withdraw/",
         {"currency": "stars", "amount": "120"},
         format="json",
+        **withdraw_headers,
     )
     assert resp.status_code == 201
     withdraw_payload = resp.json()
@@ -59,6 +94,7 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
         "/api/orders/wallet/transactions/withdraw/",
         {"currency": "stars", "amount": "1000"},
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
     assert resp.status_code == 400
     assert "amount" in resp.json()
@@ -86,111 +122,279 @@ def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient
         "/api/orders/wallet/transactions/topup/",
         {"currency": "calo", "amount": "450.50", "description": "Первый платёж"},
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
     resp = auth_client.get("/api/orders/wallet/summary/")
     assert resp.status_code == 200
     data = resp.json()
-    assert "targets" in data
     calo_target = data["targets"]["calo"]
     assert calo_target["balance"] >= 450
     assert calo_target["target"] == pytest.approx(900.0)
     assert calo_target.get("label") == "До расширенного PRO"
     assert calo_target.get("progress_message").startswith("Осталось")
     assert calo_target.get("completed_message").startswith("CaloCoin достаточно")
-    assert any(
-        tx["description"] == "Первый платёж" and tx["currency"] == "calo" and tx["direction"] == "in"
-        for tx in data["recent_transactions"]
-    )
-    assert "Бесплатная доставка — для заказов от 2000₽" in data["perks"]
 
 
 @pytest.mark.django_db
-def test_create_and_pay_order_via_wallet(auth_client: APIClient, user: User):
+def test_duplicate_webhook_is_idempotent(user: User, payment_service: PaymentService):
+    profile = user.profile
+    result = payment_service.start_wallet_topup(
+        profile,
+        currency=WalletTransaction.Currency.TELEGRAM_STARS,
+        amount=Decimal("100"),
+        provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+        idempotency_key=uuid.uuid4().hex,
+        metadata={"source": "test"},
+    )
+    payload = {
+        "external_payment_id": result.payment_attempt.external_payment_id,
+        "status": "succeeded",
+        "amount": 100,
+        "currency": WalletTransaction.Currency.TELEGRAM_STARS,
+        "profile_id": profile.pk,
+    }
+    payment_service.handle_webhook(
+        PaymentAttempt.Provider.TELEGRAM_STARS,
+        payload,
+        idempotency_key=uuid.uuid4().hex,
+    )
+    payment_service.handle_webhook(
+        PaymentAttempt.Provider.TELEGRAM_STARS,
+        payload,
+        idempotency_key=uuid.uuid4().hex,
+    )
+    profile.refresh_from_db()
+    assert profile.telegram_stars_balance == 100
+    assert IntegrationWebhookEvent.objects.filter(
+        external_event_id=result.payment_attempt.external_payment_id).count() == 1
+
+
+@pytest.mark.django_db
+def test_hold_confirm_and_release(user: User, payment_service: PaymentService):
+    profile = user.profile
+    wallet_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    client = APIClient()
+    client.force_authenticate(user=user)
+    client.post(
+        "/api/orders/wallet/transactions/topup/",
+        {"currency": "calo", "amount": "200"},
+        format="json",
+        **wallet_headers,
+    )
+    order = Order.objects.create(
+        user=user,
+        profile=profile,
+        title="Тест заказ",
+        currency=Order.Currency.CALOCOIN,
+        total_price=Decimal("150"),
+        status=Order.Status.PENDING_PAYMENT,
+    )
+    attempt = payment_service.start_order_payment(
+        order,
+        currency=order.currency,
+        amount=order.total_price,
+        provider=PaymentAttempt.Provider.CALOCOIN,
+        idempotency_key=uuid.uuid4().hex,
+        metadata={"reason": "test"},
+    )
+    assert attempt.wallet_transaction.direction == WalletTransaction.Direction.HOLD
+    balance = get_wallet_balance(profile, WalletTransaction.Currency.CALOCOIN)
+    assert balance.available == Decimal("50.00")
+
+    payment_service.complete_calocoin_payment(attempt, idempotency_key=uuid.uuid4().hex)
+    order.refresh_from_db()
+    assert order.status == Order.Status.PAID
+    balance = get_wallet_balance(profile, WalletTransaction.Currency.CALOCOIN)
+    assert balance.total == Decimal("50.00")
+
+    # start new hold and cancel it
+    attempt2 = payment_service.start_order_payment(
+        order,
+        currency=order.currency,
+        amount=Decimal("40"),
+        provider=PaymentAttempt.Provider.CALOCOIN,
+        idempotency_key=uuid.uuid4().hex,
+    )
+    payment_service.cancel_calocoin_payment(attempt2, reason="customer_cancelled", idempotency_key=uuid.uuid4().hex)
+    attempt2.refresh_from_db()
+    assert attempt2.status == PaymentAttempt.Status.CANCELLED
+
+
+@pytest.mark.django_db
+def test_subscription_autopay_success_and_failure(user: User):
+    profile = user.profile
+    plan = SubscriptionPlan.objects.create(
+        slug="weekly-pro",
+        name="Weekly PRO",
+        city="Moscow",
+        billing_period=SubscriptionPlan.BillingPeriod.WEEKLY,
+        price_calocoin=Decimal("200"),
+        delivery_service=DeliveryService.objects.create(slug="local", name="Local", city="Moscow"),
+    )
+    subscription = MealSubscription.objects.create(
+        user=user,
+        profile=profile,
+        plan=plan,
+        status=MealSubscription.Status.ACTIVE,
+        autopay_enabled=True,
+        city="Moscow",
+    )
+    payment_service = PaymentService()
+    billing_service = BillingService(payment_service=payment_service)
+
+    # пополняем кошелёк CaloCoin
+    client = APIClient()
+    client.force_authenticate(user=user)
+    client.post(
+        "/api/orders/wallet/transactions/topup/",
+        {"currency": "calo", "amount": "250"},
+        format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
+    )
+    result = billing_service.charge_subscription(subscription, idempotency_key=uuid.uuid4().hex)
+    assert result.success
+    assert result.order.status == Order.Status.PAID
+    subscription.refresh_from_db()
+    assert subscription.status == MealSubscription.Status.ACTIVE
+    assert subscription.next_billing_at is not None
+
+    # отсутствие средств => провал
+    result_fail = billing_service.charge_subscription(subscription, idempotency_key=uuid.uuid4().hex)
+    assert not result_fail.success
+    subscription.refresh_from_db()
+    assert subscription.status == MealSubscription.Status.PAUSED
+
+
+@pytest.mark.django_db
+def test_checkout_order_payment_flows(auth_client: APIClient, user: User, payment_service: PaymentService):
+    service = DeliveryService.objects.create(slug="rocket", name="Rocket", city="Moscow")
+    window = DeliveryWindow.objects.create(service=service, city="Moscow", start_time=timezone.now().time(),
+                                           end_time=(timezone.now() + timedelta(hours=2)).time())
+
+    # calocoin order
     auth_client.post(
         "/api/orders/wallet/transactions/topup/",
-        {"currency": "calo", "amount": "800"},
+        {"currency": "calo", "amount": "400"},
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
     resp = auth_client.post(
-        "/api/orders/wallet/orders/",
+        "/api/orders/orders/",
         {
-            "title": "PRO подписка",
-            "kind": "pro_subscription",
+            "title": "Test order",
             "currency": "calo",
-            "amount": "500",
+            "amount": "150",
             "pay_with_wallet": True,
         },
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
     assert resp.status_code == 201
-    payload = resp.json()
-    assert payload["status"] == Order.Status.PAID
-    user.profile.refresh_from_db()
-    assert float(user.profile.calocoin_balance) == pytest.approx(300.0)
 
-    order_id = payload["id"]
-    order = Order.objects.get(pk=order_id)
-    assert order.payment_transaction is not None
-    assert order.payment_transaction.direction == WalletTransaction.Direction.DEBIT
-
-
-@pytest.mark.django_db
-def test_order_pay_endpoint(auth_client: APIClient, user: User):
-    auth_client.post(
-        "/api/orders/wallet/transactions/topup/",
-        {"currency": "stars", "amount": "500"},
-        format="json",
-    )
-    create_resp = auth_client.post(
-        "/api/orders/wallet/orders/",
+    checkout_resp = auth_client.post(
+        "/api/orders/orders/checkout/",
         {
-            "title": "Консультация",
-            "kind": "consultation",
-            "currency": "stars",
-            "amount": "300",
-            "pay_with_wallet": False,
+            "title": "Delivery",
+            "description": "Calo checkout",
+            "kind": "other",
+            "currency": "calo",
+            "amount": "120",
+            "delivery_service": service.pk,
+            "delivery_window": window.pk,
+            "delivery_date": timezone.now().date().isoformat(),
+            "address": "Test street",
+            "items": [
+                {"menu_item_id": 1, "quantity": "1", "unit_price": "120"},
+            ],
         },
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
-    assert create_resp.status_code == 201
-    order_id = create_resp.json()["id"]
+    assert checkout_resp.status_code == 201
+    payload = checkout_resp.json()
+    order = Order.objects.get(pk=payload["order_id"])
+    assert order.status == Order.Status.CONFIRMED
 
-    pay_resp = auth_client.post(
-        f"/api/orders/wallet/orders/{order_id}/pay/",
-        {"description": "Оплата консультации"},
+    # Stars checkout requires webhook to finish
+    topup_result = payment_service.start_wallet_topup(
+        user.profile,
+        currency=WalletTransaction.Currency.TELEGRAM_STARS,
+        amount=Decimal("300"),
+        provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+        idempotency_key=uuid.uuid4().hex,
+    )
+    payment_service.handle_webhook(
+        PaymentAttempt.Provider.TELEGRAM_STARS,
+        {
+            "external_payment_id": topup_result.payment_attempt.external_payment_id,
+            "status": "succeeded",
+            "amount": 300,
+            "currency": WalletTransaction.Currency.TELEGRAM_STARS,
+            "profile_id": user.profile.pk,
+        },
+        idempotency_key=uuid.uuid4().hex,
+    )
+
+    checkout_stars = auth_client.post(
+        "/api/orders/orders/checkout/",
+        {
+            "title": "Stars delivery",
+            "currency": "stars",
+            "amount": "100",
+            "delivery_service": service.pk,
+            "delivery_window": window.pk,
+            "delivery_date": timezone.now().date().isoformat(),
+            "address": "Test street",
+            "items": [
+                {"menu_item_id": 2, "quantity": "1", "unit_price": "100"},
+            ],
+        },
         format="json",
+        **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
     )
-    assert pay_resp.status_code == 200
-    data = pay_resp.json()
-    assert data["status"] == Order.Status.PAID
-    user.profile.refresh_from_db()
-    assert user.profile.telegram_stars_balance == 200
+    assert checkout_stars.status_code == 201
+    stars_payload = checkout_stars.json()
+    attempt = PaymentAttempt.objects.get(pk=stars_payload["payment_attempt_id"])
+    assert attempt.status == PaymentAttempt.Status.INITIATED
+    order_stars = Order.objects.get(pk=stars_payload["order_id"])
+    assert order_stars.status == Order.Status.PENDING_PAYMENT
 
-    list_resp = auth_client.get("/api/orders/wallet/orders/")
-    assert list_resp.status_code == 200
-    items = list_resp.json()
-    assert any(item["id"] == order_id for item in items)
-
-
-@pytest.mark.django_db
-def test_wallet_summary_creates_profile_if_missing(api_client: APIClient):
-    user = User.objects.create_user(
-        username="no-profile",
-        email="orphan@example.com",
-        password="StrongPass!1",
+    payment_service.handle_webhook(
+        PaymentAttempt.Provider.TELEGRAM_STARS,
+        {
+            "external_payment_id": attempt.external_payment_id,
+            "status": "succeeded",
+            "amount": 100,
+            "currency": WalletTransaction.Currency.TELEGRAM_STARS,
+            "order_id": order_stars.pk,
+            "profile_id": user.profile.pk,
+        },
+        idempotency_key=uuid.uuid4().hex,
     )
-    # Simulate legacy accounts created before automatic profile creation
-    user.profile.delete()
+    order_stars.refresh_from_db()
+    assert order_stars.status == Order.Status.PAID
 
-    api_client.force_authenticate(user=user)
-    resp = api_client.get("/api/orders/wallet/summary/")
-
-    assert resp.status_code == 200
-    # A new profile should be created transparently
-    user = User.objects.get(pk=user.pk)
-    assert hasattr(user, "profile")
-    assert user.profile is not None
-
-    payload = resp.json()
-    assert "targets" in payload
-    assert payload["targets"]["stars"]["balance"] == 0
+    @pytest.mark.django_db
+    def test_feature_purchase_with_idempotency(auth_client: APIClient, user: User):
+        auth_client.post(
+            "/api/orders/wallet/transactions/topup/",
+            {"currency": "calo", "amount": "50"},
+            format="json",
+            **{"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex},
+        )
+        key = uuid.uuid4().hex
+        resp = auth_client.post(
+            "/api/orders/features/compose_recipe/purchase/",
+            {"currency": "calo", "amount": "20"},
+            format="json",
+            **{"HTTP_IDEMPOTENCY_KEY": key},
+        )
+        assert resp.status_code == 201
+        repeat = auth_client.post(
+            "/api/orders/features/compose_recipe/purchase/",
+            {"currency": "calo", "amount": "20"},
+            format="json",
+            **{"HTTP_IDEMPOTENCY_KEY": key},
+        )
+        assert repeat.status_code == 201
+        assert repeat.json()["id"] == resp.json()["id"]

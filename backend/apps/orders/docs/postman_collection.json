@@ -1,0 +1,69 @@
+{
+  "info": {
+    "name": "Nutribot Payments",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Wallet topup",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer <token>"},
+          {"key": "Idempotency-Key", "value": "{{idempotency}}"}
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/wallet/topup/",
+          "host": ["{{baseUrl}}"],
+          "path": ["wallet", "topup", ""]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currency\": \"calo\",\n  \"amount\": \"100\",\n  \"provider\": \"card\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Checkout order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer <token>"},
+          {"key": "Idempotency-Key", "value": "{{idempotency}}"}
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders/checkout/",
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "checkout", ""]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Delivery\",\n  \"currency\": \"calo\",\n  \"amount\": \"120\",\n  \"delivery_service\": 1,\n  \"address\": \"Test address\",\n  \"items\": [{\n    \"menu_item_id\": 1,\n    \"quantity\": \"1\",\n    \"unit_price\": \"120\"\n  }]\n}"
+        }
+      }
+    },
+    {
+      "name": "Feature purchase",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer <token>"},
+          {"key": "Idempotency-Key", "value": "{{idempotency}}"}
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/features/compose_recipe/purchase/",
+          "host": ["{{baseUrl}}"],
+          "path": ["features", "compose_recipe", "purchase", ""]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"currency\": \"calo\",\n  \"amount\": \"20\"\n}"
+        }
+      }
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl", "value": "https://api.nutribot.local/api/orders"},
+    {"key": "idempotency", "value": "{{timestamp}}"}
+  ]
+}
