@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import sys
+from pathlib import Path
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -8,11 +10,24 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 
-from .backend_client import BackendClient
-from .handlers.menu import router as menu_router
-from .handlers.profile_wizard import router as wizard_router
-from .middlewares.access_token import AccessTokenMiddleware
-from .middlewares.store import StoreMiddleware
+# NOTE:
+# The bot can be executed both as a module (``python -m bot.app``)
+# and as a script (``python bot/app.py``).  When executed as a script
+# ``__package__`` is empty and the parent directory of the ``bot``
+# package is not present in ``sys.path`` which breaks absolute imports.
+# To make both execution methods work we ensure that the repository root
+# is available on ``sys.path`` before importing package modules.
+if __package__ in {None, ""}:
+    current_dir = Path(__file__).resolve().parent
+    parent_dir = current_dir.parent
+    if str(parent_dir) not in sys.path:
+        sys.path.insert(0, str(parent_dir))
+
+from bot.backend_client import BackendClient
+from bot.handlers.menu import router as menu_router
+from bot.handlers.profile_wizard import router as wizard_router
+from bot.middlewares.access_token import AccessTokenMiddleware
+from bot.middlewares.store import StoreMiddleware
 
 
 def _clean_backend_url(raw: str) -> str:
