@@ -89,10 +89,27 @@ def _schedule_generation_job(user, params: Mapping[str, Any]) -> str:
     payload = _sanitize_params(params)
     job_id = _build_job_id(user.id, payload)
     existing = AsyncResult(job_id)
-    if existing.state in {"PENDING", "STARTED", "SUCCESS"}:
+    state = existing.state
+
+    backend_state = None
+    try:
+        meta = existing.backend.get_task_meta(job_id)
+    except Exception:  # pragma: no cover - defensive against backend errors
+        meta = None
+    if meta and isinstance(meta, Mapping):
+        backend_state = meta.get("status")
+
+    if state in {"STARTED", "RETRY"} or backend_state in {"STARTED", "RETRY"}:
         return job_id
-    if existing.state == "FAILURE":
+
+    if existing.ready():
+        if existing.successful() or backend_state == "SUCCESS":
+            return job_id
+        state = state or backend_state
+
+    if state == "FAILURE" or backend_state == "FAILURE":
         job_id = f"{job_id}:retry:{uuid4().hex[:8]}"
+
     generate_menu_task.apply_async(
         kwargs={"user_id": user.id, "params": payload, "context": {"mode": "async"}},
         task_id=job_id,

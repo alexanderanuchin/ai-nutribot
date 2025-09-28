@@ -163,13 +163,19 @@ async def _handle_generation_result(
     result: Dict[str, Any],
     state: FSMContext,
 ) -> None:
-    if "job_id" in result:
-    await state.set_state(PlanGeneration.awaiting_job)
-    await state.update_data(plan_job_id=result["job_id"])
-    await message.edit_text("Генерирую план… это может занять пару секунд ⏳")
-    return
+    payload: Dict[str, Any] = result or {}
+    if "job_id" in payload:
+        await state.set_state(PlanGeneration.awaiting_job)
+        await state.update_data(plan_job_id=payload["job_id"])
+        await message.edit_text("Генерирую план… это может занять пару секунд ⏳")
+        return
 
-    plan_id = result.get("plan_id")
+    plan_id = payload.get("plan_id")
+    summary = payload.get("summary") or {}
+    if not plan_id:
+        await message.edit_text("Не удалось построить план. Попробуйте ещё раз позже.")
+        await _reset_state(state)
+        return
     summary = result.get("summary") or {}
     await _reset_state(state)
     await message.edit_text(
