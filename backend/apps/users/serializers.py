@@ -1,13 +1,37 @@
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict
+import re
+
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.contrib.auth import get_user_model
+
 from .models import Profile
 from .services import build_profile_metrics
 from .sidebar import build_profile_sidebar_meta
-import re
 
 User = get_user_model()
+
+API_GOAL_CHOICES = {
+    "lose_weight": Profile.Goal.LOSE,
+    "gain_muscle": Profile.Goal.GAIN,
+    "keep_fit": Profile.Goal.MAINTAIN,
+}
+DEFAULT_API_GOAL = "keep_fit"
+MODEL_TO_API_GOALS = {value: key for key, value in API_GOAL_CHOICES.items()}
+
+
+def represent_goal(value: str | None) -> str:
+    if not value:
+        return DEFAULT_API_GOAL
+    return MODEL_TO_API_GOALS.get(value, DEFAULT_API_GOAL)
+
+
+def normalize_goal(value: str) -> str:
+    try:
+        return API_GOAL_CHOICES[value]
+    except KeyError as exc:
+        raise serializers.ValidationError("Недопустимая цель") from exc
 
 
 def normalize_phone(value: str) -> str:
@@ -132,9 +156,14 @@ class WalletSettingsField(serializers.Field):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    phone = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "first_name", "last_name")
+        fields = ("id", "username", "phone", "email", "first_name", "last_name")
+
+    def get_phone(self, obj: User) -> str:
+        return obj.get_username()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -185,6 +214,8 @@ class ProfileSerializer(serializers.ModelSerializer):
     avatar_preferences = AvatarPreferencesField(required=False)
     wallet_settings = WalletSettingsField(required=False)
     sidebar_meta = serializers.SerializerMethodField()
+    budget = serializers.SerializerMethodField()
+    goals = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
@@ -198,6 +229,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             "daily_budget",
             "telegram_stars_balance", "telegram_stars_rate_rub",
             "calocoin_balance", "calocoin_rate_rub",
+            "budget",
+            "goals",
             "experience_level", "experience_level_display",
             "avatar_preferences", "wallet_settings",
             "sidebar_meta",
@@ -220,6 +253,15 @@ class ProfileSerializer(serializers.ModelSerializer):
     def get_sidebar_meta(self, obj):
         return build_profile_sidebar_meta(obj)
 
+    def get_budget(self, obj: Profile) -> str | None:
+        if obj.daily_budget is None:
+            return None
+        value = Decimal(obj.daily_budget)
+        return format(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP), "f")
+
+    def get_goals(self, obj: Profile) -> str:
+        return represent_goal(obj.goal)
+
 
 class ProfileUpdateSerializer(ProfileSerializer):
     first_name = serializers.CharField(required=False, allow_blank=True)
@@ -227,6 +269,17 @@ class ProfileUpdateSerializer(ProfileSerializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(required=False, allow_blank=True)
     password = serializers.CharField(write_only=True, required=False, allow_blank=False)
+    budget = serializers.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        required=False,
+        allow_null=True,
+    )
+    goals = serializers.ChoiceField(
+        choices=tuple(API_GOAL_CHOICES.keys()),
+        required=False,
+    )
 
     class Meta(ProfileSerializer.Meta):
         fields = ProfileSerializer.Meta.fields + (
@@ -235,6 +288,8 @@ class ProfileUpdateSerializer(ProfileSerializer):
             "email",
             "phone",
             "password",
+            "budget",
+            "goals",
         )
         extra_kwargs = {"password": {"write_only": True}}
 
@@ -293,12 +348,30 @@ class ProfileUpdateSerializer(ProfileSerializer):
             update_fields.add("password")
             password_changed = True
 
+        budget_value = validated_data.pop("budget", serializers.empty)
+        goals_value = validated_data.pop("goals", serializers.empty)
+
         if update_fields:
             user.save(update_fields=list(update_fields))
 
             self.password_updated = password_changed
 
-        return super().update(instance, validated_data)
+        profile_update_fields: list[str] = []
+
+        profile = super().update(instance, validated_data)
+
+        if budget_value is not serializers.empty:
+            profile.daily_budget = budget_value
+            profile_update_fields.append("daily_budget")
+
+        if goals_value is not serializers.empty:
+            profile.goal = normalize_goal(goals_value)
+            profile_update_fields.append("goal")
+
+        if profile_update_fields:
+            profile.save(update_fields=profile_update_fields + ["updated_at"])
+
+        return profile
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

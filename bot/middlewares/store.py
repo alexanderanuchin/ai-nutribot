@@ -9,5 +9,7 @@ class StoreMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
         # кладём зависимости в data — aiogram передаст их по именам параметров хендлеров
         data["store"] = self.store
+        data["backend"] = self.store
+        data["backend_client"] = self.store
         data["webapp_url"] = self.webapp_url
         return await handler(event, data)

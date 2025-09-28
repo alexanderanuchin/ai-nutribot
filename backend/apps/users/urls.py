@@ -38,5 +38,6 @@ urlpatterns = [
     # Router + "me" ручки
     path("", include(router.urls)),
     path("me/", me_endpoint, name="me"),
+    path("me/profile/", me_endpoint, name="me-profile"),
     path("me/profile/update/", me_update, name="me-profile-update"),
 ]

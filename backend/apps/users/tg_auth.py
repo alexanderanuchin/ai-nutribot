@@ -7,6 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from .api_payloads import build_profile_response
 from .tg_utils import verify_init_data
 
 from .models import Profile
@@ -94,5 +95,11 @@ def tg_exchange(request):
         user.last_name = user_json.get("last_name") or ""
         user.save(update_fields=["first_name", "last_name"])
 
+    profile = Profile.objects.select_related("user").get(user=user)
     refresh = RefreshToken.for_user(user)
-    return Response({"access": str(refresh.access_token), "refresh": str(refresh)})
+    payload = build_profile_response(user, profile)
+    payload.update({
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+    })
+    return Response(payload)

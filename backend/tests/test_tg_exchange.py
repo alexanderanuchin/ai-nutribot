@@ -18,7 +18,7 @@ def build_init_data(bot_token: str, payload: dict) -> str:
 
 
 @pytest.mark.django_db
-def test_tg_exchange_returns_tokens_and_binds_profile(client, settings):
+def test_tg_exchange_returns_tokens_and_profile_summary(client, settings):
     settings.TELEGRAM_BOT_TOKEN = "bot-token"
     user_payload = {"id": 12345, "first_name": "Иван", "last_name": "Петров"}
     raw_payload = {
@@ -31,9 +31,14 @@ def test_tg_exchange_returns_tokens_and_binds_profile(client, settings):
     response = client.post("/api/users/auth/tg_exchange/", {"init_data": init_data})
 
     assert response.status_code == 200
-    tokens = response.json()
-    assert tokens["access"]
-    assert tokens["refresh"]
+    payload = response.json()
+    assert payload["access"]
+    assert payload["refresh"]
+    assert payload["user"]["first_name"] == "Иван"
+    assert payload["user"]["phone"] == "tg_12345"
+    assert payload["profile"]["telegram_id"] == 12345
+    assert payload["wallet"] == {"stars": "0", "calo": "0.00"}
+    assert "metrics" in payload
 
     User = get_user_model()
     user = User.objects.get(username="tg_12345")
@@ -61,11 +66,28 @@ def test_tg_exchange_reuses_existing_profile(client, settings):
     response = client.post("/api/users/auth/tg_exchange/", {"init_data": init_data})
 
     assert response.status_code == 200
-    tokens = response.json()
-    assert tokens["access"]
-    assert tokens["refresh"]
+    payload = response.json()
+    assert payload["access"]
+    assert payload["refresh"]
+    assert payload["user"]["phone"] == "existing"
 
     existing.refresh_from_db()
     assert existing.profile.telegram_id == 777
     assert User.objects.filter(username="existing").count() == 1
     assert not User.objects.filter(username="tg_777").exists()
+
+
+@pytest.mark.django_db
+def test_tg_exchange_rejects_invalid_signature(client, settings):
+    settings.TELEGRAM_BOT_TOKEN = "bot-token"
+    payload = {
+        "auth_date": "1700000000",
+        "user": json.dumps({"id": 321}),
+        "hash": "deadbeef",
+    }
+    init_data = urlencode(payload)
+
+    response = client.post("/api/users/auth/tg_exchange/", {"init_data": init_data})
+
+    assert response.status_code == 400
+    assert "invalid" in response.json()["detail"]

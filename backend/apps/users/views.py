@@ -7,6 +7,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth import get_user_model
+from .api_payloads import build_profile_response
 from .models import Profile
 from .serializers import (
     ProfileSerializer,
@@ -45,13 +46,7 @@ class MeViewSet(viewsets.ViewSet):
         return profile
 
     def _build_me_payload(self, user, profile):
-        profile_data = ProfileSerializer(profile, include_user=False).data
-        metrics = profile_data.get("metrics")
-        return {
-            "user": UserSerializer(user).data,
-            "profile": profile_data,
-            "metrics": metrics,
-        }
+        return build_profile_response(user, profile)
 
     def me(self, request):
         profile = self._get_or_create_profile(request.user)
