@@ -8,6 +8,10 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
 
+CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",

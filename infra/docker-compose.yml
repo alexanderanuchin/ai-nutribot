@@ -51,10 +51,25 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "8080:80"
+      - "8080:80"         # Локально смотришь http://localhost:8080
     depends_on:
       - backend
       - frontend
 
+  # >>> добавили ПУБЛИКАЦИЮ ЧЕРЕЗ CLOUDPUB <<<
+  cloudpub:
+    image: cloudpub/cloudpub:latest
+    container_name: cloudpub-agent
+    depends_on:
+      - gateway          # публикуем именно nginx-гейтвей
+    environment:
+      - TOKEN=${CLOUDPUB_TOKEN}
+      - HTTP=gateway:80  # публикуем внутренний сервис gateway:80 наружу (HTTPS)
+    command: run
+    restart: unless-stopped
+    volumes:
+      - cloudpub-config:/home/cloudpub  # чтобы адрес CloudPub не менялся между рестартами
+
 volumes:
   db-data:
+  cloudpub-config:
