@@ -1,7 +1,8 @@
-import { createContext, useContext, useMemo, useState, useCallback } from 'react'
+import { createContext, useContext, useMemo, useCallback, useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCurrentUser } from '../api/api'
+import { AUTH_CHANGE_EVENT } from '../utils/storage'
 
 export type AuthRole = 'legend' | 'member' | 'coach' | 'admin' | 'guest'
 
@@ -32,28 +33,44 @@ export interface AuthProviderProps {
 }
 
 export function AuthProvider({ children, onLogout }: AuthProviderProps) {
-  const [authenticated, setAuthenticated] = useState(true)
-  const { data, isLoading } = useQuery({
+  const queryClient = useQueryClient()
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['current-user'],
     queryFn: fetchCurrentUser,
     staleTime: 1000 * 60 * 5,
+    retry: false,
   })
 
   const logout = useCallback(() => {
-    setAuthenticated(false)
+    queryClient.setQueryData(['current-user'], undefined)
+    void queryClient.cancelQueries({ queryKey: ['current-user'] })
+    queryClient.removeQueries({ queryKey: ['current-user'], exact: true })
     onLogout?.()
-  }, [onLogout])
+  }, [onLogout, queryClient])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleAuthChange = () => {
+      queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    }
+
+    window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange)
+    return () => window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange)
+  }, [queryClient])
 
   const value = useMemo<AuthContextValue>(() => {
+    const ready = !isLoading && !isFetching
+
     if (!data) {
-      return { ready: !isLoading, authenticated: false, logout }
+      return { ready, authenticated: false, logout }
     }
 
     const role = (data.role as AuthRole) ?? 'legend'
 
     return {
-      ready: !isLoading,
-      authenticated: authenticated && Boolean(data),
+      ready,
+      authenticated: true,
       user: {
         id: data.id,
         fullName: data.fullName,
@@ -67,7 +84,7 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
       profile: data.profile,
       logout,
     }
-  }, [authenticated, data, isLoading, logout])
+  }, [data, isFetching, isLoading, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

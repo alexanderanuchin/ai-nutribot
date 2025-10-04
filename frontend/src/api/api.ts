@@ -1,3 +1,4 @@
+import axios from 'axios'
 import api from './client'
 import type { MeResponse, Profile } from '../types'
 
@@ -82,6 +83,9 @@ async function fetchProfileFromApi(): Promise<MeResponse> {
     const { data } = await api.get<MeResponse>('/users/me/profile/')
     return data
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw error
+    }
     return FALLBACK_RESPONSE
   }
 }

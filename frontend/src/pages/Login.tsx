@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { login, loginWithEmail } from '../api/auth'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
+import { useQueryClient } from '@tanstack/react-query'
 
 type LoginMode = 'phone' | 'email'
 
@@ -13,6 +14,7 @@ export default function Login(){
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
+  const queryClient = useQueryClient()
 
   useEffect(()=>{
     setError(null)
@@ -27,7 +29,8 @@ export default function Login(){
       }else{
         await loginWithEmail(email, password)
       }
-      nav('/dashboard', { replace: true })
+      await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+      nav('/plan', { replace: true })
     }catch(err: any){
       setError(err?.response?.data?.detail || 'Неверные учётные данные')
     }finally{

@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronRightIcon, ExternalLinkIcon, SparklesIcon } from 'lucide-react'
 import clsx from 'clsx'
+import { useNavigate } from 'react-router-dom'
 import { PRIMARY_NAVIGATION, SECONDARY_NAVIGATION, COMMAND_ACTIONS, type NavItem } from '../../navigation/schema'
 import { useAuth } from '../../hooks/useAuth'
 import { useActiveRoute } from '../../hooks/useActiveRoute'
@@ -25,6 +26,7 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
   const featureFlags = user?.featureFlags ?? {}
   const { isItemActive, isSectionActive } = useActiveRoute()
   const safeArea = useSafeArea({ inset: 20 })
+  const navigate = useNavigate()
 
   const primaryItems = useMemo(() => PRIMARY_NAVIGATION.filter(item => isFeatureEnabled(item, featureFlags)), [featureFlags])
 
@@ -41,6 +43,7 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
     logout()
     onLogout?.()
     onOpenChange(false)
+    navigate('/login', { replace: true })
   }
 
   return (

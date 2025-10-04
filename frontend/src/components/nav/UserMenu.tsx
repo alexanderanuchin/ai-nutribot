@@ -2,6 +2,7 @@ import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react'
 import clsx from 'clsx'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { AppLink } from './AppLink'
 
@@ -12,6 +13,7 @@ export interface UserMenuProps {
 export function UserMenu({ onLogout }: UserMenuProps) {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
 
   if (!user) return null
 
@@ -19,6 +21,7 @@ export function UserMenu({ onLogout }: UserMenuProps) {
     logout()
     onLogout?.()
     setOpen(false)
+    navigate('/login', { replace: true })
   }
 
   const initials = user.fullName

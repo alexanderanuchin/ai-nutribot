@@ -29,7 +29,6 @@ api.interceptors.response.use(
           tokenStore.access = resp.data.access
         } catch {
           tokenStore.clear()
-          window.location.href = '/login'
           return Promise.reject(err)
         } finally {
           isRefreshing = false

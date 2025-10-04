@@ -36,7 +36,7 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
       className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl"
       style={safeArea}
     >
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-3 py-3">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-[auto_1fr] items-center gap-3 px-3 py-3 sm:grid-cols-[auto_1fr_auto]">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -47,15 +47,16 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
             <MenuIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           <Logo className="h-7 w-auto" />
-          <div className="hidden flex-col text-xs text-muted-foreground sm:flex">
-            <span>CaloIQ Personal CRM</span>
-            <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-primary">
-              {trail.length > 0 ? trail.map(item => item.label).join(' › ') : 'Личный кабинет'}
-            </span>
-          </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-end gap-2">
+        <div className="hidden min-w-0 flex-col text-xs text-muted-foreground sm:flex">
+          <span className="truncate">CaloIQ Personal CRM</span>
+          <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-primary">
+            {trail.length > 0 ? trail.map(item => item.label).join(' › ') : 'Личный кабинет'}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-end gap-2 sm:justify-self-end">
           <button
             type="button"
             onClick={onOpenCommand}

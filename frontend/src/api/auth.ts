@@ -55,5 +55,4 @@ export async function checkEmail(email: string){
 
 export function logout(){
   tokenStore.clear()
-  window.location.href = '/login'
 }
