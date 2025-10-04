@@ -1,9 +1,13 @@
 import React from 'react'
 
-export default function Logo(){
+interface LogoProps {
+  className?: string
+}
+
+export default function Logo({ className }: LogoProps){
   return (
     <svg
-      className="nav-logo__svg"
+      className={className ?? 'nav-logo__svg'}
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 640 160"
       role="img"

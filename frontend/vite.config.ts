@@ -8,6 +8,12 @@ const cloudpubHost = process.env.WEBAPP_URL || 'adversely-congruent-viper.cloudp
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: true,
+  },
   server: {
     host: true,            // слушать 0.0.0.0 внутри контейнера
     port: 5173,
