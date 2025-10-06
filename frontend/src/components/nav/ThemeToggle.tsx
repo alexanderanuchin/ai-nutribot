@@ -22,7 +22,7 @@ export function ThemeToggle() {
         <button
           type="button"
           aria-label="Переключатель темы"
-          className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-soft transition hover:shadow-ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/80 text-foreground shadow-soft transition hover:shadow-ring-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <ActiveIcon className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Текущая тема: {resolvedTheme === 'dark' ? 'тёмная' : 'светлая'}</span>

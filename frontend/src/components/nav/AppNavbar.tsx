@@ -36,8 +36,8 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
       className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl"
       style={safeArea}
     >
-      <div className="mx-auto grid w-full max-w-6xl grid-cols-[auto_1fr] items-center gap-3 px-3 py-3 sm:grid-cols-[auto_1fr_auto]">
-        <div className="flex items-center gap-3">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-[auto_1fr] items-start gap-x-3 gap-y-2 px-3 py-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
             onClick={onMenuClick}
@@ -56,12 +56,11 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
           </span>
         </div>
 
-        <div className="flex items-center justify-end gap-2 sm:justify-self-end">
+        <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5 sm:w-auto sm:flex-nowrap sm:justify-self-end sm:gap-2">
           <button
             type="button"
             onClick={onOpenCommand}
-            className="hidden items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-sm font-semibold text-foreground shadow-soft transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex"
-            aria-label="Командная палитра"
+            className="hidden shrink-0 items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-sm font-semibold text-foreground shadow-soft transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex"
           >
             <CommandIcon className="h-4 w-4" aria-hidden="true" />
             Cmd / Ctrl + K
@@ -76,8 +75,7 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
           <ThemeToggle />
           <button
             type="button"
-            className="hidden h-10 w-10 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex"
-            aria-label="Уведомления"
+            className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border/60 bg-background/70 text-foreground transition hover:border-primary/60 hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:flex"
           >
             <BellIcon className="h-5 w-5" aria-hidden="true" />
           </button>

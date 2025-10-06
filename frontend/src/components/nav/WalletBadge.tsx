@@ -7,11 +7,15 @@ import { useWallet } from '../../hooks/useWallet'
 import { AppLink } from './AppLink'
 import { useSafeArea } from '../../hooks/useSafeArea'
 
+export interface WalletBadgeProps {
+  className?: string
+}
+
 function formatNumber(value: number) {
   return value.toLocaleString('ru-RU')
 }
 
-export function WalletBadge() {
+export function WalletBadge({ className }: WalletBadgeProps) {
   const [open, setOpen] = useState(false)
   const { data, isLoading } = useWallet()
   const safeArea = useSafeArea({ inset: 20, edges: ['bottom', 'left', 'right'] })
@@ -24,16 +28,28 @@ export function WalletBadge() {
       <Dialog.Trigger asChild>
         <button
           type="button"
-          className="group flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1.5 text-sm shadow-soft transition hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className={clsx(
+            'group flex shrink-0 items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2 py-1.5 text-sm shadow-soft transition hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:px-3',
+            className,
+          )}
           aria-label="Открыть кошелёк"
         >
-          <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-primary md:hidden">
+            <SparklesIcon className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="hidden items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary md:flex">
             <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
             {isLoading ? <span className="animate-pulse">•••</span> : formatNumber(stars)}
           </span>
-          <span className="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-xs font-semibold text-accent-foreground">
+          <span className="hidden items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-xs font-semibold text-accent-foreground md:flex">
             <CoinsIcon className="h-3.5 w-3.5" aria-hidden="true" />
             {isLoading ? <span className="animate-pulse">•••</span> : formatNumber(calo)}
+          </span>
+          <span className="sr-only">
+            Баланс:{' '}
+            {isLoading
+              ? 'загрузка'
+              : `звёзды — ${formatNumber(stars)}, calo — ${formatNumber(calo)}`}
           </span>
         </button>
       </Dialog.Trigger>
