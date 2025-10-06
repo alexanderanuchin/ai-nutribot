@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCurrentUser } from '../api/api'
 import { AUTH_CHANGE_EVENT } from '../utils/storage'
+import { deriveAvatarState, getAvatarImageSrc, type AvatarState } from '../utils/avatar'
 
 export type AuthRole = 'legend' | 'member' | 'coach' | 'admin' | 'guest'
 
@@ -11,6 +12,8 @@ export interface AuthUser {
   fullName: string
   email: string
   avatarUrl?: string
+  avatarState: AvatarState
+  avatarImageSrc: string | null
   role: AuthRole
   locale: string
   mode: string
@@ -67,6 +70,8 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
     }
 
     const role = (data.role as AuthRole) ?? 'legend'
+    const avatarState = deriveAvatarState(data.profile?.avatar_preferences ?? null, data.avatarUrl ?? null)
+    const avatarImageSrc = getAvatarImageSrc(avatarState)
 
     return {
       ready,
@@ -76,6 +81,8 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
         fullName: data.fullName,
         email: data.email,
         avatarUrl: data.avatarUrl,
+        avatarState,
+        avatarImageSrc,
         role,
         locale: data.locale,
         mode: data.mode,

@@ -2,6 +2,13 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState
 import type { ExperienceLevel, Profile as ProfileT, User, WalletSummary, WalletTransactionRecord } from '../types'
 import type { ProfileUpdatePayload } from '../api/profile'
 import { formatPhoneInput } from '../utils/phone'
+import {
+  AVATAR_PRESETS,
+  deriveAvatarState,
+  getAvatarImageSrc,
+  getAvatarPreset,
+  type AvatarState,
+} from '../utils/avatar'
 
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
@@ -244,66 +251,6 @@ const DEFAULT_CALO_PROGRESS_TEMPLATE = 'Накопите ещё {left} CaloCoin 
 const DEFAULT_CALO_COMPLETED_TEMPLATE = 'Баланс позволяет активировать PRO прямо сейчас.'
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
-type AvatarState =
-  | { kind: 'initials' }
-  | { kind: 'external'; url: string }
-  | { kind: 'preset'; id: string }
-  | { kind: 'upload'; dataUrl: string }
-
-
-const avatarPresets: Array<{
-  id: string
-  label: string
-  emoji: string
-  gradient: string
-}> = [
-    {
-      id: 'focus',
-      label: 'Фокус и энергия',
-      emoji: '⚡️',
-      gradient: 'linear-gradient(135deg, #9fd8ff, #5bbcff)'
-    },
-    {
-      id: 'nature',
-      label: 'Баланс и природа',
-      emoji: '🌿',
-      gradient: 'linear-gradient(135deg, #baf4c8, #5be8a0)'
-    },
-    {
-      id: 'sunrise',
-      label: 'Новый день',
-      emoji: '🌅',
-      gradient: 'linear-gradient(135deg, #ffd6a5, #ff9f68)'
-    },
-    {
-      id: 'wave',
-      label: 'Свежесть и движение',
-      emoji: '🌊',
-      gradient: 'linear-gradient(135deg, #7ac9ff, #3ea3ff)'
-    }
-  ]
-
-const deriveAvatarState = (
-  preferences: ProfileT['avatar_preferences'] | null | undefined,
-  avatarUrl: string | null
-): AvatarState => {
-  if (preferences) {
-    if (preferences.kind === 'preset' && preferences.preset_id) {
-      return { kind: 'preset', id: preferences.preset_id }
-    }
-    if (preferences.kind === 'upload' && preferences.data_url) {
-      return { kind: 'upload', dataUrl: preferences.data_url }
-    }
-    if (preferences.kind === 'initials') {
-      return { kind: 'initials' }
-    }
-  }
-  if (avatarUrl) {
-    return { kind: 'external', url: avatarUrl }
-  }
-  return { kind: 'initials' }
-}
-
 const isSameAvatarState = (a: AvatarState, b: AvatarState): boolean => {
   if (a.kind !== b.kind) return false
   switch (a.kind) {
@@ -513,13 +460,8 @@ export default function ProfileSidebar({
   const caloTargetBalance = typeof caloTargetConfig?.balance === 'number'
     ? Math.max(0, caloTargetConfig.balance)
     : Math.max(0, caloBalanceValue)
-  const currentPreset = avatarState.kind === 'preset' ? avatarPresets.find(preset => preset.id === avatarState.id) || null : null
-  const avatarImageSrc =
-    avatarState.kind === 'external'
-      ? avatarState.url
-      : avatarState.kind === 'upload'
-        ? avatarState.dataUrl
-        : null
+  const currentPreset = avatarState.kind === 'preset' ? getAvatarPreset(avatarState.id) ?? null : null
+  const avatarImageSrc = getAvatarImageSrc(avatarState)
   const avatarClassName = `profile-sidebar__avatar${avatarImageSrc ? ' profile-sidebar__avatar--with-image' : ''}`
   const hasTelegramLink = Boolean(profile.telegram_id || user?.telegram_id)
   const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
@@ -1013,7 +955,7 @@ export default function ProfileSidebar({
                       >
                         <div className="profile-sidebar__avatar-picker-header">Выберите образ</div>
                         <div className="profile-sidebar__avatar-options">
-                          {avatarPresets.map(preset => (
+                          {AVATAR_PRESETS.map(preset => (
                             <button
                               key={preset.id}
                               type="button"

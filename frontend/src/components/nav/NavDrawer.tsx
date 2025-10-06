@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useActiveRoute } from '../../hooks/useActiveRoute'
 import { useSafeArea } from '../../hooks/useSafeArea'
 import { AppLink } from './AppLink'
+import { getAvatarPreset } from '../../utils/avatar'
 
 export interface NavDrawerProps {
   open: boolean
@@ -27,6 +28,16 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
   const { isItemActive, isSectionActive } = useActiveRoute()
   const safeArea = useSafeArea({ inset: 20 })
   const navigate = useNavigate()
+
+  const avatarImageSrc = user?.avatarImageSrc ?? null
+  const avatarPreset = user?.avatarState?.kind === 'preset' ? getAvatarPreset(user.avatarState.id) ?? null : null
+  const avatarInitials = (user?.fullName ?? 'Гость')
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part[0]?.toUpperCase())
+    .slice(0, 2)
+    .join('')
+  const avatarFallback = avatarInitials || 'AI'
 
   const primaryItems = useMemo(() => PRIMARY_NAVIGATION.filter(item => isFeatureEnabled(item, featureFlags)), [featureFlags])
 
@@ -82,21 +93,23 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
                 <Dialog.Description className="sr-only">Выберите раздел или действие</Dialog.Description>
                 <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pb-6">
                   <div className="mt-2 flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/10 p-4">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/15 text-lg font-semibold text-primary">
-                      {user?.avatarUrl ? (
+                    <span
+                      className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-primary/15 text-lg font-semibold text-primary"
+                      style={avatarPreset ? { background: avatarPreset.gradient } : undefined}
+                    >
+                      {avatarImageSrc ? (
                         <img
-                          src={user.avatarUrl}
-                          alt={user.fullName}
+                          src={avatarImageSrc}
+                          alt={user?.fullName ?? 'Гость'}
                           className="h-full w-full rounded-2xl object-cover"
                           referrerPolicy="no-referrer"
                         />
+                      ) : user?.avatarState?.kind === 'preset' && avatarPreset ? (
+                        <span className="text-2xl" aria-hidden="true">
+                          {avatarPreset.emoji}
+                        </span>
                       ) : (
-                        (user?.fullName ?? 'Гость')
-                          .split(' ')
-                          .filter(Boolean)
-                          .map(part => part[0]?.toUpperCase())
-                          .slice(0, 2)
-                          .join('') || 'AI'
+                        avatarFallback
                       )}
                     </span>
                     <div className="flex flex-col">

@@ -5,6 +5,7 @@ import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { AppLink } from './AppLink'
+import { getAvatarPreset } from '../../utils/avatar'
 
 export interface UserMenuProps {
   onLogout?: () => void
@@ -30,6 +31,8 @@ export function UserMenu({ onLogout }: UserMenuProps) {
     .map(part => part[0]?.toUpperCase())
     .slice(0, 2)
     .join('')
+  const avatarPreset = user.avatarState.kind === 'preset' ? getAvatarPreset(user.avatarState.id) ?? null : null
+  const avatarImageSrc = user.avatarImageSrc
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -38,17 +41,26 @@ export function UserMenu({ onLogout }: UserMenuProps) {
           type="button"
           className="flex min-w-0 items-center gap-2 rounded-full border border-border/60 bg-background/70 px-1.5 py-1.5 text-left text-sm transition hover:border-primary/60 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:pl-2 sm:pr-3"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
-            {user.avatarUrl ? (
+          <span
+            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary/15 text-sm font-semibold text-primary"
+            style={avatarPreset ? { background: avatarPreset.gradient } : undefined}
+          >
+            {avatarImageSrc ? (
               <img
-                src={user.avatarUrl}
+                src={avatarImageSrc}
                 alt={user.fullName}
                 className="h-full w-full rounded-full object-cover"
                 referrerPolicy="no-referrer"
               />
+            ) : user.avatarState.kind === 'preset' && avatarPreset ? (
+              <span className="text-base" aria-hidden="true">
+                {avatarPreset.emoji}
+              </span>
+            ) : initials ? (
+              initials
             ) : (
-              initials || <UserRoundIcon className="h-4 w-4" aria-hidden="true" />
-              )}
+              <UserRoundIcon className="h-4 w-4" aria-hidden="true" />
+            )}
           </span>
           <span className="hidden min-w-0 flex-col leading-tight lg:flex">
             <span className="text-xs font-medium text-muted-foreground">{user.mode}</span>
