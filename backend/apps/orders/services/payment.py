@@ -147,6 +147,7 @@ class TelegramStarsProvider(BasePaymentProvider):
         currency = payload.get("currency", WalletTransaction.Currency.TELEGRAM_STARS)
         profile_id = payload.get("profile_id")
         order_id = payload.get("order_id")
+        charge_id = payload.get("telegram_payment_charge_id")
 
         attempt = PaymentAttempt.objects.filter(
             provider=self.code, external_payment_id=external_payment_id
@@ -198,18 +199,17 @@ class TelegramStarsProvider(BasePaymentProvider):
                         currency=currency,
                         amount=amount,
                         description="Пополнение Stars через Telegram",
-                        metadata={"source": "telegram_webhook", "attempt_id": locked_attempt.pk},
+                        reference=charge_id,
+                        metadata={
+                            "source": "telegram_webhook",
+                            "attempt_id": locked_attempt.pk,
+                            "external_payment_id": external_payment_id,
+                            "telegram_payment_charge_id": charge_id,
+                        },
                         idempotency_key=idempotency_key or external_payment_id,
                     )
-                locked_attempt.status = PaymentAttempt.Status.SUCCEEDED
                 locked_attempt.wallet_transaction = wallet_tx
-                locked_attempt.processed_at = timezone.now()
-                locked_attempt.save(update_fields=[
-                    "status",
-                    "wallet_transaction",
-                    "processed_at",
-                    "updated_at",
-                ])
+                locked_attempt.save(update_fields=["wallet_transaction", "updated_at"])
                 if locked_attempt.order_id:
                     order_service = OrderService(locked_attempt.order)
                     order_service.apply_payment_result(
@@ -221,6 +221,7 @@ class TelegramStarsProvider(BasePaymentProvider):
                         ),
                         webhook_event=event,
                     )
+                    locked_attempt.refresh_from_db()
                 else:
                     event.status = IntegrationWebhookEvent.ProcessingStatus.PROCESSED
                     event.processed_at = timezone.now()
@@ -330,14 +331,7 @@ class CaloCoinProvider(BasePaymentProvider):
             idempotency_key=idempotency_key,
         )
         payment_attempt.wallet_transaction = debit_tx
-        payment_attempt.status = PaymentAttempt.Status.SUCCEEDED
-        payment_attempt.processed_at = timezone.now()
-        payment_attempt.save(update_fields=[
-            "wallet_transaction",
-            "status",
-            "processed_at",
-            "updated_at",
-        ])
+        payment_attempt.save(update_fields=["wallet_transaction", "updated_at"])
         OrderService(payment_attempt.order).apply_payment_result(
             payment_attempt,
             PaymentResult(
@@ -346,6 +340,8 @@ class CaloCoinProvider(BasePaymentProvider):
                 wallet_currency=WalletTransaction.Currency.CALOCOIN,
             ),
         )
+        payment_attempt.refresh_from_db()
+        payment_attempt.order.refresh_from_db()
         return payment_attempt
 
     def cancel(

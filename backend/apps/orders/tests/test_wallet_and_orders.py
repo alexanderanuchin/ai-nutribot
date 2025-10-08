@@ -4,8 +4,10 @@ from datetime import timedelta
 
 import pytest
 from django.contrib.auth import get_user_model
-from datetime import timedelta
+from django.utils import timezone
 from rest_framework.test import APIClient
+
+from apps.users.services import get_profile_stars_balance
 
 from apps.orders.models import (
     DeliveryService,
@@ -64,7 +66,7 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     assert data["direction"] == "in"
     assert data["currency"] == "stars"
     user.profile.refresh_from_db()
-    assert user.profile.telegram_stars_balance == 300
+    assert get_profile_stars_balance(user.profile) == 300
 
     # повторный запрос с тем же ключом не создаёт дубликат
     repeat = auth_client.post(
@@ -88,7 +90,7 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     assert withdraw_payload["direction"] == "out"
     assert withdraw_payload["currency"] == "stars"
     user.profile.refresh_from_db()
-    assert user.profile.telegram_stars_balance == 180
+    assert get_profile_stars_balance(user.profile) == 180
 
     resp = auth_client.post(
         "/api/orders/wallet/transactions/withdraw/",
@@ -164,7 +166,7 @@ def test_duplicate_webhook_is_idempotent(user: User, payment_service: PaymentSer
         idempotency_key=uuid.uuid4().hex,
     )
     profile.refresh_from_db()
-    assert profile.telegram_stars_balance == 100
+    assert get_profile_stars_balance(profile) == 100
     assert IntegrationWebhookEvent.objects.filter(
         external_event_id=result.payment_attempt.external_payment_id).count() == 1
 

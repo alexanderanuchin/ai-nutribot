@@ -247,7 +247,7 @@ class CheckoutRequestSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
     kind = serializers.CharField(required=False, allow_blank=True)
-    currency = serializers.ChoiceField(choices=Order.Currency.choices)
+    currency = serializers.CharField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     delivery_service = serializers.PrimaryKeyRelatedField(queryset=DeliveryService.objects.all())
     delivery_window = serializers.PrimaryKeyRelatedField(queryset=DeliveryWindow.objects.all(), required=False)
@@ -255,6 +255,14 @@ class CheckoutRequestSerializer(serializers.Serializer):
     address = serializers.CharField(max_length=255)
     metadata = serializers.JSONField(required=False)
     items = CheckoutItemSerializer(many=True)
+
+    def validate_currency(self, value: str) -> str:
+        if isinstance(value, str):
+            normalized = value.upper()
+            valid = {choice for choice, _ in Order.Currency.choices}
+            if normalized in valid:
+                return normalized
+        raise serializers.ValidationError("Недопустимая валюта")
 
 
 class CheckoutView(WalletProfileMixin, IdempotencyMixin, APIView):
@@ -293,7 +301,7 @@ class CheckoutView(WalletProfileMixin, IdempotencyMixin, APIView):
         gateway.create_delivery(order, idempotency_key=idempotency_key)
         provider = (
             PaymentAttempt.Provider.CALOCOIN
-            if order.currency == Order.Currency.CALCOCOIN
+            if order.currency == Order.Currency.CALOCOIN
             else PaymentAttempt.Provider.TELEGRAM_STARS
         )
         attempt = self.payment_service.start_order_payment(
@@ -309,6 +317,7 @@ class CheckoutView(WalletProfileMixin, IdempotencyMixin, APIView):
                 attempt,
                 idempotency_key=f"{idempotency_key}:capture",
             )
+            order.refresh_from_db()
             OrderService(order).confirm()
         payload = {
             "order_id": order.pk,

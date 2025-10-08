@@ -32,6 +32,7 @@ export interface CurrentUserProfile {
   locale: string
   mode: string
   featureFlags: Record<string, boolean>
+  isStaff: boolean
   profile: Profile
 }
 
@@ -44,6 +45,7 @@ const FALLBACK_RESPONSE: MeResponse = {
     last_name: 'Anuchin',
     avatar_url: 'https://avatars.dicebear.com/api/initials/AA.svg',
     city: 'Moscow',
+    is_staff: false,
     profile: undefined,
   },
   profile: {
@@ -120,43 +122,75 @@ export async function fetchCurrentUser(): Promise<CurrentUserProfile> {
       riskForecast: true,
       documents: true,
     },
+    isStaff: Boolean((response.user as any).is_staff),
     profile,
   }
 }
 
 export async function fetchWallet(): Promise<WalletSheetData> {
-  const response = await fetchProfileFromApi()
-  const now = new Date().toISOString()
-  const stars = response.profile.telegram_stars_balance ?? 0
-  const calo = response.profile.calocoin_balance ?? 0
+  const profilePromise = fetchProfileFromApi()
+  let starsAmount = 0
+  let updatedAt = new Date().toISOString()
+  let starsTransactions: WalletTransactionStub[] = []
 
-  const transactions: WalletTransactionStub[] = [
-    {
-      id: 'tx-1',
-      title: 'AI-куратор',
-      amount: 320,
-      currency: 'stars',
-      direction: 'out',
-      timestamp: now,
-      description: 'Оплата ассистента за неделю',
-    },
-    {
-      id: 'tx-2',
-      title: 'Пополнение кошелька',
-      amount: 5000,
-      currency: 'calo',
-      direction: 'in',
-      timestamp: now,
-      description: 'Перевод из CaloBank',
-    },
-  ]
+  try {
+    const { data } = await api.get<{
+      balance: { amount: number; currency: string; updated_at?: string }
+      transactions: Array<{
+        id: number
+        amount: number
+        direction: 'in' | 'out'
+        occurred_at: string
+        description?: string | null
+        source?: string | null
+      }>
+    }>('/me/stars/')
+
+    starsAmount = data.balance?.amount ?? 0
+    updatedAt = data.balance?.updated_at ?? updatedAt
+    starsTransactions = (data.transactions ?? []).map(tx => ({
+      id: String(tx.id),
+      title: tx.description?.trim() || (tx.direction === 'in' ? 'Зачисление Stars' : 'Списание Stars'),
+      amount: tx.amount,
+      currency: 'stars' as const,
+      direction: tx.direction,
+      timestamp: tx.occurred_at,
+      description: tx.source ?? undefined,
+    }))
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      throw error
+    }
+    starsTransactions = []
+  }
+
+  const profileResponse = await profilePromise
+  const calo = profileResponse.profile.calocoin_balance ?? 0
 
   return {
     balance: {
-      stars,
+      stars: starsAmount,
       calo,
-      updatedAt: now,
+      updatedAt,
     },
-    transactions,
+    transactions: starsTransactions,
+  }
+}
+
+export interface BotStarsBalance {
+  amount: number
+  currency: string
+  updatedAt: string
+}
+
+export async function fetchBotStarsBalance(): Promise<BotStarsBalance> {
+  const { data } = await api.get<{ balance: { amount: number; currency: string; updated_at?: string } }>(
+    '/admin/stars/bot-balance/',
+  )
+  const updatedAt = data.balance?.updated_at ?? new Date().toISOString()
+  return {
+    amount: data.balance?.amount ?? 0,
+    currency: data.balance?.currency ?? 'XTR',
+    updatedAt,
   }
 }

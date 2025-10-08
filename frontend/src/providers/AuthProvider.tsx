@@ -18,6 +18,7 @@ export interface AuthUser {
   locale: string
   mode: string
   featureFlags: Record<string, boolean>
+  isStaff: boolean
 }
 
 export interface AuthContextValue {
@@ -87,6 +88,7 @@ export function AuthProvider({ children, onLogout }: AuthProviderProps) {
         locale: data.locale,
         mode: data.mode,
         featureFlags: data.featureFlags,
+        isStaff: data.isStaff,
       },
       profile: data.profile,
       logout,

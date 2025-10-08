@@ -6,6 +6,7 @@ import { PRIMARY_NAVIGATION, SECONDARY_NAVIGATION } from '../../navigation/schem
 import { useSafeArea } from '../../hooks/useSafeArea'
 import ThemeToggle from './ThemeToggle'
 import WalletBadge from './WalletBadge'
+import BotBalanceBadge from './BotBalanceBadge'
 import UserMenu from './UserMenu'
 
 export interface AppNavbarProps {
@@ -71,6 +72,7 @@ export function AppNavbar({ onMenuClick, onOpenCommand, onLogout }: AppNavbarPro
               offline
             </span>
           )}
+          <BotBalanceBadge />
           <WalletBadge />
           <ThemeToggle />
           <button

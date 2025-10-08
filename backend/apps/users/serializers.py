@@ -7,7 +7,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Profile
-from .services import build_profile_metrics
+from .services import build_profile_metrics, get_profile_stars_balance
 from .sidebar import build_profile_sidebar_meta
 
 User = get_user_model()
@@ -160,7 +160,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ("id", "username", "phone", "email", "first_name", "last_name")
+        fields = ("id", "username", "phone", "email", "first_name", "last_name", "is_staff")
 
     def get_phone(self, obj: User) -> str:
         return obj.get_username()
@@ -216,6 +216,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     sidebar_meta = serializers.SerializerMethodField()
     budget = serializers.SerializerMethodField()
     goals = serializers.SerializerMethodField()
+    telegram_stars_balance = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = Profile
@@ -252,6 +253,11 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_sidebar_meta(self, obj):
         return build_profile_sidebar_meta(obj)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["telegram_stars_balance"] = get_profile_stars_balance(instance)
+        return data
 
     def get_budget(self, obj: Profile) -> str | None:
         if obj.daily_budget is None:

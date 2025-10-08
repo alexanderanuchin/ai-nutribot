@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 def _list_default():
@@ -68,7 +69,10 @@ class Profile(models.Model):
 
     daily_budget = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
-    telegram_stars_balance = models.PositiveIntegerField(default=0)
+    telegram_stars_balance = models.PositiveIntegerField(
+        default=0,
+        help_text="[deprecated] Используйте леджер TelegramStarLedgerEntry для актуального баланса",
+    )
     telegram_stars_rate_rub = models.DecimalField(
         max_digits=7,
         decimal_places=2,
@@ -96,3 +100,52 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"Profile<{self.user_id}>"
+
+
+class TelegramStarLedgerEntry(models.Model):
+    class Direction(models.TextChoices):
+        CREDIT = "credit", "Зачисление"
+        DEBIT = "debit", "Списание"
+
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="star_ledger_entries",
+    )
+    wallet_transaction = models.OneToOneField(
+        "orders.WalletTransaction",
+        on_delete=models.CASCADE,
+        related_name="star_ledger_entry",
+    )
+    direction = models.CharField(max_length=16, choices=Direction.choices)
+    amount = models.PositiveIntegerField()
+    occurred_at = models.DateTimeField(default=timezone.now)
+    description = models.CharField(max_length=255, blank=True)
+    source = models.CharField(max_length=64, blank=True)
+    telegram_payment_charge_id = models.CharField(
+        max_length=128,
+        blank=True,
+        null=True,
+        help_text="Идентификатор successful_payment из Telegram",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Запись леджера Stars"
+        verbose_name_plural = "Леджер Stars"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["telegram_payment_charge_id"],
+                condition=models.Q(telegram_payment_charge_id__isnull=False),
+                name="users_starledger_unique_charge",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["profile", "direction"], name="users_starledger_prof_dir"),
+            models.Index(fields=["occurred_at"], name="users_starledger_occur"),
+        ]
+
+    def __str__(self):  # pragma: no cover
+        return f"StarLedger<{self.profile_id}:{self.direction}:{self.amount}>"

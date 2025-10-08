@@ -102,8 +102,25 @@ def _schedule_generation_job(user, params: Mapping[str, Any]) -> str:
     if state in {"STARTED", "RETRY"} or backend_state in {"STARTED", "RETRY"}:
         return job_id
 
-    if existing.ready():
-        if existing.successful() or backend_state == "SUCCESS":
+    ready_attr = getattr(existing, "ready", None)
+    is_ready = False
+    if callable(ready_attr):
+        try:
+            is_ready = ready_attr()
+        except AttributeError:  # celery backends without ready()
+            is_ready = False
+    elif state in {"SUCCESS", "FAILURE"} or backend_state in {"SUCCESS", "FAILURE"}:
+        is_ready = True
+
+    if is_ready:
+        successful_attr = getattr(existing, "successful", None)
+        is_successful = False
+        if callable(successful_attr):
+            try:
+                is_successful = successful_attr()
+            except AttributeError:
+                is_successful = False
+        if is_successful or backend_state == "SUCCESS":
             return job_id
         state = state or backend_state
 

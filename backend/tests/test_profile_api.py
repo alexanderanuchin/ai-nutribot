@@ -1,10 +1,14 @@
 import pytest
 from decimal import Decimal
+from unittest import mock
+
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.orders.models import WalletTransaction
 from apps.users.models import Profile
+from apps.users.services import sync_stars_ledger_for_transaction
 
 
 @pytest.fixture()
@@ -24,6 +28,22 @@ def auth_client(db):
     profile.goal = Profile.Goal.LOSE
     profile.save()
 
+    refresh = RefreshToken.for_user(user)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+    return client, user
+
+
+@pytest.fixture()
+def staff_client(db, settings):
+    user_model = get_user_model()
+    settings.TELEGRAM_BOT_TOKEN = "test-token"
+    user = user_model.objects.create_user(
+        username="+79990009988",
+        password="StrongPass!1",
+        email="staff@example.com",
+        is_staff=True,
+    )
     refresh = RefreshToken.for_user(user)
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
@@ -94,3 +114,47 @@ def test_patch_profile_rejects_invalid_input(auth_client):
     errors = response.json()
     assert "budget" in errors
     assert "phone" in errors
+
+
+@pytest.mark.django_db
+def test_me_stars_endpoint_returns_ledger_balance(auth_client):
+    client, user = auth_client
+    profile = user.profile
+    tx = WalletTransaction.objects.create(
+        profile=profile,
+        currency=WalletTransaction.Currency.TELEGRAM_STARS,
+        direction=WalletTransaction.Direction.CREDIT,
+        status=WalletTransaction.Status.CONFIRMED,
+        amount=Decimal("50"),
+        balance_before=Decimal("0"),
+        balance_after=Decimal("50"),
+        description="Test topup",
+        metadata={},
+    )
+    sync_stars_ledger_for_transaction(tx)
+
+    response = client.get("/api/me/stars/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["balance"]["amount"] == 50
+    assert data["balance"]["currency"] == "XTR"
+    assert len(data["transactions"]) == 1
+    assert data["transactions"][0]["amount"] == 50
+    assert data["transactions"][0]["direction"] == "in"
+
+
+@pytest.mark.django_db
+def test_bot_stars_balance_endpoint(staff_client):
+    client, user = staff_client
+    with mock.patch("apps.users.services.stars.httpx.Client") as mocked_client:
+        instance = mocked_client.return_value.__enter__.return_value
+        response_mock = instance.get.return_value
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {"ok": True, "result": {"star_count": 4321}}
+
+        response = client.get("/api/admin/stars/bot-balance/")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["balance"]["amount"] == 4321
+    assert payload["balance"]["currency"] == "XTR"

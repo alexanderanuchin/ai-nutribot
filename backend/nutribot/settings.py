@@ -127,6 +127,7 @@ LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 BOT_INTERNAL_KEY = os.getenv("BOT_INTERNAL_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+STARS_RECONCILE_ENABLED = os.getenv("STARS_RECONCILE_ENABLED", "0") == "1"
 
 # Email settings
 EMAIL_BACKEND = os.getenv(

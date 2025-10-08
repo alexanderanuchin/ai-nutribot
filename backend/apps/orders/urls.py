@@ -19,6 +19,7 @@ from .views import (
 router = DefaultRouter()
 router.register("wallet/transactions", WalletTransactionViewSet, basename="wallet-transaction")
 router.register("wallet/orders", OrderViewSet, basename="wallet-order")
+router.register("orders", OrderViewSet, basename="order")
 
 urlpatterns = [
     path("wallet/summary/", WalletSummaryView.as_view(), name="wallet-summary"),

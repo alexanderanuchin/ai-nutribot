@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 
 from .models import Profile
 from .serializers import ProfileSerializer, UserSerializer
+from .services import get_profile_stars_balance
 
 User = get_user_model()
 
@@ -26,7 +27,7 @@ def _format_decimal(value: Decimal, quant: Decimal) -> str:
 
 
 def build_wallet_payload(profile: Profile) -> Dict[str, str]:
-    stars_value = _ensure_decimal(getattr(profile, "telegram_stars_balance", 0))
+    stars_value = Decimal(get_profile_stars_balance(profile))
     calo_value = _ensure_decimal(getattr(profile, "calocoin_balance", 0))
 
     try:

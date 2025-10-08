@@ -33,6 +33,7 @@ vi.mock('../../api/api', () => ({
       nutritionAnalytics: true,
       mealConstructor: true,
     },
+    isStaff: true,
     profile: {
       sex: 'm',
       height_cm: 180,
@@ -59,6 +60,11 @@ vi.mock('../../api/api', () => ({
         timestamp: new Date('2024-11-01T09:50:00Z').toISOString(),
       },
     ],
+  })),
+  fetchBotStarsBalance: vi.fn(async () => ({
+    amount: 9999,
+    currency: 'XTR',
+    updatedAt: new Date('2024-11-01T10:00:00Z').toISOString(),
   })),
 }))
 
@@ -94,6 +100,7 @@ describe('navigation system', () => {
     renderWithProviders(<AppNavbar onMenuClick={() => {}} onOpenCommand={() => {}} />)
 
     expect(await screen.findByLabelText(/открыть кошелёк/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/баланс бота/i)).toBeInTheDocument()
   })
 
   it('highlights active tab in MobileTabBar', async () => {

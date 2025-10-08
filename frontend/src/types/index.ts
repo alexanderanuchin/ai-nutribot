@@ -177,6 +177,7 @@ export interface User {
   city?: string
   telegram_id?: number | null
   profile?: Profile
+  is_staff?: boolean
 }
 export interface MeResponse {
   user: User

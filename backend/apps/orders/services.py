@@ -7,6 +7,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.users.models import Profile
+from apps.users.services import (
+    get_profile_stars_balance,
+    sync_stars_ledger_for_transaction,
+)
 
 from .models import Order, WalletPerk, WalletTarget, WalletTransaction
 
@@ -54,7 +58,7 @@ def _normalize_amount(currency: str, amount: Any) -> Decimal:
 
 def _profile_balance(profile: Profile, currency: str) -> Decimal:
     if currency == WalletTransaction.Currency.TELEGRAM_STARS:
-        return Decimal(profile.telegram_stars_balance or 0)
+        return Decimal(get_profile_stars_balance(profile))
     return Decimal(profile.calocoin_balance or 0)
 
 
@@ -98,6 +102,8 @@ def wallet_topup(
             metadata=meta,
             related_order=related_order,
         )
+        if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+            sync_stars_ledger_for_transaction(transaction_record)
         return transaction_record
 
 
@@ -132,6 +138,8 @@ def wallet_withdraw(
             metadata=meta,
             related_order=related_order,
         )
+        if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+            sync_stars_ledger_for_transaction(transaction_record)
         return transaction_record
 
 
@@ -387,7 +395,7 @@ def build_wallet_summary(
         orders_limit: int = 3,
 ) -> Dict[str, Any]:
     balances: Dict[str, Decimal] = {
-        WalletTransaction.Currency.TELEGRAM_STARS: Decimal(profile.telegram_stars_balance or 0),
+        WalletTransaction.Currency.TELEGRAM_STARS: Decimal(get_profile_stars_balance(profile)),
         WalletTransaction.Currency.CALOCOIN: Decimal(profile.calocoin_balance or 0),
     }
 

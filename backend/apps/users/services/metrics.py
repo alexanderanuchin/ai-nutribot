@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP, InvalidOperation
 from typing import Any, Dict, List, Optional
 
-from .models import Profile
+from ..models import Profile
 
 ACTIVITY_FACTORS: Dict[str, float] = {
     "sedentary": 1.2,

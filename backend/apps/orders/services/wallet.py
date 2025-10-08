@@ -10,6 +10,10 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from apps.users.models import Profile
+from apps.users.services import (
+    get_profile_stars_balance,
+    sync_stars_ledger_for_transaction,
+)
 
 from ..models import Order, WalletPerk, WalletTarget, WalletTransaction
 
@@ -70,7 +74,7 @@ def _normalize_amount(currency: str, amount: Any) -> Decimal:
 
 def _profile_balance(profile: Profile, currency: str) -> Decimal:
     if currency == WalletTransaction.Currency.TELEGRAM_STARS:
-        return Decimal(profile.telegram_stars_balance or 0)
+        return Decimal(get_profile_stars_balance(profile))
     return Decimal(profile.calocoin_balance or 0)
 
 
@@ -122,7 +126,7 @@ def _create_transaction(
         balance_before: Decimal,
         balance_after: Decimal,
 ) -> WalletTransaction:
-    return WalletTransaction.objects.create(
+    transaction_record = WalletTransaction.objects.create(
         profile=profile,
         currency=currency,
         direction=direction,
@@ -136,9 +140,15 @@ def _create_transaction(
         related_order=related_order,
         idempotency_key=idempotency_key or uuid.uuid4().hex,
     )
+    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+        sync_stars_ledger_for_transaction(transaction_record)
+    return transaction_record
 
 
 def get_wallet_balance(profile: Profile, currency: str) -> WalletBalance:
+    if isinstance(profile, Profile) and profile.pk:
+        if currency == WalletTransaction.Currency.CALOCOIN:
+            profile.refresh_from_db(fields=["calocoin_balance"])
     total = _profile_balance(profile, currency)
     holds = _active_hold_amount(profile, currency)
     quant = _quant_for_currency(currency)
@@ -628,7 +638,7 @@ def build_wallet_summary(
         orders_limit: int = 3,
 ) -> Dict[str, Any]:
     balances: Dict[str, Decimal] = {
-        WalletTransaction.Currency.TELEGRAM_STARS: Decimal(profile.telegram_stars_balance or 0),
+        WalletTransaction.Currency.TELEGRAM_STARS: Decimal(get_profile_stars_balance(profile)),
         WalletTransaction.Currency.CALOCOIN: Decimal(profile.calocoin_balance or 0),
     }
 

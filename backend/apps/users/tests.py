@@ -5,8 +5,10 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
+from apps.orders.models import WalletTransaction
 from apps.users.models import Profile
 from apps.users.serializers import ProfileSerializer, ProfileUpdateSerializer
+from apps.users.services import get_profile_stars_balance, sync_stars_ledger_for_transaction
 
 
 class ProfileSerializerTest(TestCase):
@@ -36,6 +38,19 @@ class ProfileSerializerTest(TestCase):
             "avatar_preferences",
             "wallet_settings",
         ])
+
+        tx = WalletTransaction.objects.create(
+            profile=profile,
+            currency=WalletTransaction.Currency.TELEGRAM_STARS,
+            direction=WalletTransaction.Direction.CREDIT,
+            status=WalletTransaction.Status.CONFIRMED,
+            amount=Decimal("125"),
+            balance_before=Decimal("0"),
+            balance_after=Decimal("125"),
+            description="Initial top up",
+            metadata={},
+        )
+        sync_stars_ledger_for_transaction(tx)
 
         data = ProfileSerializer(profile).data
 
@@ -135,6 +150,19 @@ class ProfileUpdateSerializerTest(TestCase):
         self.profile = self.user.profile
 
     def test_updates_user_and_profile_fields(self):
+        tx = WalletTransaction.objects.create(
+            profile=self.profile,
+            currency=WalletTransaction.Currency.TELEGRAM_STARS,
+            direction=WalletTransaction.Direction.CREDIT,
+            status=WalletTransaction.Status.CONFIRMED,
+            amount=Decimal("312"),
+            balance_before=Decimal("0"),
+            balance_after=Decimal("312"),
+            description="Initial ledger state",
+            metadata={},
+        )
+        sync_stars_ledger_for_transaction(tx)
+
         data = {
             "first_name": "Александр",
             "last_name": "Анучин",
@@ -168,6 +196,7 @@ class ProfileUpdateSerializerTest(TestCase):
         self.assertEqual(updated_profile.city, "Санкт-Петербург")
         self.assertEqual(updated_profile.daily_budget, Decimal("2100.40"))
         self.assertEqual(updated_profile.telegram_stars_balance, 312)
+        self.assertEqual(get_profile_stars_balance(updated_profile), 312)
         self.assertEqual(updated_profile.telegram_stars_rate_rub, Decimal("6.45"))
         self.assertEqual(updated_profile.calocoin_balance, Decimal("1500.00"))
         self.assertEqual(updated_profile.calocoin_rate_rub, Decimal("4.15"))
@@ -267,6 +296,19 @@ class MeProfileAPITest(TestCase):
         self.profile.avatar_preferences = {"kind": "preset", "preset_id": "wave"}
         self.profile.save()
 
+        tx = WalletTransaction.objects.create(
+            profile=self.profile,
+            currency=WalletTransaction.Currency.TELEGRAM_STARS,
+            direction=WalletTransaction.Direction.CREDIT,
+            status=WalletTransaction.Status.CONFIRMED,
+            amount=Decimal("88"),
+            balance_before=Decimal("0"),
+            balance_after=Decimal("88"),
+            description="Initial ledger sync",
+            metadata={},
+        )
+        sync_stars_ledger_for_transaction(tx)
+
         resp = self.client.get("/api/users/me/")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
@@ -300,6 +342,19 @@ class MeProfileAPITest(TestCase):
         self.assertEqual(sidebar_meta["services"][0]["status_label"], "Доступно")
 
     def test_me_profile_patch_updates_contact_and_wallet_fields(self):
+        tx = WalletTransaction.objects.create(
+            profile=self.profile,
+            currency=WalletTransaction.Currency.TELEGRAM_STARS,
+            direction=WalletTransaction.Direction.CREDIT,
+            status=WalletTransaction.Status.CONFIRMED,
+            amount=Decimal("321"),
+            balance_before=Decimal("0"),
+            balance_after=Decimal("321"),
+            description="Initial ledger balance",
+            metadata={},
+        )
+        sync_stars_ledger_for_transaction(tx)
+
         payload = {
             "first_name": "Ирина",
             "last_name": "Новая",
@@ -377,6 +432,7 @@ class MeProfileAPITest(TestCase):
         self.assertEqual(self.profile.experience_level, Profile.ExperienceLevel.LEGEND)
         self.assertEqual(self.profile.wallet_settings, {"show_wallet": True})
         self.assertEqual(self.profile.avatar_preferences, {"kind": "preset", "preset_id": "focus"})
+        self.assertEqual(get_profile_stars_balance(self.profile), 321)
 
     def test_me_profile_patch_rejects_duplicate_phone(self):
         self.User.objects.create_user(

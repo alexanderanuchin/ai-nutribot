@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from apps.users.models import Profile
 from apps.orders.services import build_wallet_summary
+from apps.users.services import get_profile_stars_balance
 
 
 _CALO_BOT_LINK = "https://t.me/CaloIQ_bot"
@@ -61,7 +62,7 @@ def build_profile_sidebar_meta(profile: Profile) -> Dict[str, Any]:
     has_telegram = _bool(getattr(user, "telegram_id", None) or profile.telegram_id)
     has_city = bool(profile.city)
     has_daily_budget = _bool(profile.daily_budget)
-    stars_balance = int(getattr(profile, "telegram_stars_balance", 0) or 0)
+    stars_balance = int(get_profile_stars_balance(profile))
     calocoin_balance = _decimal(getattr(profile, "calocoin_balance", 0))
     has_balance = stars_balance > 0 or calocoin_balance > 0
 

@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, decorators, response, status, generics
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
@@ -20,7 +21,7 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     PhoneEmailTokenObtainPairSerializer,
 )
-
+from .services import build_stars_balance_payload, get_bot_star_balance
 
 class ProfileViewSet(viewsets.ModelViewSet):
     serializer_class = ProfileSerializer
@@ -151,3 +152,34 @@ class PasswordResetConfirmView(generics.GenericAPIView):
         user.set_password(password)
         user.save()
         return response.Response({"detail": "Пароль обновлён"})
+
+
+class StarsBalanceView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        payload = build_stars_balance_payload(profile)
+        return response.Response(payload)
+
+
+class BotStarsBalanceView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        try:
+            balance = get_bot_star_balance()
+        except Exception as exc:  # pragma: no cover - network/credentials errors
+            return response.Response(
+                {"detail": str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return response.Response(
+            {
+                "balance": {
+                    "amount": balance.amount,
+                    "currency": balance.currency,
+                    "updated_at": balance.updated_at.isoformat() if balance.updated_at else None,
+                }
+            }
+        )

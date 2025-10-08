@@ -104,10 +104,8 @@ class BillingService:
             OrderService(order).mark_payment_failed(reason="Недостаточно средств")
             return attempt
 
-        attempt.status = PaymentAttempt.Status.SUCCEEDED
         attempt.wallet_transaction = tx
-        attempt.processed_at = timezone.now()
-        attempt.save(update_fields=["status", "wallet_transaction", "processed_at", "updated_at"])
+        attempt.save(update_fields=["wallet_transaction", "updated_at"])
         OrderService(order).apply_payment_result(
             attempt,
             PaymentResult(
@@ -116,6 +114,8 @@ class BillingService:
                 wallet_currency=currency,
             ),
         )
+        order.refresh_from_db()
+        attempt.refresh_from_db()
         return attempt
 
     def charge_subscription(
