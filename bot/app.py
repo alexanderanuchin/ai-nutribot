@@ -24,35 +24,24 @@ if __package__ in {None, ""}:
         sys.path.insert(0, str(parent_dir))
 
 from bot.backend_client import BackendClient
+from bot.config import Config
 from bot.handlers.menu import router as menu_router
 from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
+from bot.handlers.wallet import router as wallet_router
 from bot.middlewares.access_token import AccessTokenMiddleware
 from bot.middlewares.store import StoreMiddleware
-
-
-def _clean_backend_url(raw: str) -> str:
-    raw = (raw or "").rstrip("/")
-    return raw[:-4] if raw.endswith("/api") else raw
 
 
 def _is_https(url: str) -> bool:
     return isinstance(url, str) and url.lower().startswith("https://")
 
 
-class Config:
-    token = os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN") or ""
-    bot_key = os.getenv("BOT_KEY") or os.getenv("BOT_INTERNAL_KEY") or "super-secret-bot-key"
-    backend_url = _clean_backend_url(os.getenv("BACKEND_URL") or os.getenv("API_BASE") or "http://backend:8000")
-    # По-умолчанию на ваш Vite dev-сервер
-    webapp_url = os.getenv("WEBAPP_URL", "http://localhost:5173/")
-
-
 async def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s:%(name)s:%(message)s")
     logging.getLogger("aiogram.event").setLevel(logging.INFO)
 
-    cfg = Config()
+    cfg = Config.load()
     if not cfg.token:
         raise RuntimeError("BOT_TOKEN is not set")
 
@@ -63,13 +52,14 @@ async def main() -> None:
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher(storage=MemoryStorage())
 
-    backend = BackendClient(cfg.backend_url)
-    dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url))
+    backend = BackendClient(cfg.backend_base_url)
+    dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 
     dp.include_router(menu_router)
     dp.include_router(plan_router)
     dp.include_router(wizard_router)
+    dp.include_router(wallet_router)
 
     await bot.set_my_commands(
         [
@@ -78,9 +68,9 @@ async def main() -> None:
             BotCommand(command="plan", description="Новый план питания"),
             BotCommand(command="history", description="История планов"),
             BotCommand(command="cancel", description="Отмена"),
+            BotCommand(command="wallet", description="Баланс Stars"),
         ]
     )
-
 
     logging.info("Bot started in POLLING mode")
     try:

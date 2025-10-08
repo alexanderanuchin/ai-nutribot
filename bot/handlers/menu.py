@@ -41,6 +41,7 @@ def menu_kb(url: str) -> InlineKeyboardMarkup:
     if _is_https_public(url):
         rows.append([InlineKeyboardButton(text="🔗 Открыть кабинет (встроенно)", web_app=WebAppInfo(url=url))])
         rows.append([InlineKeyboardButton(text="🌐 Открыть в браузере", url=url)])
+    rows.append([InlineKeyboardButton(text="⭐ Кошелёк", callback_data="wallet:open")])
     rows.append([InlineKeyboardButton(text="🧭 Заполнить профиль", callback_data="wizard:start")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 

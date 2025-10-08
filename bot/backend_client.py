@@ -215,10 +215,10 @@ class BackendClient:
         return result
 
     async def generate_plan(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        payload: Dict[str, Any],
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            payload: Dict[str, Any],
     ) -> AuthResult:
         return await self._authorized(
             "POST",
@@ -229,10 +229,10 @@ class BackendClient:
         )
 
     async def job_status(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        job_id: str,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            job_id: str,
     ) -> AuthResult:
         return await self._authorized(
             "GET",
@@ -242,9 +242,9 @@ class BackendClient:
         )
 
     async def get_latest_plan(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
     ) -> AuthResult:
         return await self._authorized(
             "GET",
@@ -254,10 +254,10 @@ class BackendClient:
         )
 
     async def get_history(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        limit: int = 10,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            limit: int = 10,
     ) -> AuthResult:
         return await self._authorized(
             "GET",
@@ -266,11 +266,87 @@ class BackendClient:
             refresh=refresh_token,
         )
 
+    async def get_my_stars(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+    ) -> AuthResult:
+        return await self._authorized(
+            "GET",
+            "/api/me/stars/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def get_bot_stars_balance(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+    ) -> AuthResult:
+        return await self._authorized(
+            "GET",
+            "/api/admin/stars/bot-balance/",
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def manual_stars_topup(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            *,
+            amount: int,
+            idempotency_key: str,
+            source: str,
+            metadata: Dict[str, Any] | None = None,
+    ) -> AuthResult:
+        if not access_token:
+            raise BackendAuthError("Access token required")
+
+        headers = {"Authorization": f"Bearer {access_token}"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
+
+        try:
+            payload = await self._request(
+                "POST",
+                "/api/orders/wallet/manual-stars/",
+                json={
+                    "amount": int(amount),
+                    "source": source,
+                    "metadata": metadata or {},
+                },
+                headers=headers,
+            )
+            return AuthResult(payload=payload, access=access_token, refresh=refresh_token)
+        except BackendAuthError:
+            if not refresh_token:
+                raise
+            tokens = await self.refresh_tokens(refresh_token)
+            new_access = tokens.get("access")
+            new_refresh = tokens.get("refresh") or refresh_token
+            if not new_access:
+                raise BackendAuthError("Failed to refresh token")
+            headers = {"Authorization": f"Bearer {new_access}"}
+            if idempotency_key:
+                headers["Idempotency-Key"] = idempotency_key
+            payload = await self._request(
+                "POST",
+                "/api/orders/wallet/manual-stars/",
+                json={
+                    "amount": int(amount),
+                    "source": source,
+                    "metadata": metadata or {},
+                },
+                headers=headers,
+            )
+            return AuthResult(payload=payload, access=new_access, refresh=new_refresh)
+
     async def accept_plan(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        plan_id: int,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            plan_id: int,
     ) -> AuthResult:
         return await self._authorized(
             "POST",
@@ -280,10 +356,10 @@ class BackendClient:
         )
 
     async def reject_plan(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        plan_id: int,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            plan_id: int,
     ) -> AuthResult:
         return await self._authorized(
             "POST",
@@ -293,11 +369,11 @@ class BackendClient:
         )
 
     async def regenerate_plan(
-        self,
-        access_token: str | None,
-        refresh_token: str | None,
-        plan_id: int,
-        overrides: Dict[str, Any] | None = None,
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            plan_id: int,
+            overrides: Dict[str, Any] | None = None,
     ) -> AuthResult:
         return await self._authorized(
             "POST",

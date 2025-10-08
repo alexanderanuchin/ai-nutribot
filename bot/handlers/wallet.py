@@ -1,0 +1,484 @@
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from typing import Iterable, Tuple
+
+from aiogram import F, Router
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    LabeledPrice,
+    Message,
+    PreCheckoutQuery,
+    WebAppInfo,
+)
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from ..backend_client import (
+    AuthResult,
+    BackendAuthError,
+    BackendClient,
+    BackendError,
+    BackendNetworkError,
+)
+
+router = Router()
+
+TOPUP_AMOUNTS: Tuple[int, ...] = (50, 100)
+TOPUP_SOURCE = "telegram_bot_invoice"
+
+
+def _authorization_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if webapp_url:
+        if webapp_url.lower().startswith("https://"):
+            builder.button(text="Открыть кабинет", web_app=WebAppInfo(url=webapp_url))
+        else:
+            builder.button(text="Открыть кабинет", url=webapp_url)
+    builder.button(text="↩️ В меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def _wallet_keyboard() -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for amount in TOPUP_AMOUNTS:
+        builder.button(text=f"Пополнить {amount} XTR", callback_data=f"wallet:topup:{amount}")
+    builder.button(text="↩️ В меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+async def _apply_tokens(state: FSMContext, result: AuthResult) -> None:
+    updates = {}
+    if result.access:
+        updates["access_token"] = result.access
+    if result.refresh:
+        updates["refresh_token"] = result.refresh
+    if updates:
+        await state.update_data(**updates)
+
+
+async def _get_tokens(state: FSMContext, fallback_access: str | None) -> Tuple[str | None, str | None]:
+    data = await state.get_data()
+    access_token = data.get("access_token") or fallback_access
+    refresh_token = data.get("refresh_token")
+    return access_token, refresh_token
+
+
+def _format_transaction_line(item: dict) -> str:
+    raw_date = item.get("occurred_at")
+    try:
+        occurred_at = datetime.fromisoformat(str(raw_date)) if raw_date else None
+    except ValueError:
+        occurred_at = None
+    if occurred_at:
+        date_part = occurred_at.strftime("%d.%m.%Y")
+    else:
+        date_part = str(raw_date or "—")
+    direction = str(item.get("direction"))
+    sign = "+" if direction == "in" else "-"
+    amount = int(item.get("amount", 0))
+    return f"{date_part} {sign}{amount} XTR"
+
+
+def _format_wallet_message(payload: dict) -> str:
+    balance = payload.get("balance", {})
+    amount = balance.get("amount", 0)
+    currency = balance.get("currency", "XTR")
+    lines = [f"Ваш баланс: {amount} {currency}"]
+    transactions = payload.get("transactions") or []
+    if transactions:
+        lines.append("\nПоследние операции:")
+        for item in transactions[:3]:
+            lines.append(_format_transaction_line(item))
+    else:
+        lines.append("\nПока нет операций.")
+    lines.append("\nВыберите сумму для быстрого пополнения 👇")
+    return "\n".join(lines)
+
+
+async def _load_wallet_payload(
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    refresh_token: str | None,
+    notify_retry,
+):
+    attempt = 0
+    last_error: Exception | None = None
+    while attempt < 2:
+        try:
+            result = await backend.get_my_stars(access_token, refresh_token)
+            await _apply_tokens(state, result)
+            return result.payload
+        except BackendAuthError as exc:
+            await state.update_data(access_token=None, refresh_token=None)
+            raise exc
+        except BackendNetworkError as exc:
+            last_error = exc
+            attempt += 1
+            if attempt == 1:
+                await notify_retry()
+                access_token, refresh_token = await _get_tokens(state, access_token)
+                continue
+            break
+        except BackendError as exc:
+            raise exc
+    if last_error:
+        raise last_error
+    raise BackendError("Не удалось получить данные кошелька")
+
+
+async def _load_bot_balance(
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    refresh_token: str | None,
+    notify_retry,
+):
+    attempt = 0
+    last_error: Exception | None = None
+    while attempt < 2:
+        try:
+            result = await backend.get_bot_stars_balance(access_token, refresh_token)
+            await _apply_tokens(state, result)
+            return result.payload
+        except BackendAuthError as exc:
+            await state.update_data(access_token=None, refresh_token=None)
+            raise exc
+        except BackendNetworkError as exc:
+            last_error = exc
+            attempt += 1
+            if attempt == 1:
+                await notify_retry()
+                access_token, refresh_token = await _get_tokens(state, access_token)
+                continue
+            break
+        except BackendError as exc:
+            raise exc
+    if last_error:
+        raise last_error
+    raise BackendError("Не удалось получить баланс бота")
+
+
+async def _manual_topup(
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    refresh_token: str | None,
+    *,
+    amount: int,
+    idempotency_key: str,
+    metadata: dict,
+    notify_retry,
+):
+    attempt = 0
+    last_error: Exception | None = None
+    while attempt < 2:
+        try:
+            result = await backend.manual_stars_topup(
+                access_token,
+                refresh_token,
+                amount=amount,
+                idempotency_key=idempotency_key,
+                source=TOPUP_SOURCE,
+                metadata=metadata,
+            )
+            await _apply_tokens(state, result)
+            return result.payload
+        except BackendAuthError as exc:
+            await state.update_data(access_token=None, refresh_token=None)
+            raise exc
+        except BackendNetworkError as exc:
+            last_error = exc
+            attempt += 1
+            if attempt == 1:
+                await notify_retry()
+                access_token, refresh_token = await _get_tokens(state, access_token)
+                continue
+            break
+        except BackendError as exc:
+            raise exc
+    if last_error:
+        raise last_error
+    raise BackendError("Не удалось обработать пополнение")
+
+
+def _parse_invoice_payload(payload: str) -> dict:
+    parts = (payload or "").split(";")
+    result = {}
+    for item in parts:
+        if "=" not in item:
+            continue
+        key, value = item.split("=", 1)
+        result[key] = value
+    return result
+
+
+def _build_invoice_payload(user_id: int, amount: int) -> str:
+    token = uuid.uuid4().hex
+    return f"uid={user_id};amt={amount};token={token}"
+
+
+async def _ensure_authorized(message: Message, webapp_url: str) -> None:
+    await message.answer(
+        "Сначала авторизуйтесь через WebApp, чтобы увидеть баланс.",
+        reply_markup=_authorization_keyboard(webapp_url),
+    )
+
+
+async def _ensure_admin_authorized(message: Message) -> None:
+    await message.answer("Команда доступна только администраторам.")
+
+
+@router.message(Command("wallet"))
+async def wallet_command(
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    webapp_url: str,
+):
+    if not access_token:
+        await _ensure_authorized(message, webapp_url)
+        return
+    data = await state.get_data()
+    refresh_token = data.get("refresh_token")
+
+    async def notify_retry():
+        await message.answer("Не смогли получить данные, пробую ещё раз…")
+
+    try:
+        payload = await _load_wallet_payload(
+            backend,
+            state,
+            access_token,
+            refresh_token,
+            notify_retry=notify_retry,
+        )
+    except BackendAuthError:
+        await _ensure_authorized(message, webapp_url)
+        return
+    except BackendNetworkError:
+        await message.answer("Не удалось получить данные кошелька. Попробуйте позже.")
+        return
+    except BackendError as exc:
+        await message.answer(f"Не удалось получить данные кошелька.\n{exc}")
+        return
+
+    text = _format_wallet_message(payload)
+    await message.answer(text, reply_markup=_wallet_keyboard())
+
+
+@router.callback_query(F.data == "wallet:open")
+async def wallet_open_callback(
+    callback: CallbackQuery,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    webapp_url: str,
+):
+    if callback.message is None:
+        await callback.answer()
+        return
+
+    if not access_token:
+        await callback.message.answer(
+            "Сначала авторизуйтесь через WebApp, чтобы увидеть баланс.",
+            reply_markup=_authorization_keyboard(webapp_url),
+        )
+        await callback.answer()
+        return
+
+    data = await state.get_data()
+    refresh_token = data.get("refresh_token")
+
+    async def notify_retry():
+        await callback.message.answer("Не смогли получить данные, пробую ещё раз…")
+
+    try:
+        payload = await _load_wallet_payload(
+            backend,
+            state,
+            access_token,
+            refresh_token,
+            notify_retry=notify_retry,
+        )
+    except BackendAuthError:
+        await callback.message.answer(
+            "Сессия истекла. Авторизуйтесь через WebApp.",
+            reply_markup=_authorization_keyboard(webapp_url),
+        )
+        await callback.answer()
+        return
+    except BackendNetworkError:
+        await callback.message.answer("Не удалось получить данные кошелька. Попробуйте позже.")
+        await callback.answer()
+        return
+    except BackendError as exc:
+        await callback.message.answer(f"Не удалось получить данные кошелька.\n{exc}")
+        await callback.answer()
+        return
+
+    await callback.message.answer(_format_wallet_message(payload), reply_markup=_wallet_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("wallet:topup:"))
+async def wallet_topup_callback(callback: CallbackQuery):
+    if callback.message is None or callback.from_user is None:
+        await callback.answer()
+        return
+    try:
+        _, _, amount_raw = callback.data.partition("wallet:topup:")
+        amount = int(amount_raw)
+    except (TypeError, ValueError):
+        await callback.answer("Неизвестная сумма", show_alert=True)
+        return
+
+    payload = _build_invoice_payload(callback.from_user.id, amount)
+    prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
+    await callback.message.answer_invoice(
+        title="Пополнение баланса Stars",
+        description=f"Быстрое пополнение на {amount} XTR.",
+        currency="XTR",
+        prices=prices,
+        payload=payload,
+        max_tip_amount=0,
+    )
+    await callback.answer()
+
+
+@router.pre_checkout_query()
+async def pre_checkout_handler(query: PreCheckoutQuery):
+    await query.answer(ok=True)
+
+
+@router.message(F.successful_payment)
+async def successful_payment_handler(
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+):
+    payment = message.successful_payment
+    if payment is None:
+        return
+
+    charge_id = payment.telegram_payment_charge_id or payment.provider_payment_charge_id
+    amount = int(payment.total_amount)
+    currency = payment.currency
+
+    if currency != "XTR":
+        await message.answer("Получен платёж в неподдерживаемой валюте. Обратитесь в поддержку.")
+        return
+    if not charge_id:
+        await message.answer("Не удалось идентифицировать платеж. Напишите в поддержку.")
+        return
+    if not access_token:
+        await message.answer(
+            "Чтобы зачислить платеж, авторизуйтесь через WebApp и повторите попытку.",
+        )
+        return
+
+    data = await state.get_data()
+    refresh_token = data.get("refresh_token")
+    payload_meta = _parse_invoice_payload(payment.invoice_payload)
+    metadata = {
+        "telegram_payment_charge_id": payment.telegram_payment_charge_id,
+        "provider_payment_charge_id": payment.provider_payment_charge_id,
+        "invoice_payload": payment.invoice_payload,
+        "currency": payment.currency,
+        "total_amount": payment.total_amount,
+        "payload": payload_meta,
+    }
+
+    async def notify_retry():
+        await message.answer("Не удалось связаться с сервером, пробую ещё раз…")
+
+    try:
+        await _manual_topup(
+            backend,
+            state,
+            access_token,
+            refresh_token,
+            amount=amount,
+            idempotency_key=charge_id,
+            metadata=metadata,
+            notify_retry=notify_retry,
+        )
+    except BackendAuthError:
+        await message.answer("Сессия истекла. Откройте WebApp и попробуйте снова.")
+        return
+    except BackendNetworkError:
+        await message.answer("Оплата получена, но не удалось зачислить средства. Попробуйте позже.")
+        return
+    except BackendError as exc:
+        await message.answer(
+            "Оплата получена, но возникла ошибка при зачислении средств. "
+            "Мы уже разбираемся."
+            f"\n{exc}"
+        )
+        return
+
+    await message.answer(f"Баланс пополнен на {amount} XTR. Спасибо!")
+
+
+def _is_admin(user_id: int | None, admin_ids: Iterable[int]) -> bool:
+    if user_id is None:
+        return False
+    return user_id in set(admin_ids)
+
+
+@router.message(Command("bot_stars"))
+async def bot_stars_command(
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    admin_ids: Iterable[int],
+):
+    user_id = getattr(message.from_user, "id", None)
+    if not admin_ids or not _is_admin(user_id, admin_ids):
+        await _ensure_admin_authorized(message)
+        return
+    if not access_token:
+        await message.answer("Авторизуйтесь через WebApp, чтобы посмотреть баланс бота.")
+        return
+
+    data = await state.get_data()
+    refresh_token = data.get("refresh_token")
+
+    async def notify_retry():
+        await message.answer("Не смогли получить данные, пробую ещё раз…")
+
+    try:
+        payload = await _load_bot_balance(
+            backend,
+            state,
+            access_token,
+            refresh_token,
+            notify_retry=notify_retry,
+        )
+    except BackendAuthError:
+        await message.answer("Сессия истекла. Авторизуйтесь заново через WebApp.")
+        return
+    except BackendNetworkError:
+        await message.answer("Не удалось получить баланс бота. Попробуйте позже.")
+        return
+    except BackendError as exc:
+        await message.answer(f"Не удалось получить баланс бота.\n{exc}")
+        return
+
+    balance = payload.get("balance", {})
+    amount = balance.get("amount", 0)
+    currency = balance.get("currency", "XTR")
+    updated = balance.get("updated_at")
+    lines = [f"Баланс бота: {amount} {currency}"]
+    if updated:
+        lines.append(f"Обновлено: {updated}")
+    await message.answer("\n".join(lines))
