@@ -7,7 +7,7 @@ from pathlib import Path
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import Redis, RedisStorage
 from aiogram.types import BotCommand
 
 # NOTE:
@@ -50,7 +50,11 @@ async def main() -> None:
                         cfg.webapp_url)
 
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher(storage=MemoryStorage())
+    redis = Redis(
+        host=os.getenv("REDIS_HOST", "redis"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+    )
+    dp = Dispatcher(storage=RedisStorage(redis=redis))
 
     backend = BackendClient(cfg.backend_base_url)
     dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
@@ -76,6 +80,8 @@ async def main() -> None:
     try:
         await dp.start_polling(bot)
     finally:
+        await dp.storage.close()
+        await dp.storage.wait_closed()
         await backend.close()
 
 

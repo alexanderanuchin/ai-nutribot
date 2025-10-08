@@ -108,14 +108,51 @@ async def test_wallet_topup_callback_sends_invoice():
     callback.data = "wallet:topup:50"
     callback.from_user = SimpleNamespace(id=5)
     callback.message = MagicMock()
+    callback.message.answer = AsyncMock()
     callback.message.answer_invoice = AsyncMock()
 
-    await wallet_topup_callback(callback)
+    state = FakeState({"access_token": "token"})
+
+    await wallet_topup_callback(
+        callback,
+        state,
+        access_token=None,
+        webapp_url="https://example.com",
+    )
 
     callback.message.answer_invoice.assert_awaited()
     kwargs = callback.message.answer_invoice.call_args.kwargs
     assert kwargs["currency"] == "XTR"
     assert kwargs["prices"][0].amount == 50
+    assert kwargs["prices"][0].label == "Пополнение 50 XTR"
+    assert kwargs.get("provider_token") == ""
+    assert "max_tip_amount" not in kwargs
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wallet_topup_callback_requires_auth_before_invoice():
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    callback.data = "wallet:topup:50"
+    callback.from_user = SimpleNamespace(id=5)
+    callback.message = MagicMock()
+    callback.message.answer = AsyncMock()
+    callback.message.answer_invoice = AsyncMock()
+
+    state = FakeState()
+
+    await wallet_topup_callback(
+        callback,
+        state,
+        access_token=None,
+        webapp_url="https://example.com",
+    )
+
+    callback.message.answer.assert_awaited()
+    text = callback.message.answer.call_args[0][0]
+    assert "авториз" in text.lower()
+    callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
 
 

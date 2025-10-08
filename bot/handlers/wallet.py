@@ -329,8 +329,22 @@ async def wallet_open_callback(
 
 
 @router.callback_query(F.data.startswith("wallet:topup:"))
-async def wallet_topup_callback(callback: CallbackQuery):
+async def wallet_topup_callback(
+    callback: CallbackQuery,
+    state: FSMContext,
+    access_token: str | None,
+    webapp_url: str,
+):
     if callback.message is None or callback.from_user is None:
+        await callback.answer()
+        return
+
+    stored_access_token, _ = await _get_tokens(state, access_token)
+    if not stored_access_token:
+        await callback.message.answer(
+            "Сначала авторизуйтесь через WebApp, чтобы пополнить баланс.",
+            reply_markup=_authorization_keyboard(webapp_url),
+        )
         await callback.answer()
         return
     try:
@@ -348,7 +362,7 @@ async def wallet_topup_callback(callback: CallbackQuery):
         currency="XTR",
         prices=prices,
         payload=payload,
-        max_tip_amount=0,
+        provider_token="",
     )
     await callback.answer()
 
@@ -379,14 +393,7 @@ async def successful_payment_handler(
     if not charge_id:
         await message.answer("Не удалось идентифицировать платеж. Напишите в поддержку.")
         return
-    if not access_token:
-        await message.answer(
-            "Чтобы зачислить платеж, авторизуйтесь через WebApp и повторите попытку.",
-        )
-        return
-
-    data = await state.get_data()
-    refresh_token = data.get("refresh_token")
+    access_token, refresh_token = await _get_tokens(state, access_token)
     payload_meta = _parse_invoice_payload(payment.invoice_payload)
     metadata = {
         "telegram_payment_charge_id": payment.telegram_payment_charge_id,
