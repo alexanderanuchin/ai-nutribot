@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 # Create your views here.
+import logging
 from decimal import Decimal
 from typing import Any, Dict
 
@@ -12,6 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.permissions import HasBotKey
 from apps.orders.models import (
     DeliveryService,
     DeliveryWindow,
@@ -31,9 +33,11 @@ from apps.orders.serializers import (
 )
 from apps.orders.services import BillingService, DeliveryGateway, OrderService, PaymentService, create_order, \
     wallet_withdraw
-from apps.orders.services.payment import PaymentInitiationResult
+from apps.orders.services.payment import PaymentInitiationResult, PaymentProviderError
 from apps.orders.services.wallet import WalletInsufficientFunds, get_wallet_balance
 from apps.users.models import Profile
+
+logger = logging.getLogger(__name__)
 
 
 class IdempotencyMixin:
@@ -113,6 +117,58 @@ class WalletTransactionViewSet(
         return Response(output.data, status=status.HTTP_201_CREATED)
 
 
+class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
+    permission_classes = [HasBotKey]
+    payment_service = PaymentService()
+
+    class Serializer(serializers.Serializer):
+        user_id = serializers.IntegerField()
+        amount = serializers.IntegerField(min_value=1)
+        charge_id = serializers.CharField(max_length=128)
+        comment = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.Serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        charge_id = data["charge_id"]
+        idempotency_key = request.META.get(self.idempotency_header) or charge_id
+
+        profile = Profile.objects.filter(telegram_id=data["user_id"]).first()
+        if profile is None:
+            logger.warning("bot payment report: профиль не найден для telegram_id=%s", data["user_id"])
+            return Response(
+                {"detail": "Пользователь с таким Telegram ID не найден"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        existing = WalletTransaction.objects.filter(
+            profile=profile,
+            idempotency_key=idempotency_key,
+        ).first()
+
+        metadata = {}
+        if data.get("comment"):
+            metadata["comment"] = data["comment"]
+
+        try:
+            tx = self.payment_service.wallet_topup(
+                profile,
+                amount=Decimal(data["amount"]),
+                charge_id=charge_id,
+                idempotency_key=idempotency_key,
+                metadata=metadata or None,
+            )
+        except PaymentProviderError as exc:
+            logger.error("bot payment report failed for telegram_id=%s: %s", data["user_id"], exc)
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        response_data = WalletTransactionSerializer(tx).data
+        status_code = status.HTTP_200_OK if existing else status.HTTP_201_CREATED
+        return Response(response_data, status=status_code)
+
+
 class OrderViewSet(
     WalletProfileMixin,
     IdempotencyMixin,
@@ -171,7 +227,8 @@ class WalletBalancesView(WalletProfileMixin, APIView):
         for currency, _ in WalletTransaction.Currency.choices:
             balance = get_wallet_balance(profile, currency)
             balances[currency.lower()] = {
-                "total": float(balance.total) if currency != WalletTransaction.Currency.TELEGRAM_STARS else int(balance.total),
+                "total": float(balance.total) if currency != WalletTransaction.Currency.TELEGRAM_STARS else int(
+                    balance.total),
                 "available": float(balance.available)
                 if currency != WalletTransaction.Currency.TELEGRAM_STARS
                 else int(balance.available),
@@ -431,6 +488,7 @@ __all__ = [
     "CheckoutView",
     "SubscriptionAutopayToggleView",
     "SubscriptionChargeView",
+    "TelegramBotPaymentReportView",
     "ComposeRecipePurchaseView",
     "TelegramStarsWebhookView",
     "CardWebhookView",

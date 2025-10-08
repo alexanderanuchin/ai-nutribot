@@ -7,21 +7,12 @@ from typing import Any, Dict, List
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, LabeledPrice, Message, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from ..backend_client import (
-    BackendAuthError,
-    BackendClient,
-    BackendError,
-    BackendValidationError,
-)
+from ..backend_client import BackendAuthError, BackendClient, BackendError, BackendValidationError
 from ..states import ProfileWizard
+from .wallet import _authorization_keyboard, _build_invoice_payload, _get_tokens
 
 router = Router()
 
@@ -395,12 +386,54 @@ async def webapp_credentials(
     message: Message,
     backend: BackendClient,
     state: FSMContext,
+    webapp_url: str,
 ):
     raw = message.web_app_data.data if message.web_app_data else ""
     try:
         parsed = json.loads(raw) if raw else {}
     except json.JSONDecodeError:
         parsed = {"init_data": raw}
+    access_token = str(parsed.get("access_token") or "").strip()
+    if access_token:
+        updates = {"access_token": access_token}
+        refresh_token = parsed.get("refresh_token")
+        if isinstance(refresh_token, str) and refresh_token:
+            updates["refresh_token"] = refresh_token
+        await state.update_data(**updates)
+        await message.answer("Сессия WebApp обновлена — можно использовать /wallet для пополнения Stars.")
+        return
+
+    if parsed.get("action") == "topup":
+        if message.from_user is None:
+            await message.answer("Не удалось определить пользователя Telegram для счета.")
+            return
+        try:
+            amount = int(parsed.get("amount"))
+        except (TypeError, ValueError):
+            await message.answer("Сумма пополнения указана неверно.")
+            return
+        if amount <= 0:
+            await message.answer("Сумма пополнения должна быть положительной.")
+            return
+        stored_access_token, _ = await _get_tokens(state, None)
+        if not stored_access_token:
+            await message.answer(
+                "Сначала авторизуйтесь через WebApp, чтобы пополнять баланс.",
+                reply_markup=_authorization_keyboard(webapp_url),
+            )
+            return
+        payload = _build_invoice_payload(message.from_user.id, amount)
+        prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
+        await message.answer_invoice(
+            title="Пополнение баланса Stars",
+            description=f"Пополнение через WebApp на {amount} XTR.",
+            currency="XTR",
+            prices=prices,
+            payload=payload,
+            provider_token="",
+        )
+        await message.answer("Счёт отправлен. Оплатите его в Telegram и мы зачислим Stars автоматически.")
+        return
     init_data = parsed.get("init_data") or parsed.get("initData") or raw
     if not init_data:
         await message.answer("Получены пустые данные от WebApp.")

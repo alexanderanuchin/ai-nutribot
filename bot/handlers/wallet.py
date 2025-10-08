@@ -23,6 +23,7 @@ from ..backend_client import (
     BackendClient,
     BackendError,
     BackendNetworkError,
+    BackendValidationError,
 )
 
 router = Router()
@@ -393,42 +394,41 @@ async def successful_payment_handler(
     if not charge_id:
         await message.answer("Не удалось идентифицировать платеж. Напишите в поддержку.")
         return
-    access_token, refresh_token = await _get_tokens(state, access_token)
-    payload_meta = _parse_invoice_payload(payment.invoice_payload)
-    metadata = {
-        "telegram_payment_charge_id": payment.telegram_payment_charge_id,
-        "provider_payment_charge_id": payment.provider_payment_charge_id,
-        "invoice_payload": payment.invoice_payload,
-        "currency": payment.currency,
-        "total_amount": payment.total_amount,
-        "payload": payload_meta,
-    }
+    user = message.from_user
+    if user is None:
+        await message.answer("Не удалось сопоставить платеж с пользователем Telegram.")
+        return
 
-    async def notify_retry():
-        await message.answer("Не удалось связаться с сервером, пробую ещё раз…")
+    payload_meta = _parse_invoice_payload(payment.invoice_payload)
+    if payload_meta:
+        uid_raw = payload_meta.get("uid")
+        try:
+            uid = int(uid_raw)
+        except (TypeError, ValueError):
+            uid = user.id
+        if uid != user.id:
+            await message.answer(
+                "Получен платёж от другого пользователя. Свяжитесь с поддержкой, если это ошибка."
+            )
+            return
 
     try:
-        await _manual_topup(
-            backend,
-            state,
-            access_token,
-            refresh_token,
+        await backend.report_stars_payment(
+            user_id=user.id,
             amount=amount,
-            idempotency_key=charge_id,
-            metadata=metadata,
-            notify_retry=notify_retry,
+            charge_id=charge_id,
         )
-    except BackendAuthError:
-        await message.answer("Сессия истекла. Откройте WebApp и попробуйте снова.")
-        return
-    except BackendNetworkError:
-        await message.answer("Оплата получена, но не удалось зачислить средства. Попробуйте позже.")
+    except BackendValidationError as exc:
+        details = exc.errors if isinstance(exc.errors, dict) else {"detail": str(exc)}
+        detail_msg = details.get("detail") or details.get("charge_id") or str(details)
+        await message.answer(
+            "Оплата получена, но не удалось зафиксировать зачисление: " f"{detail_msg}"
+        )
         return
     except BackendError as exc:
         await message.answer(
-            "Оплата получена, но возникла ошибка при зачислении средств. "
-            "Мы уже разбираемся."
-            f"\n{exc}"
+            "Оплата получена, но при попытке зачислить Stars произошла ошибка. "
+            "Команда уже уведомлена.\n" f"{exc}"
         )
         return
 

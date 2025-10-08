@@ -1,3 +1,4 @@
+import type { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios'
 import api from './client'
 import type {
   WalletSummary,
@@ -5,25 +6,55 @@ import type {
   WalletOrderRecord,
   WalletOperationPayload,
 } from '../types'
+import { getInitData } from '../lib/telegram'
+
+function withTelegramInitData<T = unknown>(config?: AxiosRequestConfig<T>): AxiosRequestConfig<T> | undefined {
+  const initData = getInitData()
+  if (!initData) return config
+  return {
+    ...(config ?? {}),
+    headers: {
+      ...(config?.headers ?? {}),
+      'X-Telegram-Init-Data': initData,
+    },
+  }
+}
+
+async function unwrap<T>(request: Promise<AxiosResponse<T>>): Promise<T> {
+  try {
+    const resp = await request
+    return resp.data
+  } catch (error) {
+    const axiosError = error as AxiosError
+    const payload = axiosError.response?.data
+    if (payload) {
+      console.error('Ошибка Orders API', payload)
+      const enriched = new Error(
+        typeof payload === 'string' ? payload : 'Ошибка при обращении к Orders API'
+      ) as Error & { response?: AxiosResponse; data?: unknown }
+      enriched.response = axiosError.response
+      enriched.data = payload
+      throw enriched
+    }
+    console.error('Ошибка Orders API', error)
+    throw error
+  }
+}
 
 export async function fetchWalletSummary(): Promise<WalletSummary> {
-  const resp = await api.get('/orders/wallet/summary/')
-  return resp.data
+  return unwrap(api.get('/orders/wallet/summary/', withTelegramInitData()))
 }
 
 export async function listWalletTransactions(params?: { currency?: 'stars' | 'calo' }): Promise<WalletTransactionRecord[]> {
-  const resp = await api.get('/orders/wallet/transactions/', { params })
-  return resp.data
+  return unwrap(api.get('/orders/wallet/transactions/', withTelegramInitData({ params })))
 }
 
 export async function walletTopUp(payload: WalletOperationPayload): Promise<WalletTransactionRecord> {
-  const resp = await api.post('/orders/wallet/transactions/topup/', payload)
-  return resp.data
+  return unwrap(api.post('/orders/wallet/transactions/topup/', payload, withTelegramInitData()))
 }
 
 export async function walletWithdraw(payload: WalletOperationPayload): Promise<WalletTransactionRecord> {
-  const resp = await api.post('/orders/wallet/transactions/withdraw/', payload)
-  return resp.data
+  return unwrap(api.post('/orders/wallet/transactions/withdraw/', payload, withTelegramInitData()))
 }
 
 export interface OrderPayload {
@@ -38,19 +69,16 @@ export interface OrderPayload {
 }
 
 export async function listOrders(): Promise<WalletOrderRecord[]> {
-  const resp = await api.get('/orders/wallet/orders/')
-  return resp.data
+  return unwrap(api.get('/orders/wallet/orders/', withTelegramInitData()))
 }
 
 export async function createOrder(payload: OrderPayload): Promise<WalletOrderRecord> {
-  const resp = await api.post('/orders/wallet/orders/', payload)
-  return resp.data
+  return unwrap(api.post('/orders/wallet/orders/', payload, withTelegramInitData()))
 }
 
 export async function payOrder(
   orderId: number,
   payload?: { description?: string; reference?: string; metadata?: Record<string, unknown> }
 ): Promise<WalletOrderRecord> {
-  const resp = await api.post(`/orders/wallet/orders/${orderId}/pay/`, payload ?? {})
-  return resp.data
+  return unwrap(api.post(`/orders/wallet/orders/${orderId}/pay/`, payload ?? {}, withTelegramInitData()))
 }

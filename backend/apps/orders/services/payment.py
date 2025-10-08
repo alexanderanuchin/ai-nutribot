@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any, Dict, Union
 import uuid
 
 from django.db import transaction
@@ -19,6 +19,7 @@ from .wallet import (
     wallet_mark_hold_confirmed,
     wallet_release_hold,
     wallet_topup,
+    wallet_withdraw,
 )
 
 
@@ -40,34 +41,34 @@ class BasePaymentProvider:
 
     # -- Wallet top ups -------------------------------------------------
     def start_wallet_topup(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentInitiationResult:
         raise NotImplementedError
 
     # -- Order payments -------------------------------------------------
     def start_order_payment(
-        self,
-        order: Order,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            order: Order,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentAttempt:
         raise NotImplementedError
 
     # -- Webhooks -------------------------------------------------------
     def handle_webhook(
-        self,
-        payload: Dict[str, Any],
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payload: Dict[str, Any],
+            *,
+            idempotency_key: str | None = None,
     ) -> IntegrationWebhookEvent:
         raise NotImplementedError
 
@@ -76,13 +77,13 @@ class TelegramStarsProvider(BasePaymentProvider):
     code = PaymentAttempt.Provider.TELEGRAM_STARS
 
     def start_wallet_topup(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentInitiationResult:
         if currency != WalletTransaction.Currency.TELEGRAM_STARS:
             raise PaymentProviderError("Telegram Stars provider accepts only STARS currency")
@@ -109,13 +110,13 @@ class TelegramStarsProvider(BasePaymentProvider):
         return PaymentInitiationResult(payment_attempt=attempt, confirmation_data=confirmation)
 
     def start_order_payment(
-        self,
-        order: Order,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            order: Order,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentAttempt:
         if currency != WalletTransaction.Currency.TELEGRAM_STARS:
             raise PaymentProviderError("Telegram Stars order payment must be in STARS")
@@ -136,10 +137,10 @@ class TelegramStarsProvider(BasePaymentProvider):
         return attempt
 
     def handle_webhook(
-        self,
-        payload: Dict[str, Any],
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payload: Dict[str, Any],
+            *,
+            idempotency_key: str | None = None,
     ) -> IntegrationWebhookEvent:
         external_payment_id = str(payload.get("external_payment_id"))
         status = payload.get("status")
@@ -257,24 +258,24 @@ class CaloCoinProvider(BasePaymentProvider):
     code = PaymentAttempt.Provider.CALOCOIN
 
     def start_wallet_topup(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentInitiationResult:
         raise PaymentProviderError("CaloCoin provider does not support direct top ups")
 
     def start_order_payment(
-        self,
-        order: Order,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            order: Order,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentAttempt:
         if currency != WalletTransaction.Currency.CALOCOIN:
             raise PaymentProviderError("CaloCoin provider handles CALO payments only")
@@ -305,18 +306,18 @@ class CaloCoinProvider(BasePaymentProvider):
         return attempt
 
     def handle_webhook(
-        self,
-        payload: Dict[str, Any],
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payload: Dict[str, Any],
+            *,
+            idempotency_key: str | None = None,
     ) -> IntegrationWebhookEvent:
         raise PaymentProviderError("Internal CaloCoin provider does not accept webhooks")
 
     def capture(
-        self,
-        payment_attempt: PaymentAttempt,
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payment_attempt: PaymentAttempt,
+            *,
+            idempotency_key: str | None = None,
     ) -> PaymentAttempt:
         if payment_attempt.provider != self.code:
             raise PaymentProviderError("Attempt does not belong to CaloCoin provider")
@@ -345,11 +346,11 @@ class CaloCoinProvider(BasePaymentProvider):
         return payment_attempt
 
     def cancel(
-        self,
-        payment_attempt: PaymentAttempt,
-        *,
-        reason: str | None = None,
-        idempotency_key: str | None = None,
+            self,
+            payment_attempt: PaymentAttempt,
+            *,
+            reason: str | None = None,
+            idempotency_key: str | None = None,
     ) -> PaymentAttempt:
         if payment_attempt.provider != self.code:
             raise PaymentProviderError("Attempt does not belong to CaloCoin provider")
@@ -378,13 +379,13 @@ class CardProvider(BasePaymentProvider):
     code = PaymentAttempt.Provider.CARD
 
     def start_wallet_topup(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentInitiationResult:
         external_payment_id = uuid.uuid4().hex
         attempt = PaymentAttempt.objects.create(
@@ -406,21 +407,21 @@ class CardProvider(BasePaymentProvider):
         return PaymentInitiationResult(payment_attempt=attempt, confirmation_data=confirmation)
 
     def start_order_payment(
-        self,
-        order: Order,
-        *,
-        currency: str,
-        amount: Decimal,
-        idempotency_key: str | None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            order: Order,
+            *,
+            currency: str,
+            amount: Decimal,
+            idempotency_key: str | None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentAttempt:
         raise PaymentProviderError("Card provider is only for wallet top ups")
 
     def handle_webhook(
-        self,
-        payload: Dict[str, Any],
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payload: Dict[str, Any],
+            *,
+            idempotency_key: str | None = None,
     ) -> IntegrationWebhookEvent:
         external_payment_id = str(payload.get("external_payment_id"))
         status = payload.get("status")
@@ -503,6 +504,15 @@ class CardProvider(BasePaymentProvider):
 class PaymentService:
     """Facade for payment providers and wallet interactions."""
 
+    @staticmethod
+    def _resolve_profile(user: Profile | Any) -> Profile:
+        if isinstance(user, Profile):
+            return user
+        profile = getattr(user, "profile", None)
+        if isinstance(profile, Profile):
+            return profile
+        raise PaymentProviderError("Профиль пользователя не найден")
+
     def __init__(self) -> None:
         self._providers: Dict[str, BasePaymentProvider] = {}
         self.register_provider(TelegramStarsProvider(self))
@@ -518,14 +528,14 @@ class PaymentService:
         return self._providers[code]
 
     def start_wallet_topup(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        provider: str,
-        idempotency_key: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            provider: str,
+            idempotency_key: str | None = None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentInitiationResult:
         provider_instance = self.get_provider(provider)
         return provider_instance.start_wallet_topup(
@@ -537,14 +547,14 @@ class PaymentService:
         )
 
     def start_order_payment(
-        self,
-        order: Order,
-        *,
-        currency: str,
-        amount: Decimal,
-        provider: str,
-        idempotency_key: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            order: Order,
+            *,
+            currency: str,
+            amount: Decimal,
+            provider: str,
+            idempotency_key: str | None = None,
+            metadata: Dict[str, Any] | None = None,
     ) -> PaymentAttempt:
         provider_instance = self.get_provider(provider)
         attempt = provider_instance.start_order_payment(
@@ -557,35 +567,35 @@ class PaymentService:
         return attempt
 
     def complete_calocoin_payment(
-        self,
-        payment_attempt: PaymentAttempt,
-        *,
-        idempotency_key: str | None = None,
+            self,
+            payment_attempt: PaymentAttempt,
+            *,
+            idempotency_key: str | None = None,
     ) -> PaymentAttempt:
         provider = self.get_provider(PaymentAttempt.Provider.CALOCOIN)
         assert isinstance(provider, CaloCoinProvider)
         return provider.capture(payment_attempt, idempotency_key=idempotency_key)
 
     def cancel_calocoin_payment(
-        self,
-        payment_attempt: PaymentAttempt,
-        *,
-        reason: str | None = None,
-        idempotency_key: str | None = None,
+            self,
+            payment_attempt: PaymentAttempt,
+            *,
+            reason: str | None = None,
+            idempotency_key: str | None = None,
     ) -> PaymentAttempt:
         provider = self.get_provider(PaymentAttempt.Provider.CALOCOIN)
         assert isinstance(provider, CaloCoinProvider)
         return provider.cancel(payment_attempt, reason=reason, idempotency_key=idempotency_key)
 
     def manual_credit(
-        self,
-        profile: Profile,
-        *,
-        currency: str,
-        amount: Decimal,
-        source: str,
-        idempotency_key: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            profile: Profile,
+            *,
+            currency: str,
+            amount: Decimal,
+            source: str,
+            idempotency_key: str | None = None,
+            metadata: Dict[str, Any] | None = None,
     ) -> WalletTransaction:
         description = f"Ручное пополнение ({source})"
         meta = {"source": source, **(metadata or {})}
@@ -598,12 +608,62 @@ class PaymentService:
             idempotency_key=idempotency_key,
         )
 
-    def handle_webhook(
+    def wallet_topup(
         self,
-        provider: str,
-        payload: Dict[str, Any],
+        user: Union[Profile, Any],
         *,
+        amount: Decimal,
+        charge_id: str,
         idempotency_key: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> WalletTransaction:
+        profile = self._resolve_profile(user)
+        meta = {
+            "source": "telegram_bot_invoice",
+            "telegram_payment_charge_id": charge_id,
+            **(metadata or {}),
+        }
+        key = idempotency_key or charge_id
+        return wallet_topup(
+            profile,
+            currency=WalletTransaction.Currency.TELEGRAM_STARS,
+            amount=amount,
+            description="Пополнение Stars через Telegram",
+            reference=charge_id,
+            metadata=meta,
+            idempotency_key=key,
+        )
+
+    def wallet_withdraw(
+        self,
+        user: Union[Profile, Any],
+        *,
+        amount: Decimal,
+        idempotency_key: str | None = None,
+        description: str | None = None,
+        reference: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> WalletTransaction:
+        profile = self._resolve_profile(user)
+        try:
+            return wallet_withdraw(
+                profile,
+                currency=WalletTransaction.Currency.TELEGRAM_STARS,
+                amount=amount,
+                description=description or "Списание Stars",
+                reference=reference,
+                metadata=metadata,
+                idempotency_key=idempotency_key,
+            )
+        except WalletInsufficientFunds as exc:
+            raise PaymentProviderError(str(exc)) from exc
+
+    def handle_webhook(
+            self,
+            provider: str,
+            payload: Dict[str, Any],
+            *,
+            idempotency_key: str | None = None,
     ) -> IntegrationWebhookEvent:
         provider_instance = self.get_provider(provider)
         return provider_instance.handle_webhook(payload, idempotency_key=idempotency_key)

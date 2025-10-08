@@ -1,19 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import {
-  fetchWalletSummary,
-  listWalletTransactions,
-  walletTopUp,
-  walletWithdraw,
-  listOrders,
-  createOrder,
-  payOrder,
-} from '../api/orders'
-import type {
-  WalletCurrency,
-  WalletOrderRecord,
-  WalletSummary,
-  WalletTransactionRecord,
-} from '../types'
+import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders, createOrder, payOrder } from '../api/orders'
+import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
+import { tg } from '../lib/telegram'
 
 interface OperationFormState {
   currency: WalletCurrency
@@ -92,27 +80,42 @@ export default function Orders(): JSX.Element {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }
 
-  const handleTopUpSubmit = async (event: React.FormEvent) => {
+  const handleTopUpSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     const amount = parseAmount(topupForm.amount)
     if (amount === null) {
       setError('Введите корректную сумму для пополнения')
       return
     }
-    setSubmitting(true)
-    setError(null)
+    if (topupForm.currency !== 'stars') {
+      setError('Пополнение через бота доступно только в Stars')
+      return
+    }
+    const rounded = Math.round(amount)
+    if (!Number.isInteger(rounded) || rounded <= 0) {
+      setError('Сумма Stars должна быть положительным целым числом')
+      return
+    }
+    const webApp = tg()
+    if (!webApp) {
+      setError('Telegram WebApp недоступен. Откройте экран в Telegram-клиенте.')
+      return
+    }
     try {
-      await walletTopUp({
-        currency: topupForm.currency,
-        amount,
-        description: topupForm.description.trim() || undefined,
-      })
-      setMessage('Баланс успешно пополнен')
+      webApp.sendData(
+        JSON.stringify({
+          action: 'topup',
+          amount: rounded,
+          comment: topupForm.description.trim() || undefined,
+        })
+      )
+      setSubmitting(true)
+      setError(null)
+      setMessage('Запрос на пополнение отправлен в бота. Проверьте Telegram для выставленного счёта.')
       setTopupForm(prev => ({ ...prev, description: '' }))
-      await loadData()
     } catch (err) {
-      console.error('Ошибка пополнения', err)
-      setError('Не удалось пополнить баланс. Проверьте данные и повторите попытку.')
+      console.error('Не удалось отправить запрос на пополнение в бота', err)
+      setError('Не удалось отправить запрос в бота. Попробуйте повторить позже.')
     } finally {
       setSubmitting(false)
     }
@@ -137,9 +140,18 @@ export default function Orders(): JSX.Element {
       setWithdrawForm(prev => ({ ...prev, description: '' }))
       await loadData()
     } catch (err: any) {
-      console.error('Ошибка списания', err)
-      const detail = err?.response?.data?.amount || err?.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : 'Не удалось списать средства. Проверьте баланс.')
+      const payload = err?.data ?? err?.response?.data ?? err
+      console.error('Ошибка списания', payload)
+      const detail =
+        (payload && typeof payload === 'object' && 'amount' in payload && payload.amount) ||
+        (payload && typeof payload === 'object' && 'detail' in payload && payload.detail)
+      if (typeof detail === 'string') {
+        setError(detail)
+      } else if (typeof payload === 'string') {
+        setError(payload)
+      } else {
+        setError('Не удалось списать средства. Проверьте баланс и повторите попытку.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -245,13 +257,8 @@ export default function Orders(): JSX.Element {
             <h3>Пополнить баланс</h3>
             <label className="orders-field">
               <span>Валюта</span>
-              <select
-                value={topupForm.currency}
-                onChange={event => setTopupForm(prev => ({ ...prev, currency: event.target.value as WalletCurrency }))}
-                disabled={submitting}
-              >
+              <select value={topupForm.currency} disabled>
                 <option value="stars">Telegram Stars</option>
-                <option value="calo">CaloCoin</option>
               </select>
             </label>
             <label className="orders-field">

@@ -8,6 +8,7 @@ from .views import (
     OrderViewSet,
     SubscriptionAutopayToggleView,
     SubscriptionChargeView,
+    TelegramBotPaymentReportView,
     TelegramStarsWebhookView,
     WalletBalancesView,
     WalletManualStarsTopUpView,
@@ -26,6 +27,11 @@ urlpatterns = [
     path("wallet/balances/", WalletBalancesView.as_view(), name="wallet-balances"),
     path("wallet/topup/", WalletTopUpView.as_view(), name="wallet-topup"),
     path("wallet/manual-stars/", WalletManualStarsTopUpView.as_view(), name="wallet-manual-stars"),
+    path(
+        "bot/telegram-stars/payment/",
+        TelegramBotPaymentReportView.as_view(),
+        name="bot-telegram-stars-payment",
+    ),
     path("orders/checkout/", CheckoutView.as_view(), name="orders-checkout"),
     path(
         "subscriptions/<int:subscription_id>/enable_autopay/",

@@ -56,7 +56,7 @@ async def main() -> None:
     )
     dp = Dispatcher(storage=RedisStorage(redis=redis))
 
-    backend = BackendClient(cfg.backend_base_url)
+    backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)
     dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 
@@ -78,7 +78,10 @@ async def main() -> None:
 
     logging.info("Bot started in POLLING mode")
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(
+            bot,
+            allowed_updates=("message", "callback_query", "pre_checkout_query"),
+        )
     finally:
         await dp.storage.close()
         await dp.storage.wait_closed()

@@ -8,6 +8,9 @@ import { AuthProvider } from './providers/AuthProvider'
 import { CommandPaletteProvider } from './hooks/useCommandPalette'
 import { logout as performLogout } from './api/auth'
 import './styles/index.css'
+import { bootstrapTelegramAuth } from './lib/telegram'
+
+void bootstrapTelegramAuth().catch(() => undefined)
 
 const queryClient = new QueryClient({
   defaultOptions: {

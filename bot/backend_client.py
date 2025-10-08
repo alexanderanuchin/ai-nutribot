@@ -46,6 +46,7 @@ class BackendClient:
             timeout: float = 10.0,
             max_retries: int = 3,
             retry_delay: float = 1.0,
+            bot_key: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self._timeout = timeout
@@ -53,6 +54,7 @@ class BackendClient:
         self._retry_delay = retry_delay
         self._session: Optional[aiohttp.ClientSession] = None
         self._logger = logging.getLogger("nutribot.backend")
+        self._bot_key = bot_key or ""
 
     async def close(self) -> None:
         if self._session and not self._session.closed:
@@ -188,6 +190,34 @@ class BackendClient:
         if not isinstance(result, dict):
             raise BackendError("Unexpected payload from refresh endpoint")
         return result
+
+    async def report_stars_payment(
+            self,
+            *,
+            user_id: int,
+            amount: int,
+            charge_id: str,
+    ) -> Dict[str, Any]:
+        if not self._bot_key:
+            raise BackendError("Bot key is not configured")
+        headers = {
+            "X-Bot-Key": self._bot_key,
+        }
+        if charge_id:
+            headers["Idempotency-Key"] = charge_id
+        payload = await self._request(
+            "POST",
+            "/api/orders/bot/telegram-stars/payment/",
+            json={
+                "user_id": int(user_id),
+                "amount": int(amount),
+                "charge_id": str(charge_id),
+            },
+            headers=headers,
+        )
+        if not isinstance(payload, dict):
+            raise BackendError("Unexpected payload from stars payment report")
+        return payload
 
     async def get_me(self, access_token: str) -> Dict[str, Any]:
         if not access_token:
