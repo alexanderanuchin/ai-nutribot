@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher
@@ -29,6 +30,7 @@ from bot.handlers.menu import router as menu_router
 from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.wallet import router as wallet_router
+from bot.handlers.webapp_data import router as webapp_router
 from bot.middlewares.access_token import AccessTokenMiddleware
 from bot.middlewares.store import StoreMiddleware
 
@@ -54,12 +56,14 @@ async def main() -> None:
         host=os.getenv("REDIS_HOST", "redis"),
         port=int(os.getenv("REDIS_PORT", "6379")),
     )
-    dp = Dispatcher(storage=RedisStorage(redis=redis))
+    storage = RedisStorage(redis=redis, data_ttl=timedelta(hours=1))
+    dp = Dispatcher(storage=storage)
 
     backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)
     dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 
+    dp.include_router(webapp_router)
     dp.include_router(menu_router)
     dp.include_router(plan_router)
     dp.include_router(wizard_router)

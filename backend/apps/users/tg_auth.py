@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import FieldDoesNotExist
@@ -7,10 +9,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+
 from .api_payloads import build_profile_response
 from .tg_utils import verify_init_data
 
 from .models import Profile
+
 User = get_user_model()
 
 try:  # pragma: no cover - depends on project configuration
@@ -55,6 +59,53 @@ def _get_user_by_telegram_id(tg_id: int, username: str):
     return user, created
 
 
+class TelegramWebAppAuthError(Exception):
+    """Raised when Telegram WebApp initData validation fails."""
+
+
+def exchange_webapp_init_data(
+        init_data: str | None,
+        *,
+        bot_token: str | None = None,
+) -> Dict[str, Any]:
+    if not init_data:
+        raise TelegramWebAppAuthError("initData is required")
+
+    token = bot_token or getattr(settings, "TELEGRAM_BOT_TOKEN", "")
+    try:
+        parsed = verify_init_data(init_data, token)
+    except Exception as exc:  # pragma: no cover - depends on Telegram payload
+        raise TelegramWebAppAuthError(f"invalid initData: {exc}") from exc
+
+    user_json = parsed.get("user")
+    if not user_json:
+        if not isinstance(user_json, dict):
+            raise TelegramWebAppAuthError("user missing in initData")
+
+    tg_id = user_json.get("id")
+    if not tg_id:
+        raise TelegramWebAppAuthError("telegram id missing")
+
+    username = str(user_json.get("username") or f"tg_{tg_id}")
+    user, created = _get_user_by_telegram_id(int(tg_id), username)
+    if created:
+        user.first_name = user_json.get("first_name") or ""
+        user.last_name = user_json.get("last_name") or ""
+        user.save(update_fields=["first_name", "last_name"])
+
+    profile = Profile.objects.select_related("user").get(user=user)
+    refresh = RefreshToken.for_user(user)
+    payload = build_profile_response(user, profile)
+    payload.update(
+        {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "telegram_user_id": profile.telegram_id,
+        }
+    )
+    return payload
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def tg_exchange(request):
@@ -64,42 +115,7 @@ def tg_exchange(request):
 
     init_data = request.data.get("init_data")
     try:
-        parsed = verify_init_data(
-            init_data, getattr(settings, "TELEGRAM_BOT_TOKEN", "")
-        )
-    except Exception as e:
-        return Response(
-            {"detail": f"invalid initData: {e}"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    user_json = parsed.get("user")
-    if not user_json:
-        return Response(
-            {"detail": "user missing in initData"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    tg_id = user_json.get("id")
-    if not tg_id:
-        return Response(
-            {"detail": "telegram id missing"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    # Найдём/создадим пользователя по telegram_id
-    username = f"tg_{tg_id}"
-    user, created = _get_user_by_telegram_id(tg_id, username)
-    if created and "first_name" in user_json:
-        user.first_name = user_json.get("first_name") or ""
-        user.last_name = user_json.get("last_name") or ""
-        user.save(update_fields=["first_name", "last_name"])
-
-    profile = Profile.objects.select_related("user").get(user=user)
-    refresh = RefreshToken.for_user(user)
-    payload = build_profile_response(user, profile)
-    payload.update({
-        "access": str(refresh.access_token),
-        "refresh": str(refresh),
-    })
+        payload = exchange_webapp_init_data(init_data)
+    except TelegramWebAppAuthError as exc:
+        return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     return Response(payload)

@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     # project apps
+    "apps.auth",
     "apps.users",
     "apps.catalog",
     "apps.nutrition",

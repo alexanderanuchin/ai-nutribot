@@ -63,8 +63,20 @@ async def _apply_tokens(state: FSMContext, result: AuthResult) -> None:
         await state.update_data(**updates)
 
 
-async def _get_tokens(state: FSMContext, fallback_access: str | None) -> Tuple[str | None, str | None]:
+async def _get_tokens(
+    state: FSMContext,
+    fallback_access: str | None,
+    *,
+    user_id: int | None = None,
+) -> Tuple[str | None, str | None]:
     data = await state.get_data()
+    session_user_id = data.get("session_user_id")
+    if user_id is not None and session_user_id is not None:
+        try:
+            if int(session_user_id) != int(user_id):
+                return None, None
+        except (TypeError, ValueError):
+            return None, None
     access_token = data.get("access_token") or fallback_access
     refresh_token = data.get("refresh_token")
     return access_token, refresh_token
@@ -340,7 +352,12 @@ async def wallet_topup_callback(
         await callback.answer()
         return
 
-    stored_access_token, _ = await _get_tokens(state, access_token)
+    from_user_id = getattr(callback.from_user, "id", None)
+    stored_access_token, _ = await _get_tokens(
+        state,
+        access_token,
+        user_id=from_user_id,
+    )
     if not stored_access_token:
         await callback.message.answer(
             "Сначала авторизуйтесь через WebApp, чтобы пополнить баланс.",
@@ -364,6 +381,7 @@ async def wallet_topup_callback(
         prices=prices,
         payload=payload,
         provider_token="",
+        max_tip_amount=0,
     )
     await callback.answer()
 

@@ -204,7 +204,7 @@ class BackendClient:
             "X-Bot-Key": self._bot_key,
         }
         if charge_id:
-            headers["Idempotency-Key"] = charge_id
+            headers["Idempotency-Key"] = f"telegram-stars:{user_id}:{charge_id}"
         payload = await self._request(
             "POST",
             "/api/orders/bot/telegram-stars/payment/",

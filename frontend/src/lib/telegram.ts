@@ -11,26 +11,41 @@ export function getInitData(): string | null {
   return w?.initData || null
 }
 
-let bootstrapPromise: Promise<void> | null = null
+export interface TelegramAuthSession {
+  accessToken: string
+  refreshToken?: string
+  telegramUserId: number | null
+  raw: any
+}
 
-export async function bootstrapTelegramAuth(): Promise<void> {
+let bootstrapPromise: Promise<TelegramAuthSession | null> | null = null
+
+export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
   if (bootstrapPromise) return bootstrapPromise
   const initData = getInitData()
-  if (!initData) return
+  if (!initData) return null
 
   bootstrapPromise = (async () => {
     try {
-      const { data } = await api.post('/users/auth/tg_exchange/', { init_data: initData })
+      const { data } = await api.post('/auth/webapp/login/', { init_data: initData })
+      if (!data?.access) {
+        throw new Error('Не удалось получить access_token')
+      }
       tokenStore.access = data.access
-      tokenStore.refresh = data.refresh
+      tokenStore.refresh = data.refresh ?? ''
 
-      const webApp = tg()
-      if (webApp && data.access) {
-        try {
-          webApp.sendData(JSON.stringify({ access_token: data.access }))
-        } catch (err) {
-          console.error('Не удалось отправить access_token в бота через sendData', err)
-        }
+      const telegramUserId: number | null =
+        data?.telegram_user_id ??
+        data?.profile?.telegram_id ??
+        data?.user?.telegram_id ??
+        data?.user?.id ??
+        null
+
+      return {
+        accessToken: data.access as string,
+        refreshToken: data.refresh as string | undefined,
+        telegramUserId,
+        raw: data,
       }
     } catch (err) {
       console.error('Не удалось обменять initData на токены', err)
@@ -39,7 +54,7 @@ export async function bootstrapTelegramAuth(): Promise<void> {
   })()
 
   try {
-    await bootstrapPromise
+    return await bootstrapPromise
   } finally {
     bootstrapPromise = null
   }

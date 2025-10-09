@@ -8,6 +8,13 @@ import type {
 } from '../types'
 import { getInitData } from '../lib/telegram'
 
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
+}
+
 function withTelegramInitData<T = unknown>(config?: AxiosRequestConfig<T>): AxiosRequestConfig<T> | undefined {
   const initData = getInitData()
   if (!initData) return config
@@ -29,9 +36,15 @@ async function unwrap<T>(request: Promise<AxiosResponse<T>>): Promise<T> {
     const payload = axiosError.response?.data
     if (payload) {
       console.error('Ошибка Orders API', payload)
-      const enriched = new Error(
-        typeof payload === 'string' ? payload : 'Ошибка при обращении к Orders API'
-      ) as Error & { response?: AxiosResponse; data?: unknown }
+      let message: string
+      if (typeof payload === 'string') {
+        message = payload
+      } else if (typeof (payload as any)?.detail === 'string') {
+        message = (payload as any).detail
+      } else {
+        message = 'Ошибка при обращении к Orders API'
+      }
+      const enriched = new Error(message) as Error & { response?: AxiosResponse; data?: unknown }
       enriched.response = axiosError.response
       enriched.data = payload
       throw enriched
@@ -50,11 +63,25 @@ export async function listWalletTransactions(params?: { currency?: 'stars' | 'ca
 }
 
 export async function walletTopUp(payload: WalletOperationPayload): Promise<WalletTransactionRecord> {
-  return unwrap(api.post('/orders/wallet/transactions/topup/', payload, withTelegramInitData()))
+  const config = withTelegramInitData()
+  const headers = { ...(config?.headers ?? {}), 'Idempotency-Key': generateIdempotencyKey() }
+  return unwrap(
+    api.post('/orders/wallet/transactions/topup/', payload, {
+      ...(config ?? {}),
+      headers,
+    })
+  )
 }
 
 export async function walletWithdraw(payload: WalletOperationPayload): Promise<WalletTransactionRecord> {
-  return unwrap(api.post('/orders/wallet/transactions/withdraw/', payload, withTelegramInitData()))
+  const config = withTelegramInitData()
+  const headers = { ...(config?.headers ?? {}), 'Idempotency-Key': generateIdempotencyKey() }
+  return unwrap(
+    api.post('/orders/wallet/transactions/withdraw/', payload, {
+      ...(config ?? {}),
+      headers,
+    })
+  )
 }
 
 export interface OrderPayload {

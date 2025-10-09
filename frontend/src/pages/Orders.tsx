@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders, createOrder, payOrder } from '../api/orders'
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
 import { tg } from '../lib/telegram'
+import { useAuthContext } from '../providers/AuthProvider'
 
 interface OperationFormState {
   currency: WalletCurrency
@@ -27,6 +28,7 @@ const numberFormatter = new Intl.NumberFormat('ru-RU', {
 })
 
 export default function Orders(): JSX.Element {
+  const { ready: authReady } = useAuthContext()
   const [summary, setSummary] = useState<WalletSummary | null>(null)
   const [transactions, setTransactions] = useState<WalletTransactionRecord[]>([])
   const [orders, setOrders] = useState<WalletOrderRecord[]>([])
@@ -80,8 +82,31 @@ export default function Orders(): JSX.Element {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null
   }
 
+  const extractErrorMessage = useCallback((payload: unknown): string | null => {
+    if (!payload) return null
+    if (typeof payload === 'string') return payload
+    if (typeof payload === 'object') {
+      const map = payload as Record<string, unknown>
+      const detail = map.detail
+      if (typeof detail === 'string') return detail
+      for (const value of Object.values(map)) {
+        if (typeof value === 'string') return value
+        if (Array.isArray(value) && value.length && typeof value[0] === 'string') {
+          return value[0]
+        }
+      }
+    }
+    return null
+  }, [])
+
+  const operationsDisabled = useMemo(() => submitting || !authReady, [authReady, submitting])
+
   const handleTopUpSubmit = (event: React.FormEvent) => {
     event.preventDefault()
+    if (!authReady) {
+      setError('Подождите, авторизация WebApp ещё не завершена.')
+      return
+    }
     const amount = parseAmount(topupForm.amount)
     if (amount === null) {
       setError('Введите корректную сумму для пополнения')
@@ -123,6 +148,10 @@ export default function Orders(): JSX.Element {
 
   const handleWithdrawSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!authReady) {
+      setError('Подождите, авторизация WebApp ещё не завершена.')
+      return
+    }
     const amount = parseAmount(withdrawForm.amount)
     if (amount === null) {
       setError('Введите корректную сумму для списания')
@@ -147,10 +176,13 @@ export default function Orders(): JSX.Element {
         (payload && typeof payload === 'object' && 'detail' in payload && payload.detail)
       if (typeof detail === 'string') {
         setError(detail)
-      } else if (typeof payload === 'string') {
-        setError(payload)
       } else {
-        setError('Не удалось списать средства. Проверьте баланс и повторите попытку.')
+        const fallback = extractErrorMessage(payload)
+        if (fallback) {
+          setError(fallback)
+        } else {
+          setError('Не удалось списать средства. Проверьте баланс и повторите попытку.')
+        }
       }
     } finally {
       setSubmitting(false)
@@ -269,7 +301,7 @@ export default function Orders(): JSX.Element {
                 step="0.01"
                 value={topupForm.amount}
                 onChange={event => setTopupForm(prev => ({ ...prev, amount: event.target.value }))}
-                disabled={submitting}
+                disabled={operationsDisabled}
                 required
               />
             </label>
@@ -279,10 +311,10 @@ export default function Orders(): JSX.Element {
                 type="text"
                 value={topupForm.description}
                 onChange={event => setTopupForm(prev => ({ ...prev, description: event.target.value }))}
-                disabled={submitting}
+                disabled={operationsDisabled}
               />
             </label>
-            <button type="submit" className="orders-button" disabled={submitting}>
+            <button type="submit" className="orders-button" disabled={operationsDisabled}>
               Пополнить
             </button>
           </form>
@@ -294,7 +326,7 @@ export default function Orders(): JSX.Element {
               <select
                 value={withdrawForm.currency}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, currency: event.target.value as WalletCurrency }))}
-                disabled={submitting}
+                disabled={operationsDisabled}
               >
                 <option value="stars">Telegram Stars</option>
                 <option value="calo">CaloCoin</option>
@@ -308,7 +340,7 @@ export default function Orders(): JSX.Element {
                 step="0.01"
                 value={withdrawForm.amount}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, amount: event.target.value }))}
-                disabled={submitting}
+                disabled={operationsDisabled}
                 required
               />
             </label>
@@ -318,10 +350,10 @@ export default function Orders(): JSX.Element {
                 type="text"
                 value={withdrawForm.description}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, description: event.target.value }))}
-                disabled={submitting}
+                disabled={operationsDisabled}
               />
             </label>
-            <button type="submit" className="orders-button orders-button--secondary" disabled={submitting}>
+            <button type="submit" className="orders-button orders-button--secondary" disabled={operationsDisabled}>
               Списать
             </button>
           </form>
