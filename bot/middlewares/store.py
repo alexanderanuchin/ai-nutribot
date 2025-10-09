@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable, Tuple
 
-from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from aiogram import BaseMiddleware
 
 
 class StoreMiddleware(BaseMiddleware):

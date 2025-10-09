@@ -19,8 +19,12 @@ export interface TelegramAuthSession {
 }
 
 let bootstrapPromise: Promise<TelegramAuthSession | null> | null = null
+let cachedSession: TelegramAuthSession | null | undefined
 
 export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
+  if (cachedSession !== undefined) {
+    return cachedSession
+  }
   if (bootstrapPromise) return bootstrapPromise
   const initData = getInitData()
   if (!initData) return null
@@ -41,12 +45,14 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
         data?.user?.id ??
         null
 
-      return {
+      const session: TelegramAuthSession = {
         accessToken: data.access as string,
         refreshToken: data.refresh as string | undefined,
         telegramUserId,
         raw: data,
       }
+      cachedSession = session
+      return session
     } catch (err) {
       console.error('Не удалось обменять initData на токены', err)
       throw err
@@ -54,7 +60,11 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
   })()
 
   try {
-    return await bootstrapPromise
+    const result = await bootstrapPromise
+    if (cachedSession === undefined) {
+      cachedSession = result
+    }
+    return result
   } finally {
     bootstrapPromise = null
   }

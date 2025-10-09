@@ -129,6 +129,7 @@ export default function Orders(): JSX.Element {
     try {
       webApp.sendData(
         JSON.stringify({
+          type: 'topup',
           action: 'topup',
           amount: rounded,
           comment: topupForm.description.trim() || undefined,

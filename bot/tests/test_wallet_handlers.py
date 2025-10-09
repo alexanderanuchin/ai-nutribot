@@ -125,7 +125,7 @@ async def test_wallet_topup_callback_sends_invoice():
     assert kwargs["currency"] == "XTR"
     assert kwargs["prices"][0].amount == 50
     assert kwargs["prices"][0].label == "Пополнение 50 XTR"
-    assert kwargs.get("provider_token") == ""
+    assert "provider_token" not in kwargs
     assert "max_tip_amount" not in kwargs
     callback.answer.assert_awaited()
 
@@ -159,12 +159,11 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
 @pytest.mark.asyncio
 async def test_successful_payment_handler_records_topup():
     backend = MagicMock()
-    backend.manual_stars_topup = AsyncMock(
-        return_value=AuthResult(payload={}, access="new", refresh="refresh")
-    )
+    backend.report_stars_payment = AsyncMock()
     state = FakeState({"refresh_token": "refresh"})
     message = MagicMock()
     message.answer = AsyncMock()
+    message.from_user = SimpleNamespace(id=1)
     payment = SimpleNamespace(
         telegram_payment_charge_id="charge123",
         provider_payment_charge_id=None,
@@ -176,10 +175,10 @@ async def test_successful_payment_handler_records_topup():
 
     await successful_payment_handler(message, backend, state, access_token="token")
 
-    backend.manual_stars_topup.assert_awaited()
-    kwargs = backend.manual_stars_topup.call_args.kwargs
+    backend.report_stars_payment.assert_awaited()
+    kwargs = backend.report_stars_payment.call_args.kwargs
     assert kwargs["amount"] == 50
-    assert kwargs["idempotency_key"] == "charge123"
+    assert kwargs["charge_id"] == "charge123"
     message.answer.assert_awaited()
     assert any("Баланс пополнен" in call.args[0] for call in message.answer.call_args_list)
 

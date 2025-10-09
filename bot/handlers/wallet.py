@@ -237,6 +237,31 @@ def _build_invoice_payload(user_id: int, amount: int) -> str:
     return f"uid={user_id};amt={amount};token={token}"
 
 
+def build_stars_topup_invoice(
+    user_id: int,
+    amount: int,
+    *,
+    comment: str | None = None,
+) -> dict:
+    description = f"Быстрое пополнение на {amount} XTR."
+    if comment:
+        comment_text = comment.strip()
+        if comment_text:
+            # Telegram ограничивает описание инвойса 255 символами
+            short_comment = comment_text[:180]
+            description += f"\nКомментарий: {short_comment}"
+
+    payload = _build_invoice_payload(user_id, amount)
+    prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
+    return {
+        "title": "Пополнение баланса Stars",
+        "description": description,
+        "currency": "XTR",
+        "prices": prices,
+        "payload": payload,
+    }
+
+
 async def _ensure_authorized(message: Message, webapp_url: str) -> None:
     await message.answer(
         "Сначала авторизуйтесь через WebApp, чтобы увидеть баланс.",
@@ -372,17 +397,8 @@ async def wallet_topup_callback(
         await callback.answer("Неизвестная сумма", show_alert=True)
         return
 
-    payload = _build_invoice_payload(callback.from_user.id, amount)
-    prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
-    await callback.message.answer_invoice(
-        title="Пополнение баланса Stars",
-        description=f"Быстрое пополнение на {amount} XTR.",
-        currency="XTR",
-        prices=prices,
-        payload=payload,
-        provider_token="",
-        max_tip_amount=0,
-    )
+    invoice = build_stars_topup_invoice(callback.from_user.id, amount)
+    await callback.message.answer_invoice(**invoice)
     await callback.answer()
 
 
