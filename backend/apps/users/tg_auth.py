@@ -95,12 +95,15 @@ def exchange_webapp_init_data(
 
     profile = Profile.objects.select_related("user").get(user=user)
     refresh = RefreshToken.for_user(user)
+    access_token = refresh.access_token
+    exp = access_token.get("exp")
     payload = build_profile_response(user, profile)
     payload.update(
         {
-            "access": str(refresh.access_token),
+            "access": str(access_token),
             "refresh": str(refresh),
             "telegram_user_id": profile.telegram_id,
+            "exp": int(exp) if isinstance(exp, int) else exp,
         }
     )
     return payload

@@ -28,7 +28,7 @@ const numberFormatter = new Intl.NumberFormat('ru-RU', {
 })
 
 export default function Orders(): JSX.Element {
-  const { ready: authReady } = useAuthContext()
+  const { authReady } = useAuthContext()
   const [summary, setSummary] = useState<WalletSummary | null>(null)
   const [transactions, setTransactions] = useState<WalletTransactionRecord[]>([])
   const [orders, setOrders] = useState<WalletOrderRecord[]>([])
@@ -67,8 +67,15 @@ export default function Orders(): JSX.Element {
   }, [])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    if (!authReady) {
+      setSummary(null)
+      setTransactions([])
+      setOrders([])
+      setLoading(false)
+      return
+    }
+    void loadData()
+  }, [authReady, loadData])
 
   useEffect(() => {
     if (!message) return
@@ -245,7 +252,9 @@ export default function Orders(): JSX.Element {
         </p>
         {error && <div className="orders-alert orders-alert--error">{error}</div>}
         {message && <div className="orders-alert orders-alert--success">{message}</div>}
-        {loading ? (
+        {!authReady ? (
+          <div className="orders-loading">Ожидаем подтверждение авторизации WebApp…</div>
+        ) : loading ? (
           <div className="orders-loading">Загружаем баланс и историю...</div>
         ) : summary ? (
           <div className="orders-targets">

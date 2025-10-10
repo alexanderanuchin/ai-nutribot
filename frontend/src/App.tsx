@@ -9,7 +9,6 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './routes/ProtectedRoute'
 
-import { useTelegramAuth } from './hooks/useTelegramAuth'
 import GridShimmerCanvas from './components/GridShimmerCanvas'
 import GlowingLineCloudsCanvas from './components/GlowingLineCloudsCanvas'
 import { useAuth } from './hooks/useAuth'
@@ -24,7 +23,6 @@ import CommandPanel from './components/nav/CommandPanel'
 const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password']
 
 export default function App(){
-  useTelegramAuth()
   const location = useLocation()
   const { ready, authenticated } = useAuth()
   const { theme, resolvedTheme } = useTheme()

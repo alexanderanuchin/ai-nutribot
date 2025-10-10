@@ -1,12 +1,16 @@
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.users.tg_auth import (
     TelegramWebAppAuthError,
     exchange_webapp_init_data,
 )
+from apps.users.models import Profile
 
 
 class WebAppLoginView(APIView):
@@ -40,4 +44,53 @@ class WebAppLoginView(APIView):
                 {'detail': f'Не удалось подтвердить данные WebApp: {exc}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        return Response(payload)
+
+
+class WebAppRefreshView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        raw_refresh = request.data.get('refresh')
+        if not raw_refresh:
+            return Response(
+                {'detail': 'Поле refresh обязательно'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            refresh_token = RefreshToken(raw_refresh)
+        except TokenError as exc:
+            return Response(
+                {'detail': str(exc) or 'Refresh токен недействителен'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        user_id = refresh_token.get('user_id')
+        if not user_id:
+            return Response(
+                {'detail': 'Refresh токен не содержит пользователя'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'Пользователь не найден'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        profile, _ = Profile.objects.get_or_create(user=user)
+        access_token = refresh_token.access_token
+        exp = access_token.get('exp')
+        payload = {
+            'access': str(access_token),
+            'refresh': str(refresh_token),
+            'telegram_user_id': profile.telegram_id,
+        }
+        if isinstance(exp, int):
+            payload['exp'] = exp
+
         return Response(payload)

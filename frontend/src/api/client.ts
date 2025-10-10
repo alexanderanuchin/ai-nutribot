@@ -1,9 +1,28 @@
-import axios, { AxiosHeaders, type InternalAxiosRequestConfig } from 'axios'
-import { tokenStore } from '../utils/storage'
+import axios, {
+  AxiosError,
+  AxiosHeaders,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
 import { getInitData } from '../lib/telegram'
+import { tokenStore } from '../utils/storage'
 
 const baseURL = import.meta.env.VITE_API_BASE || '/api'
 export const api = axios.create({ baseURL, timeout: 15000 })
+
+type RefreshListener = (refreshing: boolean) => void
+
+const refreshListeners = new Set<RefreshListener>()
+
+function notifyRefreshing(state: boolean): void {
+  refreshListeners.forEach(listener => {
+    try {
+      listener(state)
+    } catch (error) {
+      console.error('refresh listener error', error)
+    }
+  })
+}
 
 function ensureHeaders(config: InternalAxiosRequestConfig): Record<string, string> {
   if (config.headers instanceof AxiosHeaders) {
@@ -12,11 +31,82 @@ function ensureHeaders(config: InternalAxiosRequestConfig): Record<string, strin
   return { ...(config.headers as Record<string, string> | undefined) }
 }
 
-let isRefreshing = false
-let queue: Array<() => void> = []
+function shouldAttemptRefresh(response: AxiosResponse | undefined): boolean {
+  if (!response || response.status !== 401) {
+    return false
+  }
+  const data = response.data
+  const code = (data && (data.code || data?.detail?.code)) ?? null
+  if (code === 'token_not_valid') return true
+  const detail = data?.detail
+  if (typeof detail === 'string' && detail.toLowerCase().includes('token_not_valid')) {
+    return true
+  }
+  if (Array.isArray(data?.messages)) {
+    return data.messages.some(
+      (item: any) => item && typeof item.code === 'string' && item.code === 'token_not_valid'
+    )
+  }
+  return false
+}
 
-api.interceptors.request.use(cfg => {
-  const headers = ensureHeaders(cfg)
+async function performTokenRefresh(): Promise<string> {
+  const refreshToken = tokenStore.refresh
+  if (!refreshToken) {
+    throw new Error('Refresh token is missing')
+  }
+  const initData = typeof window !== 'undefined' ? getInitData() : null
+  const headers: Record<string, string> = {}
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData
+  }
+  const { data } = await axios.post(`${baseURL}/auth/webapp/refresh/`, { refresh: refreshToken }, { headers })
+  const access = data?.access
+  if (!access || typeof access !== 'string') {
+    throw new Error('Failed to obtain access token from refresh response')
+  }
+  tokenStore.access = access
+  if (typeof data?.refresh === 'string' && data.refresh) {
+    tokenStore.refresh = data.refresh
+  }
+  if (typeof data?.exp === 'number') {
+    tokenStore.accessExpiresAt = data.exp
+  }
+  return access
+}
+
+let refreshPromise: Promise<string | null> | null = null
+
+export function subscribeToTokenRefresh(listener: RefreshListener): () => void {
+  refreshListeners.add(listener)
+  return () => {
+    refreshListeners.delete(listener)
+  }
+}
+
+export function isRefreshingTokens(): boolean {
+  return Boolean(refreshPromise)
+}
+
+export async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    notifyRefreshing(true)
+    refreshPromise = performTokenRefresh()
+      .catch(error => {
+        tokenStore.clear()
+        tokenStore.notifyRefreshFailed()
+        throw error
+      })
+      .finally(() => {
+        notifyRefreshing(false)
+        refreshPromise = null
+      })
+  }
+  return refreshPromise
+}
+
+api.interceptors.request.use(config => {
+  const headers = ensureHeaders(config)
   const access = tokenStore.access
   if (access) {
     headers.Authorization = `Bearer ${access}`
@@ -25,37 +115,40 @@ api.interceptors.request.use(cfg => {
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData
   }
-  cfg.headers = headers
-  return cfg
+  config.headers = headers
+  return config
 })
 
 api.interceptors.response.use(
-  r => r,
-  async err => {
-    const original = err.config
-    if (err.response?.status === 401 && !original._retry) {
-      if (isRefreshing) {
-        await new Promise<void>(res => queue.push(res))
-      } else {
-        isRefreshing = true
-        try {
-          const refresh = tokenStore.refresh
-          if (!refresh) throw new Error('No refresh')
-          const resp = await axios.post(`${baseURL}/users/auth/refresh/`, { refresh })
-          tokenStore.access = resp.data.access
-        } catch {
-          tokenStore.clear()
-          return Promise.reject(err)
-        } finally {
-          isRefreshing = false
-          queue.forEach(fn => fn()); queue = []
-        }
-      }
-      original._retry = true
-      original.headers = { ...(original.headers||{}), Authorization: `Bearer ${tokenStore.access}` }
-      return api(original)
+  response => response,
+  async error => {
+    const axiosError = error as AxiosError
+    const originalRequest = axiosError.config as (InternalAxiosRequestConfig & { _retry?: boolean }) | undefined
+    if (!originalRequest || originalRequest._retry) {
+      return Promise.reject(error)
     }
-    return Promise.reject(err)
+
+    if (shouldAttemptRefresh(axiosError.response)) {
+      originalRequest._retry = true
+      try {
+        const newAccess = await refreshAccessToken()
+        if (!newAccess) {
+          return Promise.reject(error)
+        }
+        const headers = ensureHeaders(originalRequest)
+        headers.Authorization = `Bearer ${newAccess}`
+        const initData = typeof window !== 'undefined' ? getInitData() : null
+        if (initData) {
+          headers['X-Telegram-Init-Data'] = initData
+        }
+        originalRequest.headers = headers
+        return api(originalRequest)
+      } catch (refreshError) {
+        return Promise.reject(refreshError)
+      }
+    }
+
+    return Promise.reject(error)
   }
 )
 

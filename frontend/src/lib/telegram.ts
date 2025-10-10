@@ -1,71 +1,134 @@
 import api from '../api/client'
 import { tokenStore } from '../utils/storage'
 
-export function tg(){ return (window as any).Telegram?.WebApp }
-export function initTheme(){
-  const w = tg()
-  if (w){ w.ready(); document.body.style.background = w.themeParams?.bg_color || '#0b0c10' }
+export function tg() {
+  return (window as any).Telegram?.WebApp
 }
+
+export function initTheme() {
+  const webApp = tg()
+  if (webApp) {
+    webApp.ready()
+    document.body.style.background = webApp.themeParams?.bg_color || '#0b0c10'
+  }
+}
+
 export function getInitData(): string | null {
-  const w = tg()
-  return w?.initData || null
+  const webApp = tg()
+  return webApp?.initData || null
 }
 
 export interface TelegramAuthSession {
   accessToken: string
   refreshToken?: string
   telegramUserId: number | null
+  expiresAt?: number | null
   raw: any
 }
 
 let bootstrapPromise: Promise<TelegramAuthSession | null> | null = null
 let cachedSession: TelegramAuthSession | null | undefined
 
+function shouldReuseSession(session: TelegramAuthSession | null | undefined): boolean {
+  if (!session) {
+    return false
+  }
+  const access = tokenStore.access
+  if (!access) {
+    return false
+  }
+  const expiresAt = session.expiresAt ?? tokenStore.accessExpiresAt
+  if (!expiresAt) {
+    return true
+  }
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  const safetyWindowSeconds = 45
+  return expiresAt - nowSeconds > safetyWindowSeconds
+}
+
+function resolveTelegramUserId(payload: any): number | null {
+  if (!payload || typeof payload !== 'object') return null
+  const direct = payload.telegram_user_id ?? payload.telegramUserId
+  if (typeof direct === 'number') return direct
+  const fromProfile = payload.profile?.telegram_id ?? payload.profile?.telegramId
+  if (typeof fromProfile === 'number') return fromProfile
+  const fromUser = payload.user?.telegram_id ?? payload.user?.id
+  if (typeof fromUser === 'number') return fromUser
+  return null
+}
+
+async function exchangeInitData(initData: string): Promise<TelegramAuthSession | null> {
+  const headers = { 'X-Telegram-Init-Data': initData }
+  const { data } = await api.post('/auth/webapp/login/', {}, { headers })
+  const access = data?.access
+  if (!access || typeof access !== 'string') {
+    throw new Error('Не удалось получить access_token из ответа авторизации')
+  }
+  const refreshToken: string | undefined = typeof data?.refresh === 'string' ? data.refresh : undefined
+  if (refreshToken) {
+    tokenStore.refresh = refreshToken
+  }
+  tokenStore.access = access
+  if (typeof data?.exp === 'number') {
+    tokenStore.accessExpiresAt = data.exp
+  }
+  const telegramUserId = resolveTelegramUserId(data)
+  const session: TelegramAuthSession = {
+    accessToken: access,
+    refreshToken,
+    telegramUserId,
+    expiresAt: typeof data?.exp === 'number' ? data.exp : tokenStore.accessExpiresAt,
+    raw: data,
+  }
+
+  const webApp = tg()
+  if (webApp && typeof webApp.sendData === 'function') {
+    try {
+      webApp.sendData(
+        JSON.stringify({
+          type: 'auth',
+          access_token: access,
+          user_id: telegramUserId ?? undefined,
+        })
+      )
+    } catch (error) {
+      console.warn('Не удалось отправить авторизационные данные в бота', error)
+    }
+  }
+
+  return session
+}
+
 export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
   if (cachedSession !== undefined) {
+    if (shouldReuseSession(cachedSession)) {
+      return cachedSession
+    }
+    cachedSession = undefined
+  }
+  if (bootstrapPromise) {
+    return bootstrapPromise
+  }
+
+  const initData = getInitData()
+  if (!initData) {
+    cachedSession = null
     return cachedSession
   }
-  if (bootstrapPromise) return bootstrapPromise
-  const initData = getInitData()
-  if (!initData) return null
 
-  bootstrapPromise = (async () => {
-    try {
-      const { data } = await api.post('/auth/webapp/login/', { init_data: initData })
-      if (!data?.access) {
-        throw new Error('Не удалось получить access_token')
-      }
-      tokenStore.access = data.access
-      tokenStore.refresh = data.refresh ?? ''
-
-      const telegramUserId: number | null =
-        data?.telegram_user_id ??
-        data?.profile?.telegram_id ??
-        data?.user?.telegram_id ??
-        data?.user?.id ??
-        null
-
-      const session: TelegramAuthSession = {
-        accessToken: data.access as string,
-        refreshToken: data.refresh as string | undefined,
-        telegramUserId,
-        raw: data,
-      }
+  bootstrapPromise = exchangeInitData(initData)
+    .then(session => {
       cachedSession = session
       return session
-    } catch (err) {
-      console.error('Не удалось обменять initData на токены', err)
-      throw err
-    }
-  })()
+    })
+    .catch(error => {
+      console.error('Не удалось обменять initData на токены', error)
+      cachedSession = null
+      throw error
+    })
+    .finally(() => {
+      bootstrapPromise = null
+    })
 
-  try {
-    const result = await bootstrapPromise
-    if (cachedSession === undefined) {
-      cachedSession = result
-    }
-    return result
-  } finally {
-    bootstrapPromise = null
-  }
+  return bootstrapPromise
 }

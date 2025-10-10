@@ -2,6 +2,8 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
@@ -118,6 +120,17 @@ CORS_ALLOWED_ORIGINS = (
     [o for o in os.getenv("DJANGO_CORS_ORIGINS", "").split(",") if o]
     if os.getenv("DJANGO_CORS_ORIGINS")
     else []
+)
+CORS_ALLOW_HEADERS = list(
+    dict.fromkeys(
+        list(default_headers)
+        + [
+            "authorization",
+            "content-type",
+            "x-telegram-init-data",
+            "idempotency-key",
+        ]
+    )
 )
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
