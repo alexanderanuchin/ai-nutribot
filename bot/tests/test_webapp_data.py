@@ -85,5 +85,6 @@ async def test_webapp_data_handler_sends_invoice_on_topup():
     kwargs = message.answer_invoice.call_args.kwargs
     assert kwargs["currency"] == "XTR"
     assert kwargs["prices"][0].amount == 150
+    assert kwargs["provider_token"] == ""
     assert "Комментарий" in kwargs["description"]
     message.answer.assert_not_called()

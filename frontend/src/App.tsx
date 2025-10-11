@@ -30,7 +30,7 @@ export default function App(){
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
-  const showAuthBackground = ready && !authenticated && isAuthRoute
+  const showAuthBackground = (!authenticated || !ready) && isAuthRoute
   const showShell = ready && authenticated
 
   return (

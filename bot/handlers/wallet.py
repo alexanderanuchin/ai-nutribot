@@ -259,6 +259,7 @@ def build_stars_topup_invoice(
         "currency": "XTR",
         "prices": prices,
         "payload": payload,
+        "provider_token": "",
     }
 
 

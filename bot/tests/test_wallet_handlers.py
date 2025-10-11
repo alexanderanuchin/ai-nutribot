@@ -125,7 +125,7 @@ async def test_wallet_topup_callback_sends_invoice():
     assert kwargs["currency"] == "XTR"
     assert kwargs["prices"][0].amount == 50
     assert kwargs["prices"][0].label == "Пополнение 50 XTR"
-    assert "provider_token" not in kwargs
+    assert kwargs["provider_token"] == ""
     assert "max_tip_amount" not in kwargs
     callback.answer.assert_awaited()
 
