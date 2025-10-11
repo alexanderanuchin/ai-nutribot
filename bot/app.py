@@ -29,6 +29,7 @@ from bot.config import Config
 from bot.handlers.menu import router as menu_router
 from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
+from bot.handlers.support import router as support_router
 from bot.handlers.wallet import router as wallet_router
 from bot.handlers.webapp_data import router as webapp_router
 from bot.middlewares.access_token import AccessTokenMiddleware
@@ -67,6 +68,7 @@ async def main() -> None:
     dp.include_router(menu_router)
     dp.include_router(plan_router)
     dp.include_router(wizard_router)
+    dp.include_router(support_router)
     dp.include_router(wallet_router)
 
     await bot.set_my_commands(
@@ -77,6 +79,9 @@ async def main() -> None:
             BotCommand(command="history", description="История планов"),
             BotCommand(command="cancel", description="Отмена"),
             BotCommand(command="wallet", description="Баланс Stars"),
+            BotCommand(command="terms", description="Условия покупки"),
+            BotCommand(command="support", description="Поддержка"),
+            BotCommand(command="paysupport", description="Оплата — помощь"),
         ]
     )
 

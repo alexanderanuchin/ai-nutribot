@@ -111,6 +111,8 @@ def _format_wallet_message(payload: dict) -> str:
     else:
         lines.append("\nПока нет операций.")
     lines.append("\nВыберите сумму для быстрого пополнения 👇")
+    lines.append("\nНажимая «Пополнить», вы подтверждаете, что ознакомились с /terms и согласны с ними.")
+    lines.append("Для вопросов по оплате используйте /paysupport.")
     return "\n".join(lines)
 
 
@@ -405,6 +407,43 @@ async def wallet_topup_callback(
 
 @router.pre_checkout_query()
 async def pre_checkout_handler(query: PreCheckoutQuery):
+    if query.from_user is None:
+        await query.answer(
+            ok=False,
+            error_message="Не удалось определить ваш аккаунт Telegram. Попробуйте снова через несколько минут.",
+        )
+        return
+
+    payload_meta = _parse_invoice_payload(query.invoice_payload)
+    requested_user = payload_meta.get("uid") if payload_meta else None
+    try:
+        requested_user_id = int(requested_user) if requested_user is not None else None
+    except (TypeError, ValueError):
+        requested_user_id = None
+
+    if requested_user_id is not None and requested_user_id != query.from_user.id:
+        await query.answer(
+            ok=False,
+            error_message="Этот счёт принадлежит другому пользователю. Попросите бота выписать новый счёт.",
+        )
+        return
+
+    currency = (query.currency or "").upper()
+    amount = int(query.total_amount)
+    if currency != "XTR":
+        await query.answer(
+            ok=False,
+            error_message="Оплата может быть проведена только в Telegram Stars (XTR).",
+        )
+        return
+
+    if amount not in TOPUP_AMOUNTS:
+        await query.answer(
+            ok=False,
+            error_message="Сумма счёта не поддерживается. Создайте новый счёт через /wallet.",
+        )
+        return
+
     await query.answer(ok=True)
 
 
