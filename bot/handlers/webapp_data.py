@@ -28,11 +28,20 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
         )
         return
 
-    await state.update_data(
-        access_token=access_token,
-        session_user_id=webapp_user_id or from_user_id,
-        session_obtained_at=datetime.now(timezone.utc).isoformat(),
-    )
+    refresh_token = payload.get("refresh_token") or payload.get("refresh")
+    expires_at = payload.get("expires_at") or payload.get("exp")
+
+    updates = {
+        "access_token": access_token,
+        "session_user_id": webapp_user_id or from_user_id,
+        "session_obtained_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if refresh_token:
+        updates["refresh_token"] = refresh_token
+    if expires_at:
+        updates["session_expires_at"] = expires_at
+
+    await state.update_data(**updates)
     await message.answer(
         "Авторизация WebApp подтверждена. Можно продолжить операции с кошельком в боте."
     )

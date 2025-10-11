@@ -31,6 +31,8 @@ async def test_webapp_data_handler_stores_auth_session():
     payload = {
         "type": "auth",
         "access_token": "token-123",
+        "refresh_token": "refresh-456",
+        "expires_at": 999999,
         "user_id": 123,
     }
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
@@ -38,6 +40,8 @@ async def test_webapp_data_handler_stores_auth_session():
     await webapp_data_handler(message, state, access_token=None)
 
     assert state.data["access_token"] == "token-123"
+    assert state.data["refresh_token"] == "refresh-456"
+    assert state.data["session_expires_at"] == 999999
     assert state.data["session_user_id"] == 123
     assert "session_obtained_at" in state.data
     message.answer.assert_awaited()

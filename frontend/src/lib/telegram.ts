@@ -69,15 +69,16 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     tokenStore.refresh = refreshToken
   }
   tokenStore.access = access
-  if (typeof data?.exp === 'number') {
-    tokenStore.accessExpiresAt = data.exp
+  const expiresAt: number | undefined = typeof data?.exp === 'number' ? data.exp : undefined
+  if (expiresAt) {
+    tokenStore.accessExpiresAt = expiresAt
   }
   const telegramUserId = resolveTelegramUserId(data)
   const session: TelegramAuthSession = {
     accessToken: access,
     refreshToken,
     telegramUserId,
-    expiresAt: typeof data?.exp === 'number' ? data.exp : tokenStore.accessExpiresAt,
+    expiresAt: expiresAt ?? tokenStore.accessExpiresAt,
     raw: data,
   }
 
@@ -88,6 +89,8 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
         JSON.stringify({
           type: 'auth',
           access_token: access,
+          refresh_token: refreshToken ?? undefined,
+          expires_at: expiresAt ?? undefined,
           user_id: telegramUserId ?? undefined,
         })
       )
