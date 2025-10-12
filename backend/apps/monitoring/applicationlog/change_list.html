@@ -1,0 +1,10 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    {{ block.super }}
+    <li>
+        <a href="{% url 'admin:monitoring_applicationlog_console' %}">
+            {% trans "Онлайн-консоль" %}
+        </a>
+    </li>
+{% endblock %}

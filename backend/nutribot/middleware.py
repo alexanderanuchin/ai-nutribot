@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import time
 import uuid
 from contextvars import ContextVar
@@ -43,6 +44,61 @@ class JsonLogFormatter(logging.Formatter):
         if record.exc_info:
             base["exc_info"] = self.formatException(record.exc_info)
         return json.dumps(base, ensure_ascii=False, separators=(",", ":"))
+
+
+class ColoredConsoleFormatter(logging.Formatter):
+    """Formatter with ANSI highlighting for warnings and errors."""
+
+    RESET = "\033[0m"
+    COLOR_MAP = {
+        logging.DEBUG: "\033[38;5;244m",
+        logging.INFO: "\033[38;5;39m",
+        logging.WARNING: "\033[38;5;214m",
+        logging.ERROR: "\033[38;5;203m",
+        logging.CRITICAL: "\033[1;37;41m",
+    }
+    BADGES = {
+        logging.WARNING: "⚠",
+        logging.ERROR: "✖",
+        logging.CRITICAL: "🔥",
+    }
+
+    def __init__(
+        self,
+        fmt: str | None = None,
+        datefmt: str | None = None,
+        style: str = "%",
+        use_color: bool | None = None,
+        format: str | None = None,
+        **kwargs: Any,
+    ):
+        if format and not fmt:
+            fmt = format
+        super().__init__(fmt=fmt, datefmt=datefmt, style=style)
+        if use_color is None:
+            handlers = getattr(logging.getLogger(), "handlers", [])
+            stream_obj = handlers[0].stream if handlers and hasattr(handlers[0], "stream") else None
+            if stream_obj and hasattr(stream_obj, "isatty"):
+                use_color = bool(stream_obj.isatty())
+            else:
+                use_color = sys.stderr.isatty()
+        self.use_color = use_color
+
+    def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - logging cosmetics
+        record.request_id = getattr(record, "request_id", get_request_id("-"))
+        original_levelname = record.levelname
+        badge = self.BADGES.get(record.levelno)
+        if badge:
+            record.levelname = f"{badge} {record.levelname}"
+        formatted = super().format(record)
+        record.levelname = original_levelname
+
+        if not self.use_color:
+            return formatted
+        color = self.COLOR_MAP.get(record.levelno)
+        if not color:
+            return formatted
+        return f"{color}{formatted}{self.RESET}"
 
 
 class RequestIDMiddleware:
@@ -115,4 +171,10 @@ class RequestIDMiddleware:
         return snapshot
 
 
-__all__ = ["RequestIDMiddleware", "RequestIDLogFilter", "JsonLogFormatter", "get_request_id"]
+__all__ = [
+    "RequestIDMiddleware",
+    "RequestIDLogFilter",
+    "JsonLogFormatter",
+    "ColoredConsoleFormatter",
+    "get_request_id",
+]

@@ -8,6 +8,8 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 LOG_JSON = os.getenv("LOG_JSON", "0") == "1"
 LOG_REQUEST_BODY = os.getenv("LOG_REQUEST_BODY", "0") == "1"
 LOG_SAFE_HEADERS = os.getenv("LOG_SAFE_HEADERS", "1") == "1"
+LOG_DB_LEVEL = os.getenv("LOG_DB_LEVEL", LOG_LEVEL).upper()
+LOG_DB_CAPACITY = int(os.getenv("LOG_DB_CAPACITY", "5000"))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -35,6 +37,7 @@ INSTALLED_APPS = [
     "apps.catalog",
     "apps.nutrition",
     "apps.orders",
+    "apps.monitoring",
 ]
 
 MIDDLEWARE = [
@@ -172,27 +175,45 @@ LOGGING = {
         "json": {
             "()": "nutribot.middleware.JsonLogFormatter",
         },
+        "color": {
+            "()": "nutribot.middleware.ColoredConsoleFormatter",
+            "format": "%(asctime)s %(levelname)s %(name)s rid=%(request_id)s: %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "level": LOG_LEVEL,
             "filters": ["request_id"],
-            "formatter": "json" if LOG_JSON else "plain",
+            "formatter": "json" if LOG_JSON else "color",
+        },
+        "db": {
+            "class": "apps.monitoring.handlers.DatabaseLogHandler",
+            "level": LOG_DB_LEVEL,
+            "filters": ["request_id"],
+            "capacity": LOG_DB_CAPACITY,
         },
     },
     "loggers": {
-        "": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "django.request": {
-            "handlers": ["console"],
+        "": {
+            "handlers": ["console", "db"],
             "level": LOG_LEVEL,
             "propagate": False,
         },
-        "audit.auth": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "audit.wallet": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "audit.telegram": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "audit.http": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
-        "audit.crm": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django": {
+            "handlers": ["console", "db"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console", "db"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "audit.auth": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
+        "audit.wallet": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
+        "audit.telegram": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
+        "audit.http": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
+        "audit.crm": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
     },
 }
