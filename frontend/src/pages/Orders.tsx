@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders, createOrder, payOrder } from '../api/orders'
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
 import { tg } from '../lib/telegram'
+import { debugLog, generateRequestId, warnLog } from '../lib/logging'
 import { useAuthContext } from '../providers/AuthProvider'
 
 interface OperationFormState {
@@ -133,21 +134,32 @@ export default function Orders(): JSX.Element {
       setError('Telegram WebApp недоступен. Откройте экран в Telegram-клиенте.')
       return
     }
+    const rid = generateRequestId()
     try {
+      debugLog('webapp/topup', 'sendData', {
+        rid,
+        amount: rounded,
+        hasComment: Boolean(topupForm.description.trim()),
+      })
       webApp.sendData(
         JSON.stringify({
           type: 'topup',
           action: 'topup',
           amount: rounded,
           comment: topupForm.description.trim() || undefined,
+          rid,
         })
       )
+      debugLog('webapp/topup', 'sendData success', { rid })
       setSubmitting(true)
       setError(null)
       setMessage('Запрос на пополнение отправлен в бота. Проверьте Telegram для выставленного счёта.')
       setTopupForm(prev => ({ ...prev, description: '' }))
     } catch (err) {
-      console.error('Не удалось отправить запрос на пополнение в бота', err)
+      warnLog('webapp/topup', 'sendData failed', {
+        rid,
+        error: err instanceof Error ? err.message : String(err),
+      })
       setError('Не удалось отправить запрос в бота. Попробуйте повторить позже.')
     } finally {
       setSubmitting(false)

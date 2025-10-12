@@ -4,6 +4,11 @@ from pathlib import Path
 
 from corsheaders.defaults import default_headers
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_JSON = os.getenv("LOG_JSON", "0") == "1"
+LOG_REQUEST_BODY = os.getenv("LOG_REQUEST_BODY", "0") == "1"
+LOG_SAFE_HEADERS = os.getenv("LOG_SAFE_HEADERS", "1") == "1"
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
@@ -36,6 +41,7 @@ MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "nutribot.middleware.RequestIDMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -151,3 +157,42 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@example.com")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 CATALOG_MINIMUM_AVAILABLE_ITEMS = int(os.getenv("CATALOG_MINIMUM_AVAILABLE_ITEMS", "120"))
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {"()": "nutribot.middleware.RequestIDLogFilter"},
+    },
+    "formatters": {
+        "plain": {
+            "format": "%(asctime)s %(levelname)s rid=%(request_id)s %(name)s: %(message)s",
+        },
+        "json": {
+            "()": "nutribot.middleware.JsonLogFormatter",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "level": LOG_LEVEL,
+            "filters": ["request_id"],
+            "formatter": "json" if LOG_JSON else "plain",
+        },
+    },
+    "loggers": {
+        "": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django.request": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "audit.auth": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "audit.wallet": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "audit.telegram": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "audit.http": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "audit.crm": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+    },
+}

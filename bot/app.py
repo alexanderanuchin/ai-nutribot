@@ -32,7 +32,9 @@ from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.support import router as support_router
 from bot.handlers.wallet import router as wallet_router
 from bot.handlers.webapp_data import router as webapp_router
+from bot.logging_utils import JsonLogFormatter, RequestIdFilter
 from bot.middlewares.access_token import AccessTokenMiddleware
+from bot.middlewares.logging import LoggingMiddleware
 from bot.middlewares.store import StoreMiddleware
 
 
@@ -40,9 +42,32 @@ def _is_https(url: str) -> bool:
     return isinstance(url, str) and url.lower().startswith("https://")
 
 
+def _setup_logging() -> None:
+    level_name = os.getenv("BOT_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    as_json = os.getenv("BOT_LOG_JSON", "0") == "1"
+
+    handler = logging.StreamHandler()
+    handler.setLevel(level)
+    handler.addFilter(RequestIdFilter())
+    if as_json:
+        handler.setFormatter(JsonLogFormatter())
+    else:
+        handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(levelname)s rid=%(request_id)s %(name)s: %(message)s"
+            )
+        )
+
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(level)
+    logging.getLogger("aiogram.event").setLevel(level)
+
+
 async def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s:%(name)s:%(message)s")
-    logging.getLogger("aiogram.event").setLevel(logging.INFO)
+    _setup_logging()
 
     cfg = Config.load()
     if not cfg.token:
@@ -61,6 +86,7 @@ async def main() -> None:
     dp = Dispatcher(storage=storage)
 
     backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)
+    dp.update.middleware(LoggingMiddleware())
     dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 

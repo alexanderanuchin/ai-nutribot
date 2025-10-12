@@ -13,6 +13,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.common.logging import summarize_token
 from apps.common.permissions import HasBotKey
 from apps.orders.models import (
     DeliveryService,
@@ -37,7 +38,7 @@ from apps.orders.services.payment import PaymentInitiationResult, PaymentProvide
 from apps.orders.services.wallet import WalletInsufficientFunds, get_wallet_balance
 from apps.users.models import Profile
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("audit.wallet")
 
 
 class IdempotencyMixin:
@@ -134,10 +135,23 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
 
         charge_id = data["charge_id"]
         idempotency_key = request.META.get(self.idempotency_header) or charge_id
+        rid = request.META.get("HTTP_X_REQUEST_ID") or request.headers.get("X-Request-Id")
+        logger.info(
+            "bot payment report received rid=%s telegram_user_id=%s amount=%s currency=%s has_comment=%s charge_id=%s idempotency_key=%s",
+            rid,
+            data["user_id"],
+            data["amount"],
+            "XTR",
+            bool(data.get("comment")),
+            summarize_token(charge_id),
+            idempotency_key,
+        )
 
         profile = Profile.objects.filter(telegram_id=data["user_id"]).first()
         if profile is None:
-            logger.warning("bot payment report: профиль не найден для telegram_id=%s", data["user_id"])
+            logger.warning(
+                "bot payment report profile_missing rid=%s telegram_user_id=%s", rid, data["user_id"]
+            )
             return Response(
                 {"detail": "Пользователь с таким Telegram ID не найден"},
                 status=status.HTTP_404_NOT_FOUND,
@@ -152,6 +166,17 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
         if data.get("comment"):
             metadata["comment"] = data["comment"]
 
+        logger.info(
+            "bot payment report processing rid=%s profile_id=%s telegram_user_id=%s existing=%s amount=%s "
+            "idempotency_key=%s",
+            rid,
+            profile.id,
+            profile.telegram_id,
+            bool(existing),
+            data["amount"],
+            idempotency_key,
+        )
+
         try:
             tx = self.payment_service.wallet_topup(
                 profile,
@@ -161,11 +186,24 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 metadata=metadata or None,
             )
         except PaymentProviderError as exc:
-            logger.error("bot payment report failed for telegram_id=%s: %s", data["user_id"], exc)
+            logger.error(
+                "bot payment report failed rid=%s telegram_user_id=%s reason=%s",
+                rid,
+                data["user_id"],
+                exc,
+            )
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         response_data = WalletTransactionSerializer(tx).data
         status_code = status.HTTP_200_OK if existing else status.HTTP_201_CREATED
+        logger.info(
+            "bot payment report success rid=%s telegram_user_id=%s tx_id=%s status=%s existing=%s",
+            rid,
+            data["user_id"],
+            getattr(tx, "id", None),
+            status_code,
+            bool(existing),
+        )
         return Response(response_data, status=status_code)
 
 

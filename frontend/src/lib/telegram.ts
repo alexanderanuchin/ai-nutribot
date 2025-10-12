@@ -1,5 +1,6 @@
 import api from '../api/client'
 import { tokenStore } from '../utils/storage'
+import { debugLog, generateRequestId, maskToken, warnLog } from './logging'
 
 export function tg() {
   return (window as any).Telegram?.WebApp
@@ -59,6 +60,13 @@ function resolveTelegramUserId(payload: any): number | null {
 
 async function exchangeInitData(initData: string): Promise<TelegramAuthSession | null> {
   const headers = { 'X-Telegram-Init-Data': initData }
+  const rid = generateRequestId()
+  headers['X-Request-Id'] = rid
+  debugLog('telegram/auth', 'login request', {
+    rid,
+    hasInitData: Boolean(initData),
+    initData: maskToken(initData),
+  })
   const { data } = await api.post('/auth/webapp/login/', {}, { headers })
   const access = data?.access
   if (!access || typeof access !== 'string') {
@@ -82,9 +90,20 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     raw: data,
   }
 
+  debugLog('telegram/auth', 'login success', {
+    rid,
+    telegramUserId,
+    expiresAt: session.expiresAt,
+    hasRefresh: Boolean(refreshToken),
+  })
   const webApp = tg()
   if (webApp && typeof webApp.sendData === 'function') {
     try {
+      debugLog('telegram/sendData', 'auth payload', {
+        rid,
+        telegramUserId,
+        expiresAt,
+      })
       webApp.sendData(
         JSON.stringify({
           type: 'auth',
@@ -92,10 +111,14 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
           refresh_token: refreshToken ?? undefined,
           expires_at: expiresAt ?? undefined,
           user_id: telegramUserId ?? undefined,
+          rid,
         })
       )
     } catch (error) {
-      console.warn('Не удалось отправить авторизационные данные в бота', error)
+      warnLog('telegram/sendData', 'auth payload failed', {
+        rid,
+        error: error instanceof Error ? error.message : String(error),
+      })
     }
   }
 
@@ -125,7 +148,9 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
       return session
     })
     .catch(error => {
-      console.error('Не удалось обменять initData на токены', error)
+      warnLog('telegram/auth', 'login failed', {
+        error: error instanceof Error ? error.message : String(error),
+      })
       cachedSession = null
       throw error
     })

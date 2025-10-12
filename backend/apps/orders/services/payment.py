@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import logging
+import uuid
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Union
-import uuid
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.users.models import Profile
+from apps.common.logging import summarize_token
+from nutribot.middleware import get_request_id
 
 from ..models import IntegrationWebhookEvent, Order, PaymentAttempt, WalletTransaction
 from .order import OrderService, PaymentResult
@@ -21,6 +24,9 @@ from .wallet import (
     wallet_topup,
     wallet_withdraw,
 )
+
+from apps.common.logging import summarize_token
+from nutribot.middleware import get_request_id
 
 
 class PaymentProviderError(Exception):
@@ -609,13 +615,13 @@ class PaymentService:
         )
 
     def wallet_topup(
-        self,
-        user: Union[Profile, Any],
-        *,
-        amount: Decimal,
-        charge_id: str,
-        idempotency_key: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            user: Union[Profile, Any],
+            *,
+            amount: Decimal,
+            charge_id: str,
+            idempotency_key: str | None = None,
+            metadata: Dict[str, Any] | None = None,
     ) -> WalletTransaction:
         profile = self._resolve_profile(user)
         meta = {
@@ -624,7 +630,19 @@ class PaymentService:
             **(metadata or {}),
         }
         key = idempotency_key or charge_id
-        return wallet_topup(
+        rid = get_request_id()
+        logger.info(
+            "payment_service wallet_topup start rid=%s profile_id=%s telegram_user_id=%s amount=%s currency=%s charge_id=%s idempotency_key=%s has_comment=%s",
+            rid,
+            getattr(profile, "id", None),
+            getattr(profile, "telegram_id", None),
+            amount,
+            WalletTransaction.Currency.TELEGRAM_STARS,
+            summarize_token(charge_id),
+            key,
+            bool((metadata or {}).get("comment")),
+        )
+        tx = wallet_topup(
             profile,
             currency=WalletTransaction.Currency.TELEGRAM_STARS,
             amount=amount,
@@ -633,16 +651,25 @@ class PaymentService:
             metadata=meta,
             idempotency_key=key,
         )
+        logger.info(
+            "payment_service wallet_topup done rid=%s profile_id=%s tx_id=%s amount=%s currency=%s",
+            rid,
+            getattr(profile, "id", None),
+            getattr(tx, "id", None),
+            amount,
+            WalletTransaction.Currency.TELEGRAM_STARS,
+        )
+        return tx
 
     def wallet_withdraw(
-        self,
-        user: Union[Profile, Any],
-        *,
-        amount: Decimal,
-        idempotency_key: str | None = None,
-        description: str | None = None,
-        reference: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+            self,
+            user: Union[Profile, Any],
+            *,
+            amount: Decimal,
+            idempotency_key: str | None = None,
+            description: str | None = None,
+            reference: str | None = None,
+            metadata: Dict[str, Any] | None = None,
     ) -> WalletTransaction:
         profile = self._resolve_profile(user)
         try:

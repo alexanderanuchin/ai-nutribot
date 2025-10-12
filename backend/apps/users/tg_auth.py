@@ -1,4 +1,7 @@
-from typing import Any, Dict
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, Tuple
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -10,10 +13,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .api_payloads import build_profile_response
-from .tg_utils import verify_init_data
+from apps.common.logging import summarize_token
+from nutribot.middleware import get_request_id
 
+from .api_payloads import build_profile_response
 from .models import Profile
+from .tg_utils import verify_init_data
 
 User = get_user_model()
 
@@ -23,16 +28,20 @@ try:  # pragma: no cover - depends on project configuration
 except FieldDoesNotExist:  # pragma: no cover - default local setup
     USER_HAS_TELEGRAM_FIELD = False
 
+logger = logging.getLogger("audit.auth")
+tg_logger = logging.getLogger("audit.telegram")
 
-def _ensure_profile_telegram_id(user, tg_id: int) -> None:
-    profile, _ = Profile.objects.get_or_create(user=user)
+
+def _ensure_profile_telegram_id(user, tg_id: int) -> Tuple[Profile, bool]:
+    profile, created = Profile.objects.get_or_create(user=user)
     if profile.telegram_id != tg_id:
         profile.telegram_id = tg_id
         profile.save(update_fields=["telegram_id"])
+    return profile, created
 
 
 @transaction.atomic
-def _get_user_by_telegram_id(tg_id: int, username: str):
+def _get_user_by_telegram_id(tg_id: int, username: str) -> Tuple[Any, bool, bool]:
     """Return user bound to the Telegram id, creating a link if needed."""
 
     if USER_HAS_TELEGRAM_FIELD:
@@ -42,21 +51,21 @@ def _get_user_by_telegram_id(tg_id: int, username: str):
         if getattr(user, "telegram_id", None) != tg_id:
             user.telegram_id = tg_id
             user.save(update_fields=["telegram_id"])
-        _ensure_profile_telegram_id(user, tg_id)
-        return user, created
+        profile, profile_created = _ensure_profile_telegram_id(user, tg_id)
+        return user, created, profile_created
 
     profile = (
         Profile.objects.select_related("user").filter(telegram_id=tg_id).first()
     )
     if profile:
-        return profile.user, False
+        return profile.user, False, False
 
     user, created = User.objects.get_or_create(username=username)
     if created:
         user.set_unusable_password()
         user.save(update_fields=["password"])
-    _ensure_profile_telegram_id(user, tg_id)
-    return user, created
+    profile, profile_created = _ensure_profile_telegram_id(user, tg_id)
+    return user, created, profile_created
 
 
 class TelegramWebAppAuthError(Exception):
@@ -64,9 +73,9 @@ class TelegramWebAppAuthError(Exception):
 
 
 def exchange_webapp_init_data(
-        init_data: str | None,
-        *,
-        bot_token: str | None = None,
+    init_data: str | None,
+    *,
+    bot_token: str | None = None,
 ) -> Dict[str, Any]:
     if not init_data:
         raise TelegramWebAppAuthError("initData is required")
@@ -77,18 +86,22 @@ def exchange_webapp_init_data(
     except Exception as exc:  # pragma: no cover - depends on Telegram payload
         raise TelegramWebAppAuthError(f"invalid initData: {exc}") from exc
 
+    rid = get_request_id()
+    tg_logger.info(
+        "exchange init_data rid=%s claims=%s", rid, sorted(parsed.keys())
+    )
+
     user_json = parsed.get("user")
-    if not user_json:
-        if not isinstance(user_json, dict):
-            raise TelegramWebAppAuthError("user missing in initData")
+    if not user_json or not isinstance(user_json, dict):
+        raise TelegramWebAppAuthError("user missing in initData")
 
     tg_id = user_json.get("id")
     if not tg_id:
         raise TelegramWebAppAuthError("telegram id missing")
 
     username = str(user_json.get("username") or f"tg_{tg_id}")
-    user, created = _get_user_by_telegram_id(int(tg_id), username)
-    if created:
+    user, user_created, profile_created = _get_user_by_telegram_id(int(tg_id), username)
+    if user_created:
         user.first_name = user_json.get("first_name") or ""
         user.last_name = user_json.get("last_name") or ""
         user.save(update_fields=["first_name", "last_name"])
@@ -105,6 +118,24 @@ def exchange_webapp_init_data(
             "telegram_user_id": profile.telegram_id,
             "exp": int(exp) if isinstance(exp, int) else exp,
         }
+    )
+
+    tg_logger.info(
+        "exchange init_data resolved rid=%s telegram_user_id=%s user_id=%s user_created=%s profile_created=%s",
+        rid,
+        profile.telegram_id,
+        getattr(user, "id", None),
+        user_created,
+        profile_created,
+    )
+    logger.info(
+        "webapp exchange tokens rid=%s telegram_user_id=%s user_id=%s access=%s refresh=%s exp=%s",
+        rid,
+        profile.telegram_id,
+        getattr(user, "id", None),
+        summarize_token(str(access_token)),
+        summarize_token(str(refresh)),
+        payload.get("exp"),
     )
     return payload
 

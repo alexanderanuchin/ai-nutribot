@@ -6,6 +6,7 @@ import axios, {
 } from 'axios'
 import { getInitData } from '../lib/telegram'
 import { tokenStore } from '../utils/storage'
+import { debugLog, generateRequestId, maskToken, warnLog } from '../lib/logging'
 
 const baseURL = import.meta.env.VITE_API_BASE || '/api'
 export const api = axios.create({ baseURL, timeout: 15000 })
@@ -60,7 +61,18 @@ async function performTokenRefresh(): Promise<string> {
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData
   }
-  const { data } = await axios.post(`${baseURL}/auth/webapp/refresh/`, { refresh: refreshToken }, { headers })
+  const rid = generateRequestId()
+  headers['X-Request-Id'] = rid
+  debugLog('auth/refresh', 'request', {
+    rid,
+    refresh: maskToken(refreshToken),
+    hasInitData: Boolean(initData),
+  })
+  const { data } = await axios.post(
+    `${baseURL}/auth/webapp/refresh/`,
+    { refresh: refreshToken },
+    { headers }
+  )
   const access = data?.access
   if (!access || typeof access !== 'string') {
     throw new Error('Failed to obtain access token from refresh response')
@@ -72,6 +84,11 @@ async function performTokenRefresh(): Promise<string> {
   if (typeof data?.exp === 'number') {
     tokenStore.accessExpiresAt = data.exp
   }
+  debugLog('auth/refresh', 'success', {
+    rid,
+    exp: data?.exp,
+    refresh: maskToken(data?.refresh || refreshToken),
+  })
   return access
 }
 
@@ -93,6 +110,9 @@ export async function refreshAccessToken(): Promise<string | null> {
     notifyRefreshing(true)
     refreshPromise = performTokenRefresh()
       .catch(error => {
+        warnLog('auth/refresh', 'request failed', {
+          error: error instanceof Error ? error.message : String(error),
+        })
         tokenStore.clear()
         tokenStore.notifyRefreshFailed()
         throw error
@@ -115,6 +135,18 @@ api.interceptors.request.use(config => {
   if (initData) {
     headers['X-Telegram-Init-Data'] = initData
   }
+  const rid = headers['X-Request-Id'] || generateRequestId()
+  headers['X-Request-Id'] = rid
+  const exp = tokenStore.accessExpiresAt
+  const expDelta = typeof exp === 'number' ? exp - Math.floor(Date.now() / 1000) : null
+  debugLog('api/request', 'dispatch', {
+    rid,
+    method: (config.method || 'get').toUpperCase(),
+    url: config.url,
+    hasAuth: Boolean(access),
+    hasInitData: Boolean(initData),
+    accessExpDeltaSec: expDelta,
+  })
   config.headers = headers
   return config
 })
@@ -131,6 +163,10 @@ api.interceptors.response.use(
     if (shouldAttemptRefresh(axiosError.response)) {
       originalRequest._retry = true
       try {
+        debugLog('api/response', '401 encountered, attempting refresh', {
+          rid: originalRequest.headers?.['X-Request-Id'],
+          url: originalRequest.url,
+        })
         const newAccess = await refreshAccessToken()
         if (!newAccess) {
           return Promise.reject(error)
@@ -141,9 +177,19 @@ api.interceptors.response.use(
         if (initData) {
           headers['X-Telegram-Init-Data'] = initData
         }
+        headers['X-Request-Id'] = headers['X-Request-Id'] || generateRequestId()
+        debugLog('api/response', 'retrying after refresh', {
+          rid: headers['X-Request-Id'],
+          url: originalRequest.url,
+        })
         originalRequest.headers = headers
         return api(originalRequest)
       } catch (refreshError) {
+        warnLog('api/response', 'refresh failed', {
+          rid: originalRequest.headers?.['X-Request-Id'],
+          url: originalRequest.url,
+          error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+        })
         return Promise.reject(refreshError)
       }
     }

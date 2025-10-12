@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 from typing import Iterable, Tuple
@@ -17,6 +18,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from bot.logging_utils import get_request_id
 from ..backend_client import (
     AuthResult,
     BackendAuthError,
@@ -27,6 +29,7 @@ from ..backend_client import (
 )
 
 router = Router()
+logger = logging.getLogger("audit.wallet")
 
 TOPUP_AMOUNTS: Tuple[int, ...] = (50, 100)
 TOPUP_SOURCE = "telegram_bot_invoice"
@@ -234,9 +237,12 @@ def _parse_invoice_payload(payload: str) -> dict:
     return result
 
 
-def _build_invoice_payload(user_id: int, amount: int) -> str:
+def _build_invoice_payload(user_id: int, amount: int, *, rid: str | None = None) -> str:
     token = uuid.uuid4().hex
-    return f"uid={user_id};amt={amount};token={token}"
+    parts = [f"uid={user_id}", f"amt={amount}", f"token={token}"]
+    if rid:
+        parts.append(f"rid={rid}")
+    return ";".join(parts)
 
 
 def build_stars_topup_invoice(
@@ -244,6 +250,7 @@ def build_stars_topup_invoice(
     amount: int,
     *,
     comment: str | None = None,
+    rid: str | None = None,
 ) -> dict:
     description = f"Быстрое пополнение на {amount} XTR."
     if comment:
@@ -253,7 +260,19 @@ def build_stars_topup_invoice(
             short_comment = comment_text[:180]
             description += f"\nКомментарий: {short_comment}"
 
-    payload = _build_invoice_payload(user_id, amount)
+    rid_to_use = rid or get_request_id()
+    payload = _build_invoice_payload(user_id, amount, rid=rid_to_use)
+    payload_meta = _parse_invoice_payload(payload)
+    token_prefix = (payload_meta.get("token") or "")[:8] if payload_meta else ""
+    logger.info(
+        "wallet invoice_created rid=%s telegram_user_id=%s amount=%s currency=%s has_comment=%s token_prefix=%s",
+        rid_to_use,
+        user_id,
+        amount,
+        "XTR",
+        bool(comment and comment.strip()),
+        token_prefix,
+    )
     prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
     return {
         "title": "Пополнение баланса Stars",
@@ -400,7 +419,18 @@ async def wallet_topup_callback(
         await callback.answer("Неизвестная сумма", show_alert=True)
         return
 
-    invoice = build_stars_topup_invoice(callback.from_user.id, amount)
+    rid = get_request_id()
+    logger.info(
+        "wallet quick_topup rid=%s telegram_user_id=%s amount=%s",
+        rid,
+        callback.from_user.id,
+        amount,
+    )
+    invoice = build_stars_topup_invoice(
+        callback.from_user.id,
+        amount,
+        rid=rid,
+    )
     await callback.message.answer_invoice(**invoice)
     await callback.answer()
 
@@ -412,6 +442,7 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             ok=False,
             error_message="Не удалось определить ваш аккаунт Telegram. Попробуйте снова через несколько минут.",
         )
+        logger.error("wallet pre_checkout missing_user rid=%s", get_request_id())
         return
 
     payload_meta = _parse_invoice_payload(query.invoice_payload)
@@ -426,14 +457,33 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             ok=False,
             error_message="Этот счёт принадлежит другому пользователю. Попросите бота выписать новый счёт.",
         )
+        logger.warning(
+            "wallet pre_checkout user_mismatch rid=%s requested=%s actual=%s",
+            get_request_id(),
+            requested_user_id,
+            query.from_user.id,
+        )
         return
 
     currency = (query.currency or "").upper()
     amount = int(query.total_amount)
+    logger.info(
+        "wallet pre_checkout received rid=%s telegram_user_id=%s amount=%s currency=%s payload_keys=%s",
+        get_request_id(),
+        query.from_user.id,
+        amount,
+        currency,
+        sorted(payload_meta.keys()) if payload_meta else [],
+    )
     if currency != "XTR":
         await query.answer(
             ok=False,
             error_message="Оплата может быть проведена только в Telegram Stars (XTR).",
+        )
+        logger.warning(
+            "wallet pre_checkout invalid_currency rid=%s currency=%s",
+            get_request_id(),
+            currency,
         )
         return
 
@@ -442,9 +492,20 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             ok=False,
             error_message="Сумма счёта не поддерживается. Создайте новый счёт через /wallet.",
         )
+        logger.warning(
+            "wallet pre_checkout invalid_amount rid=%s amount=%s",
+            get_request_id(),
+            amount,
+        )
         return
 
     await query.answer(ok=True)
+    logger.info(
+        "wallet pre_checkout approved rid=%s telegram_user_id=%s amount=%s",
+        get_request_id(),
+        query.from_user.id,
+        amount,
+    )
 
 
 @router.message(F.successful_payment)
@@ -461,6 +522,19 @@ async def successful_payment_handler(
     charge_id = payment.telegram_payment_charge_id or payment.provider_payment_charge_id
     amount = int(payment.total_amount)
     currency = payment.currency
+    payload_meta = _parse_invoice_payload(payment.invoice_payload)
+    rid = get_request_id()
+    logger.info(
+        "wallet payment_received rid=%s telegram_user_id=%s charge_id=%s provider_charge_id=%s amount=%s currency=%s "
+        "payload_keys=%s",
+        rid,
+        getattr(message.from_user, "id", None),
+        charge_id,
+        payment.provider_payment_charge_id,
+        amount,
+        currency,
+        sorted(payload_meta.keys()) if payload_meta else [],
+    )
 
     if currency != "XTR":
         await message.answer("Получен платёж в неподдерживаемой валюте. Обратитесь в поддержку.")
@@ -484,22 +558,61 @@ async def successful_payment_handler(
             await message.answer(
                 "Получен платёж от другого пользователя. Свяжитесь с поддержкой, если это ошибка."
             )
+            logger.warning(
+                "wallet payment_user_mismatch rid=%s expected=%s actual=%s charge_id=%s",
+                rid,
+                uid,
+                user.id,
+                charge_id,
+            )
             return
 
+    idempotency_key = f"telegram-stars:{user.id}:{charge_id}"
+    logger.info(
+        "wallet payment_report rid=%s telegram_user_id=%s amount=%s currency=%s charge_id=%s idempotency_key=%s "
+        "has_comment=%s",
+        rid,
+        user.id,
+        amount,
+        currency,
+        charge_id,
+        idempotency_key,
+        bool((payload_meta or {}).get("comment")),
+    )
     try:
         await backend.report_stars_payment(
             user_id=user.id,
             amount=amount,
             charge_id=charge_id,
         )
+        logger.info(
+            "wallet payment_report_success rid=%s telegram_user_id=%s charge_id=%s",
+            rid,
+            user.id,
+            charge_id,
+        )
     except BackendValidationError as exc:
         details = exc.errors if isinstance(exc.errors, dict) else {"detail": str(exc)}
         detail_msg = details.get("detail") or details.get("charge_id") or str(details)
+        logger.error(
+            "wallet payment_report_validation rid=%s telegram_user_id=%s charge_id=%s error=%s",
+            rid,
+            user.id,
+            charge_id,
+            details,
+        )
         await message.answer(
             "Оплата получена, но не удалось зафиксировать зачисление: " f"{detail_msg}"
         )
         return
     except BackendError as exc:
+        logger.error(
+            "wallet payment_report_error rid=%s telegram_user_id=%s charge_id=%s error=%s",
+            rid,
+            user.id,
+            charge_id,
+            exc,
+        )
         await message.answer(
             "Оплата получена, но при попытке зачислить Stars произошла ошибка. "
             "Команда уже уведомлена.\n" f"{exc}"

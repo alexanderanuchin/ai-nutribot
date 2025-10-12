@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp
+
+from bot.logging_utils import generate_request_id, get_request_id
 
 
 class BackendError(RuntimeError):
@@ -53,7 +56,7 @@ class BackendClient:
         self._max_retries = max_retries
         self._retry_delay = retry_delay
         self._session: Optional[aiohttp.ClientSession] = None
-        self._logger = logging.getLogger("nutribot.backend")
+        self._logger = logging.getLogger("audit.http")
         self._bot_key = bot_key or ""
 
     async def close(self) -> None:
@@ -76,27 +79,81 @@ class BackendClient:
             headers: Dict[str, str] | None = None,
     ) -> Any:
         url = f"{self.base_url}{path}"
+        base_headers: Dict[str, str] = {**(headers or {})}
+        rid = base_headers.get("X-Request-Id") or get_request_id()
+        if not rid or rid == "-":
+            rid = generate_request_id()
+        base_headers["X-Request-Id"] = rid
+        header_snapshot = {
+            "has_auth": bool(base_headers.get("Authorization")),
+            "has_bot_key": bool(base_headers.get("X-Bot-Key")),
+            "has_rid": True,
+            "idempotency_key": base_headers.get("Idempotency-Key"),
+        }
         last_error: Optional[BackendError] = None
 
         for attempt in range(1, self._max_retries + 1):
             try:
                 session = await self._get_session()
-                async with session.request(method, url, json=json, headers=headers) as resp:
+                started = time.perf_counter()
+                async with session.request(method, url, json=json, headers=base_headers) as resp:
                     try:
                         data: Any = await resp.json()
                     except aiohttp.ContentTypeError:
                         data = await resp.text()
 
+                    duration_ms = (time.perf_counter() - started) * 1000
                     if resp.status >= 500:
+                        self._logger.error(
+                            "backend request server_error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                            rid,
+                            method,
+                            path,
+                            resp.status,
+                            duration_ms,
+                        )
                         raise BackendNetworkError(f"Server error {resp.status}")
                     if resp.status == 401:
+                        self._logger.warning(
+                            "backend request unauthorized rid=%s method=%s path=%s duration_ms=%.2f",
+                            rid,
+                            method,
+                            path,
+                            duration_ms,
+                        )
                         raise BackendAuthError("Unauthorized")
                     if resp.status in {400, 422}:
+                        self._logger.warning(
+                            "backend request validation rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                            rid,
+                            method,
+                            path,
+                            resp.status,
+                            duration_ms,
+                        )
                         errors = data if isinstance(data, dict) else {"detail": data}
                         raise BackendValidationError(errors)
                     if resp.status >= 400:
+                        self._logger.error(
+                            "backend request error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                            rid,
+                            method,
+                            path,
+                            resp.status,
+                            duration_ms,
+                        )
                         raise BackendError(f"Unexpected status {resp.status}: {data}")
 
+                    self._logger.info(
+                        "backend request ok rid=%s method=%s path=%s status=%s duration_ms=%.2f attempt=%s headers=%s",
+                        rid,
+                        method,
+                        path,
+                        resp.status,
+                        duration_ms,
+                        attempt,
+                        header_snapshot,
+                    )
                     return data
             except BackendValidationError:
                 raise
@@ -112,9 +169,10 @@ class BackendClient:
             if attempt < self._max_retries:
                 wait_time = self._retry_delay * attempt
                 self._logger.warning(
-                    "Backend request %s %s failed (attempt %s/%s): %s",
+                    "backend request retry rid=%s method=%s path=%s attempt=%s/%s error=%s",
+                    rid,
                     method,
-                    url,
+                    path,
                     attempt,
                     self._max_retries,
                     last_error,
@@ -122,6 +180,13 @@ class BackendClient:
                 await asyncio.sleep(wait_time)
 
         assert last_error is not None
+        self._logger.error(
+            "backend request failed rid=%s method=%s path=%s error=%s",
+            rid,
+            method,
+            path,
+            last_error,
+        )
         raise last_error
 
     async def _authorized(
