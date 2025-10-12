@@ -22,6 +22,20 @@ class LoggingMiddleware(BaseMiddleware):
         from_user = data.get("event_from_user")
         chat = data.get("event_chat")
         event_type = type(event).__name__
+        backend_client = data.get("backend")
+        extra = {
+            "update_id": update_id,
+            "from_user": getattr(from_user, "id", None),
+            "chat_id": getattr(chat, "id", None),
+            "event_type": event_type,
+        }
+        await self._emit_monitoring(
+            backend_client,
+            level="INFO",
+            message="bot update received",
+            rid=rid,
+            extra=extra,
+        )
         try:
             self.logger.info(
                 "bot update received rid=%s update_id=%s from_user=%s chat_id=%s event_type=%s",
@@ -32,6 +46,15 @@ class LoggingMiddleware(BaseMiddleware):
                 event_type,
             )
             return await handler(event, data)
+        except Exception as exc:
+            await self._emit_monitoring(
+                backend_client,
+                level="ERROR",
+                message="bot update failed",
+                rid=rid,
+                extra={**extra, "error": str(exc)},
+            )
+            raise
         finally:
             reset_request_id(token)
 
@@ -101,6 +124,29 @@ class LoggingMiddleware(BaseMiddleware):
             if part.startswith("rid="):
                 return part.split("=", 1)[1]
         return None
+
+    async def _emit_monitoring(
+            self,
+            backend: Any,
+            *,
+            level: str,
+            message: str,
+            rid: str,
+            extra: dict[str, Any] | None = None,
+    ) -> None:
+        sender = getattr(backend, "send_application_log", None)
+        if not callable(sender):
+            return
+        try:
+            await sender(
+                level=level,
+                message=message,
+                request_id=rid,
+                logger="bot.update",
+                extra=extra,
+            )
+        except Exception:  # pragma: no cover - logging fallback
+            self.logger.debug("failed to push monitoring log rid=%s", rid, exc_info=True)
 
 
 __all__ = ["LoggingMiddleware"]

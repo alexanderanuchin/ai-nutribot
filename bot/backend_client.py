@@ -77,6 +77,7 @@ class BackendClient:
             *,
             json: Any | None = None,
             headers: Dict[str, str] | None = None,
+            log_requests: bool = True,
     ) -> Any:
         url = f"{self.base_url}{path}"
         base_headers: Dict[str, str] = {**(headers or {})}
@@ -104,56 +105,61 @@ class BackendClient:
 
                     duration_ms = (time.perf_counter() - started) * 1000
                     if resp.status >= 500:
-                        self._logger.error(
-                            "backend request server_error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
-                            rid,
-                            method,
-                            path,
-                            resp.status,
-                            duration_ms,
-                        )
+                        if log_requests:
+                            self._logger.error(
+                                "backend request server_error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                                rid,
+                                method,
+                                path,
+                                resp.status,
+                                duration_ms,
+                            )
                         raise BackendNetworkError(f"Server error {resp.status}")
                     if resp.status == 401:
-                        self._logger.warning(
-                            "backend request unauthorized rid=%s method=%s path=%s duration_ms=%.2f",
-                            rid,
-                            method,
-                            path,
-                            duration_ms,
-                        )
+                        if log_requests:
+                            self._logger.warning(
+                                "backend request unauthorized rid=%s method=%s path=%s duration_ms=%.2f",
+                                rid,
+                                method,
+                                path,
+                                duration_ms,
+                            )
                         raise BackendAuthError("Unauthorized")
                     if resp.status in {400, 422}:
-                        self._logger.warning(
-                            "backend request validation rid=%s method=%s path=%s status=%s duration_ms=%.2f",
-                            rid,
-                            method,
-                            path,
-                            resp.status,
-                            duration_ms,
-                        )
+                        if log_requests:
+                            self._logger.warning(
+                                "backend request validation rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                                rid,
+                                method,
+                                path,
+                                resp.status,
+                                duration_ms,
+                            )
                         errors = data if isinstance(data, dict) else {"detail": data}
                         raise BackendValidationError(errors)
                     if resp.status >= 400:
-                        self._logger.error(
-                            "backend request error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                        if log_requests:
+                            self._logger.error(
+                                "backend request error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
+                                rid,
+                                method,
+                                path,
+                                resp.status,
+                                duration_ms,
+                            )
+                        raise BackendError(f"Unexpected status {resp.status}: {data}")
+
+                    if log_requests:
+                        self._logger.info(
+                            "backend request ok rid=%s method=%s path=%s status=%s duration_ms=%.2f attempt=%s headers=%s",
                             rid,
                             method,
                             path,
                             resp.status,
                             duration_ms,
+                            attempt,
+                            header_snapshot,
                         )
-                        raise BackendError(f"Unexpected status {resp.status}: {data}")
-
-                    self._logger.info(
-                        "backend request ok rid=%s method=%s path=%s status=%s duration_ms=%.2f attempt=%s headers=%s",
-                        rid,
-                        method,
-                        path,
-                        resp.status,
-                        duration_ms,
-                        attempt,
-                        header_snapshot,
-                    )
                     return data
             except BackendValidationError:
                 raise
@@ -168,25 +174,27 @@ class BackendClient:
 
             if attempt < self._max_retries:
                 wait_time = self._retry_delay * attempt
-                self._logger.warning(
-                    "backend request retry rid=%s method=%s path=%s attempt=%s/%s error=%s",
-                    rid,
-                    method,
-                    path,
-                    attempt,
-                    self._max_retries,
-                    last_error,
-                )
+                if log_requests:
+                    self._logger.warning(
+                        "backend request retry rid=%s method=%s path=%s attempt=%s/%s error=%s",
+                        rid,
+                        method,
+                        path,
+                        attempt,
+                        self._max_retries,
+                        last_error,
+                    )
                 await asyncio.sleep(wait_time)
 
         assert last_error is not None
-        self._logger.error(
-            "backend request failed rid=%s method=%s path=%s error=%s",
-            rid,
-            method,
-            path,
-            last_error,
-        )
+        if log_requests:
+            self._logger.error(
+                "backend request failed rid=%s method=%s path=%s error=%s",
+                rid,
+                method,
+                path,
+                last_error,
+            )
         raise last_error
 
     async def _authorized(
@@ -477,3 +485,48 @@ class BackendClient:
             refresh=refresh_token,
             json={"overrides": overrides} if overrides else {},
         )
+
+    async def send_application_log(
+            self,
+            *,
+            level: str,
+            message: str,
+            request_id: str | None = None,
+            logger: str | None = None,
+            extra: Dict[str, Any] | None = None,
+            group: str | None = None,
+    ) -> None:
+        """Send a structured log entry to the backend monitoring endpoint."""
+
+        rid = request_id or get_request_id()
+        if not rid or rid == "-":
+            rid = generate_request_id()
+
+        headers: Dict[str, str] = {"X-Request-Id": rid}
+        if self._bot_key:
+            headers["X-Bot-Key"] = self._bot_key
+
+        payload = {
+            "level": level,
+            "message": message,
+            "request_id": rid,
+            "logger": logger or "bot.monitoring",
+            "extra": extra or {},
+        }
+        payload["level"] = (payload["level"] or "INFO").upper()
+        extra_payload = payload.get("extra")
+        if isinstance(extra_payload, dict) and "component" not in extra_payload:
+            extra_payload["component"] = "bot"
+        if group:
+            payload["group"] = group
+
+        try:
+            await self._request(
+                "POST",
+                "/api/monitoring/application/logs/",
+                json=payload,
+                headers=headers,
+                log_requests=False,
+            )
+        except BackendError as err:
+            self._logger.debug("monitoring push failed rid=%s error=%s", rid, err)

@@ -1,6 +1,7 @@
 import api from '../api/client'
 import { tokenStore } from '../utils/storage'
 import { debugLog, generateRequestId, maskToken, warnLog } from './logging'
+import { sendApplicationLog } from './monitoring'
 
 export function tg() {
   return (window as any).Telegram?.WebApp
@@ -67,6 +68,15 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     hasInitData: Boolean(initData),
     initData: maskToken(initData),
   })
+  void sendApplicationLog({
+    level: 'INFO',
+    logger: 'webapp.telegram.auth',
+    message: 'login request',
+    requestId: rid,
+    extra: {
+      hasInitData: Boolean(initData),
+    },
+  })
   const { data } = await api.post('/auth/webapp/login/', {}, { headers })
   const access = data?.access
   if (!access || typeof access !== 'string') {
@@ -96,6 +106,17 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     expiresAt: session.expiresAt,
     hasRefresh: Boolean(refreshToken),
   })
+  void sendApplicationLog({
+    level: 'INFO',
+    logger: 'webapp.telegram.auth',
+    message: 'login success',
+    requestId: rid,
+    extra: {
+      telegramUserId,
+      expiresAt: session.expiresAt,
+      hasRefresh: Boolean(refreshToken),
+    },
+  })
   const webApp = tg()
   if (webApp && typeof webApp.sendData === 'function') {
     try {
@@ -103,6 +124,16 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
         rid,
         telegramUserId,
         expiresAt,
+      })
+      void sendApplicationLog({
+        level: 'INFO',
+        logger: 'webapp.telegram.sendData',
+        message: 'auth payload sent',
+        requestId: rid,
+        extra: {
+          telegramUserId,
+          expiresAt,
+        },
       })
       webApp.sendData(
         JSON.stringify({
@@ -118,6 +149,15 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
       warnLog('telegram/sendData', 'auth payload failed', {
         rid,
         error: error instanceof Error ? error.message : String(error),
+      })
+      void sendApplicationLog({
+        level: 'WARNING',
+        logger: 'webapp.telegram.sendData',
+        message: 'auth payload failed',
+        requestId: rid,
+        extra: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
     }
   }
@@ -150,6 +190,14 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
     .catch(error => {
       warnLog('telegram/auth', 'login failed', {
         error: error instanceof Error ? error.message : String(error),
+      })
+      void sendApplicationLog({
+        level: 'WARNING',
+        logger: 'webapp.telegram.auth',
+        message: 'login failed',
+        extra: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       })
       cachedSession = null
       throw error

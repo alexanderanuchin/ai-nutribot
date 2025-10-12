@@ -7,6 +7,7 @@ import axios, {
 import { getInitData } from '../lib/telegram'
 import { tokenStore } from '../utils/storage'
 import { debugLog, generateRequestId, maskToken, warnLog } from '../lib/logging'
+import { sendApplicationLog } from '../lib/monitoring'
 
 const baseURL = import.meta.env.VITE_API_BASE || '/api'
 export const api = axios.create({ baseURL, timeout: 15000 })
@@ -68,6 +69,15 @@ async function performTokenRefresh(): Promise<string> {
     refresh: maskToken(refreshToken),
     hasInitData: Boolean(initData),
   })
+  void sendApplicationLog({
+    level: 'INFO',
+    logger: 'webapp.auth.refresh',
+    message: 'request',
+    requestId: rid,
+    extra: {
+      hasInitData: Boolean(initData),
+    },
+  })
   const { data } = await axios.post(
     `${baseURL}/auth/webapp/refresh/`,
     { refresh: refreshToken },
@@ -88,6 +98,16 @@ async function performTokenRefresh(): Promise<string> {
     rid,
     exp: data?.exp,
     refresh: maskToken(data?.refresh || refreshToken),
+  })
+  void sendApplicationLog({
+    level: 'INFO',
+    logger: 'webapp.auth.refresh',
+    message: 'success',
+    requestId: rid,
+    extra: {
+      exp: data?.exp,
+      hasRefresh: Boolean(data?.refresh || refreshToken),
+    },
   })
   return access
 }
@@ -112,6 +132,14 @@ export async function refreshAccessToken(): Promise<string | null> {
       .catch(error => {
         warnLog('auth/refresh', 'request failed', {
           error: error instanceof Error ? error.message : String(error),
+        })
+        void sendApplicationLog({
+          level: 'WARNING',
+          logger: 'webapp.auth.refresh',
+          message: 'request failed',
+          extra: {
+            error: error instanceof Error ? error.message : String(error),
+          },
         })
         tokenStore.clear()
         tokenStore.notifyRefreshFailed()
@@ -189,6 +217,16 @@ api.interceptors.response.use(
           rid: originalRequest.headers?.['X-Request-Id'],
           url: originalRequest.url,
           error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+        })
+        void sendApplicationLog({
+          level: 'WARNING',
+          logger: 'webapp.api.response',
+          message: 'refresh failed',
+          requestId: originalRequest.headers?.['X-Request-Id'],
+          extra: {
+            url: originalRequest.url,
+            error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+          },
         })
         return Promise.reject(refreshError)
       }

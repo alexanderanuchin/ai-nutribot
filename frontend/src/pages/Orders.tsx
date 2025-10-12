@@ -3,6 +3,7 @@ import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders,
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
 import { tg } from '../lib/telegram'
 import { debugLog, generateRequestId, warnLog } from '../lib/logging'
+import { sendApplicationLog } from '../lib/monitoring'
 import { useAuthContext } from '../providers/AuthProvider'
 
 interface OperationFormState {
@@ -141,6 +142,16 @@ export default function Orders(): JSX.Element {
         amount: rounded,
         hasComment: Boolean(topupForm.description.trim()),
       })
+      void sendApplicationLog({
+        level: 'INFO',
+        logger: 'webapp.topup',
+        message: 'sendData',
+        requestId: rid,
+        extra: {
+          amount: rounded,
+          hasComment: Boolean(topupForm.description.trim()),
+        },
+      })
       webApp.sendData(
         JSON.stringify({
           type: 'topup',
@@ -151,6 +162,15 @@ export default function Orders(): JSX.Element {
         })
       )
       debugLog('webapp/topup', 'sendData success', { rid })
+      void sendApplicationLog({
+        level: 'INFO',
+        logger: 'webapp.topup',
+        message: 'sendData success',
+        requestId: rid,
+        extra: {
+          amount: rounded,
+        },
+      })
       setSubmitting(true)
       setError(null)
       setMessage('Запрос на пополнение отправлен в бота. Проверьте Telegram для выставленного счёта.')
@@ -159,6 +179,15 @@ export default function Orders(): JSX.Element {
       warnLog('webapp/topup', 'sendData failed', {
         rid,
         error: err instanceof Error ? err.message : String(err),
+      })
+      void sendApplicationLog({
+        level: 'WARNING',
+        logger: 'webapp.topup',
+        message: 'sendData failed',
+        requestId: rid,
+        extra: {
+          error: err instanceof Error ? err.message : String(err),
+        },
       })
       setError('Не удалось отправить запрос в бота. Попробуйте повторить позже.')
     } finally {
