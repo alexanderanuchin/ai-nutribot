@@ -13,11 +13,21 @@ class ApplicationLog(models.Model):
         ERROR = "ERROR", _("Ошибка")
         CRITICAL = "CRITICAL", _("Критическая ошибка")
 
+    class Group(models.TextChoices):
+        APPLICATION = "application", _("Приложение")
+        ADMINISTRATIVE = "administrative", _("Администрирование")
+
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     level = models.CharField(max_length=16, choices=Level.choices)
     logger_name = models.CharField(max_length=255, db_index=True)
     message = models.TextField()
     request_id = models.CharField(max_length=128, blank=True)
+    group = models.CharField(
+        max_length=32,
+        choices=Group.choices,
+        default=Group.APPLICATION,
+        db_index=True,
+    )
     extra = models.JSONField(blank=True, null=True)
     exc_text = models.TextField(blank=True)
 

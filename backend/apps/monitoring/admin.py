@@ -12,8 +12,15 @@ from .models import ApplicationLog
 
 @admin.register(ApplicationLog)
 class ApplicationLogAdmin(admin.ModelAdmin):
-    list_display = ("created_at", "level", "logger_name", "message_preview", "request_id")
-    list_filter = ("level",)
+    list_display = (
+        "created_at",
+        "level",
+        "group",
+        "logger_name",
+        "message_preview",
+        "request_id",
+    )
+    list_filter = ("level", "group")
     search_fields = ("message", "logger_name", "request_id")
     ordering = ("-created_at",)
     change_list_template = "admin/monitoring/applicationlog/change_list.html"
@@ -40,6 +47,7 @@ class ApplicationLogAdmin(admin.ModelAdmin):
             "title": _("Онлайн-консоль логов"),
             "opts": self.model._meta,
             "levels": ApplicationLog.Level,
+            "groups": ApplicationLog.Group,
             "stream_url": reverse("admin:monitoring_applicationlog_stream"),
         }
         return TemplateResponse(
@@ -54,6 +62,7 @@ class ApplicationLogAdmin(admin.ModelAdmin):
         level = request.GET.get("level")
         logger_name = request.GET.get("logger")
         request_id = request.GET.get("rid")
+        group = request.GET.get("group")
 
         queryset = self.get_queryset(request)
         if level:
@@ -62,6 +71,8 @@ class ApplicationLogAdmin(admin.ModelAdmin):
             queryset = queryset.filter(logger_name__icontains=logger_name)
         if request_id:
             queryset = queryset.filter(request_id__icontains=request_id)
+        if group and group in ApplicationLog.Group.values:
+            queryset = queryset.filter(group=group)
 
         limit = 200
         if limit_param:
@@ -89,6 +100,7 @@ class ApplicationLogAdmin(admin.ModelAdmin):
                 "id": entry.pk,
                 "created_at": timezone.localtime(entry.created_at).isoformat(),
                 "level": entry.level,
+                "group": entry.group,
                 "logger_name": entry.logger_name,
                 "message": entry.message,
                 "request_id": entry.request_id,

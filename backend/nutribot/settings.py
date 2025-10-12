@@ -161,6 +161,16 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 CATALOG_MINIMUM_AVAILABLE_ITEMS = int(os.getenv("CATALOG_MINIMUM_AVAILABLE_ITEMS", "120"))
 
+def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw_value = os.getenv(env_name)
+    if not raw_value:
+        return default
+    return tuple(filter(None, (item.strip() for item in raw_value.split(",")))) or default
+
+
+LOG_ADMIN_LOGGER_NAMES = _split_env_list("LOG_ADMIN_LOGGER_NAMES", ())
+LOG_ADMIN_LOGGER_PREFIXES = _split_env_list("LOG_ADMIN_LOGGER_PREFIXES", ("audit.",))
+
 
 LOGGING = {
     "version": 1,

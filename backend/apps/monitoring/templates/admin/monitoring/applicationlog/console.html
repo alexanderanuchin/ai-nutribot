@@ -19,6 +19,17 @@
             font-weight: 600;
             margin-right: 4px;
         }
+        .log-console__buttons {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .log-console__buttons-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #6e7781;
+        }
         .log-console__viewport {
             background: #0b0b0b;
             border-radius: 6px;
@@ -68,6 +79,34 @@
             font-size: 12px;
             color: #9aa0a6;
         }
+        .log-line__badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            font-size: 11px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            background: rgba(255, 255, 255, 0.1);
+            color: #f5f5f5;
+        }
+        .log-line__badge--application {
+            background: rgba(56, 189, 248, 0.18);
+            color: #9be7ff;
+        }
+        .log-line__badge--administrative {
+            background: rgba(244, 114, 182, 0.2);
+            color: #f973c6;
+        }
+        .log-line__exception {
+            margin-top: 6px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
         .log-console__buttons button {
             background: #1f6feb;
             color: #fff;
@@ -109,11 +148,18 @@
     <div class="log-console">
         <h1 class="admin-title">{% blocktranslate %}Онлайн-консоль логов{% endblocktranslate %}</h1>
         <div class="log-console__toolbar">
-            <div class="log-console__buttons" role="group">
+            <div class="log-console__buttons log-console__buttons--levels" role="group" aria-label="{% trans 'Уровни' %}">
                 <button type="button" data-action="level" data-level="">{% trans "Все" %}</button>
                 <button type="button" data-action="level" data-level="ERROR">{% trans "Ошибки" %}</button>
                 <button type="button" data-action="level" data-level="WARNING">{% trans "Предупреждения" %}</button>
                 <button type="button" data-action="level" data-level="INFO">{% trans "Инфо" %}</button>
+            </div>
+            <div class="log-console__buttons log-console__buttons--groups" role="group" aria-label="{% trans 'Группы' %}">
+                <span class="log-console__buttons-label">{% trans "Группа" %}</span>
+                <button type="button" data-action="group" data-group="">{% trans "Все" %}</button>
+                {% for group in groups %}
+                    <button type="button" data-action="group" data-group="{{ group.value }}">{{ group.label }}</button>
+                {% endfor %}
             </div>
             <div class="log-console__filters">
                 <label>
@@ -161,11 +207,18 @@
             const ridFilter = document.getElementById("ridFilter");
             const limitSelect = document.getElementById("limitSelect");
             const levelButtons = document.querySelectorAll('[data-action="level"]');
+            const groupButtons = document.querySelectorAll('[data-action="group"]');
+            const groupLabels = Array.from(groupButtons).reduce((acc, button) => {
+                const value = button.dataset.group || "";
+                acc[value] = button.textContent.trim();
+                return acc;
+            }, {});
 
             const state = {
                 lastId: null,
                 isPaused: false,
                 level: "",
+                group: "",
                 pollDelay: 3000,
             };
 
@@ -178,6 +231,7 @@
             function renderLog(entry, { append = true } = {}) {
                 const line = document.createElement("div");
                 line.className = `log-line log-line--${entry.level}`;
+                line.dataset.group = entry.group || "";
                 const timestamp = new Date(entry.created_at);
                 const timeText = timestamp.toLocaleString();
                 const requestInfo = entry.request_id ? `rid=${escapeHTML(entry.request_id)}` : "";
@@ -185,9 +239,13 @@
                     .map(([key, value]) => `${key}: ${escapeHTML(String(value))}`)
                     .join(" • ");
                 const exc = entry.exc_text ? `<pre class="log-line__exception">${escapeHTML(entry.exc_text)}</pre>` : "";
+                const groupLabel = entry.group ? groupLabels[entry.group] || entry.group : "";
+                const groupBadge = entry.group
+                    ? `<span class="log-line__badge log-line__badge--${entry.group}">${escapeHTML(groupLabel)}</span>`
+                    : "";
                 line.innerHTML = `
                     <span class="log-line__meta">${timeText}</span>
-                    <span class="log-line__meta">${escapeHTML(entry.logger_name)} ${requestInfo}</span>
+                    <span class="log-line__meta">${escapeHTML(entry.logger_name)}${requestInfo ? ` ${requestInfo}` : ""} ${groupBadge}</span>
                     <div class="log-line__message">${escapeHTML(entry.message)}${extra ? `<div class="log-line__meta">${extra}</div>` : ""}${exc}</div>
                 `;
                 if (append) {
@@ -210,6 +268,12 @@
                 });
             }
 
+            function setActiveGroupButton(group) {
+                groupButtons.forEach((button) => {
+                    button.dataset.active = button.dataset.group === group ? "true" : "false";
+                });
+            }
+
             async function fetchLogs({ reset = false } = {}) {
                 if (state.isPaused && !reset) {
                     return;
@@ -221,6 +285,9 @@
                 }
                 if (state.level) {
                     params.set("level", state.level);
+                }
+                if (state.group) {
+                    params.set("group", state.group);
                 }
                 if (loggerFilter.value) {
                     params.set("logger", loggerFilter.value);
@@ -307,8 +374,17 @@
                     resetAndFetch();
                 });
             });
+            groupButtons.forEach((button) => {
+                button.addEventListener("click", () => {
+                    const group = button.dataset.group || "";
+                    state.group = group;
+                    setActiveGroupButton(group);
+                    resetAndFetch();
+                });
+            });
 
             setActiveLevelButton("");
+            setActiveGroupButton("");
             resetAndFetch();
             schedulePoll();
         })();
