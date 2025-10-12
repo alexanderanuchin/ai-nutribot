@@ -220,6 +220,11 @@ LOGGING = {
             "level": LOG_LEVEL,
             "propagate": False,
         },
+        "django.server": {
+            "handlers": ["console", "db"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
         "audit.auth": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
         "audit.wallet": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
         "audit.telegram": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},

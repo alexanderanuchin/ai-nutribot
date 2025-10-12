@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders, createOrder, payOrder } from '../api/orders'
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
 import { tg } from '../lib/telegram'
@@ -29,6 +29,8 @@ const numberFormatter = new Intl.NumberFormat('ru-RU', {
   maximumFractionDigits: 2,
 })
 
+const TOPUP_SUBMIT_LOCK_MS = 2500
+
 export default function Orders(): JSX.Element {
   const { authReady } = useAuthContext()
   const [summary, setSummary] = useState<WalletSummary | null>(null)
@@ -47,6 +49,45 @@ export default function Orders(): JSX.Element {
     pay_with_wallet: true,
     description: 'Подписка на PRO-доступ',
   })
+  const lastTopupAttemptRef = useRef<{ rid: string; expiresAt: number } | null>(null)
+  const topupReleaseTimerRef = useRef<number | null>(null)
+  const isMountedRef = useRef(true)
+
+  const clearTopupLock = useCallback(() => {
+    if (topupReleaseTimerRef.current !== null) {
+      window.clearTimeout(topupReleaseTimerRef.current)
+      topupReleaseTimerRef.current = null
+    }
+    lastTopupAttemptRef.current = null
+    setSubmitting(false)
+  }, [])
+
+  const scheduleTopupRelease = useCallback((rid: string) => {
+    if (topupReleaseTimerRef.current !== null) {
+      window.clearTimeout(topupReleaseTimerRef.current)
+    }
+    const expiresAt = Date.now() + TOPUP_SUBMIT_LOCK_MS
+    lastTopupAttemptRef.current = { rid, expiresAt }
+    topupReleaseTimerRef.current = window.setTimeout(() => {
+      if (!isMountedRef.current) {
+        return
+      }
+      if (lastTopupAttemptRef.current?.rid === rid) {
+        lastTopupAttemptRef.current = null
+        topupReleaseTimerRef.current = null
+        setSubmitting(false)
+      }
+    }, TOPUP_SUBMIT_LOCK_MS)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      if (topupReleaseTimerRef.current !== null) {
+        window.clearTimeout(topupReleaseTimerRef.current)
+      }
+    }
+  }, [])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -135,8 +176,32 @@ export default function Orders(): JSX.Element {
       setError('Telegram WebApp недоступен. Откройте экран в Telegram-клиенте.')
       return
     }
+    const existing = lastTopupAttemptRef.current
+    const now = Date.now()
+    if (existing && existing.expiresAt > now) {
+      const remainingMs = existing.expiresAt - now
+      warnLog('webapp/topup', 'duplicate submit ignored', {
+        rid: existing.rid,
+        remainingMs,
+      })
+      void sendApplicationLog({
+        level: 'WARNING',
+        logger: 'webapp.topup',
+        message: 'duplicate submit ignored',
+        requestId: existing.rid,
+        extra: {
+          remainingMs,
+        },
+      })
+      setError(null)
+      setMessage('Запрос на пополнение уже отправлен. Подождите несколько секунд и проверьте Telegram.')
+      return
+    }
     const rid = generateRequestId()
+    lastTopupAttemptRef.current = { rid, expiresAt: Date.now() + TOPUP_SUBMIT_LOCK_MS }
     try {
+      setSubmitting(true)
+      setError(null)
       debugLog('webapp/topup', 'sendData', {
         rid,
         amount: rounded,
@@ -161,6 +226,7 @@ export default function Orders(): JSX.Element {
           rid,
         })
       )
+      scheduleTopupRelease(rid)
       debugLog('webapp/topup', 'sendData success', { rid })
       void sendApplicationLog({
         level: 'INFO',
@@ -171,8 +237,6 @@ export default function Orders(): JSX.Element {
           amount: rounded,
         },
       })
-      setSubmitting(true)
-      setError(null)
       setMessage('Запрос на пополнение отправлен в бота. Проверьте Telegram для выставленного счёта.')
       setTopupForm(prev => ({ ...prev, description: '' }))
     } catch (err) {
@@ -189,9 +253,8 @@ export default function Orders(): JSX.Element {
           error: err instanceof Error ? err.message : String(err),
         },
       })
+      clearTopupLock()
       setError('Не удалось отправить запрос в бота. Попробуйте повторить позже.')
-    } finally {
-      setSubmitting(false)
     }
   }
 
