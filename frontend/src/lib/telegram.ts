@@ -101,7 +101,8 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
       hasInitData: Boolean(initData),
     },
   })
-  const { data } = await api.post('/auth/webapp/login/', {}, { headers })
+  const body = { init_data: initData }
+  const { data } = await api.post('/auth/webapp/login/', body, { headers })
   const access = data?.access
   if (!access || typeof access !== 'string') {
     throw new Error('Не удалось получить access_token из ответа авторизации')

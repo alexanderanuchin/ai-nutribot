@@ -28,14 +28,17 @@ logger = logging.getLogger("audit.auth")
 TIME_SKEW_THRESHOLD_SECONDS = 45
 
 
-def _resolve_init_data_source(request) -> Tuple[str | None, str]:
+def _collect_init_data_candidates(request) -> list[Tuple[str, str]]:
+    candidates: list[Tuple[str, str]] = []
     header_value = request.headers.get("X-Telegram-Init-Data")
-    if header_value:
-        return header_value, "header"
     body_value = request.data.get("init_data") if hasattr(request, "data") else None
-    if body_value:
-        return body_value, "body"
-    return None, "missing"
+
+    if header_value:
+        candidates.append((header_value, "header"))
+    if body_value and (not header_value or body_value != header_value):
+        candidates.append((body_value, "body"))
+
+    return candidates
 
 
 def _inspect_init_data(init_data: str | None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -122,7 +125,11 @@ class WebAppLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        init_data, init_source = _resolve_init_data_source(request)
+        candidates = _collect_init_data_candidates(request)
+        init_data = candidates[0][0] if candidates else None
+        init_source = candidates[0][1] if candidates else "missing"
+        header_value = request.headers.get("X-Telegram-Init-Data")
+        body_value = request.data.get("init_data") if hasattr(request, "data") else None
         rid = getattr(request, "request_id", get_request_id())
         token_value = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
         token_source = getattr(settings, "TELEGRAM_BOT_TOKEN_SOURCE", "unknown")
@@ -143,6 +150,14 @@ class WebAppLoginView(APIView):
             "token_source": token_source,
             "server_time": server_now.isoformat(),
         }
+        if header_value:
+            log_extra["init_data_header_length"] = len(header_value)
+        if body_value:
+            log_extra["init_data_body_length"] = len(body_value)
+        if candidates:
+            log_extra["init_data_sources"] = [source for _, source in candidates]
+        else:
+            log_extra["init_data_sources"] = ["missing"]
 
         if isinstance(metrics, dict):
             for key in ("user_id", "auth_date", "base_string_len", "hash_length", "hash_prefix", "param_count"):
@@ -155,7 +170,7 @@ class WebAppLoginView(APIView):
             log_extra["parse_errors"] = parse_errors
 
         logger.info("webapp login request", extra=log_extra)
-        if not init_data:
+        if not candidates:
             increment_login_failure("missing_header")
             logger.warning(
                 "webapp login failed",
@@ -165,52 +180,24 @@ class WebAppLoginView(APIView):
                 {'detail': 'Заголовок X-Telegram-Init-Data обязателен'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        try:
-            payload = exchange_webapp_init_data(init_data)
-            logger.info(
-                "webapp login success",
-                extra={
-                    **log_extra,
-                    "telegram_user_id": payload.get("telegram_user_id"),
-                    "exp": payload.get("exp"),
-                    "has_refresh": bool(payload.get("refresh")),
-                },
-            )
-        except TelegramWebAppAuthError as exc:
-            detail = str(exc)
-            reason_code = getattr(exc, "reason", None)
-            details = getattr(exc, "details", {}) or {}
-            failure_extra = {**log_extra, "reason": reason_code or detail}
-            if details:
-                failure_extra["error_details"] = details
-            if reason_code == "hash mismatch":
-                failure_extra.update(
-                    {
-                        "hash_expected_prefix": details.get("expected_hash"),
-                        "hash_received_prefix": details.get("received_hash"),
-                        "base_string_len": details.get("base_string_len"),
-                    }
-                )
-            logger.warning("webapp login failed", extra=failure_extra)
-            metric_reason = _resolve_failure_reason(reason_code, parse_errors, skew_flag, init_source)
-            increment_login_failure(metric_reason)
+        payload = None
+        used_source = init_source
+        primary_failure: TelegramWebAppAuthError | None = None
+        last_exc: TelegramWebAppAuthError | None = None
 
-            if detail == 'initData is required':
-                message = 'Заголовок X-Telegram-Init-Data обязателен'
-            elif detail == 'user missing in initData':
-                message = 'В initData отсутствует пользователь'
-            elif detail == 'telegram id missing':
-                message = 'В initData отсутствует telegram_id'
-            elif detail.startswith('invalid initData:'):
-                reason = detail.split(':', 1)[1].strip()
-                message = f'Неверные данные WebApp: {reason}'
-            else:
-                message = detail
-            if metric_reason == "time_skew" and skew_seconds is not None:
-                details_msg = f" (возможный сдвиг времени: {round(skew_seconds, 2)}с)"
-            else:
-                details_msg = ""
-            return Response({'detail': message + details_msg}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            for idx, (value, source) in enumerate(candidates):
+                try:
+                    payload = exchange_webapp_init_data(value)
+                    used_source = source
+                    break
+                except TelegramWebAppAuthError as exc:
+                    last_exc = exc
+                    if idx == 0 and len(candidates) > 1:
+                        primary_failure = exc
+                        continue
+                    used_source = source
+                    break
         except Exception as exc:  # pragma: no cover - unexpected errors
             logger.exception(
                 "webapp login unexpected error",
@@ -221,7 +208,77 @@ class WebAppLoginView(APIView):
                 {'detail': f'Не удалось подтвердить данные WebApp: {exc}'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return Response(payload)
+
+        if payload is not None:
+            success_extra = {
+                **log_extra,
+                "telegram_user_id": payload.get("telegram_user_id"),
+                "exp": payload.get("exp"),
+                "has_refresh": bool(payload.get("refresh")),
+                "init_data_source_used": used_source,
+            }
+            if used_source != init_source:
+                success_extra["init_data_fallback_used"] = True
+            if primary_failure is not None:
+                reason = getattr(primary_failure, "reason", None) or str(primary_failure)
+                success_extra["init_data_primary_failure_reason"] = reason
+                details = getattr(primary_failure, "details", None)
+                if details:
+                    success_extra["init_data_primary_failure_details"] = details
+            logger.info("webapp login success", extra=success_extra)
+            return Response(payload)
+
+        exc = last_exc
+        if exc is None:
+            # Defensive fallback; should not happen because candidates list is not empty.
+            detail = 'initData is required'
+            reason_code = 'missing_init_data'
+            details = {}
+        else:
+            detail = str(exc)
+            reason_code = getattr(exc, "reason", None)
+            details = getattr(exc, "details", {}) or {}
+        failure_extra = {**log_extra, "reason": reason_code or detail, "init_data_source_used": used_source}
+        if used_source != init_source:
+            failure_extra["init_data_fallback_used"] = True
+        if details:
+            failure_extra["error_details"] = details
+        if reason_code == "hash mismatch":
+            failure_extra.update(
+                {
+                    "hash_expected_prefix": details.get("expected_hash"),
+                    "hash_received_prefix": details.get("received_hash"),
+                    "base_string_len": details.get("base_string_len"),
+                }
+            )
+        logger.warning("webapp login failed", extra=failure_extra)
+        metric_reason = _resolve_failure_reason(reason_code, parse_errors, skew_flag, used_source)
+        increment_login_failure(metric_reason)
+
+        if reason_code == "hash mismatch" and primary_failure is not None:
+            # Include the header failure details to help debugging when both attempts fail the same way.
+            primary_details = getattr(primary_failure, "details", {}) or {}
+            if primary_details and "error_details" not in failure_extra:
+                failure_extra["error_details"] = primary_details
+
+        if detail == 'initData is required':
+            message = 'Заголовок X-Telegram-Init-Data обязателен'
+        elif detail == 'user missing in initData':
+            message = 'В initData отсутствует пользователь'
+        elif detail == 'telegram id missing':
+            message = 'В initData отсутствует telegram_id'
+        elif detail.startswith('invalid initData:'):
+            reason = detail.split(':', 1)[1].strip()
+            message = f'Неверные данные WebApp: {reason}'
+        else:
+            message = detail
+        if metric_reason == "time_skew" and skew_seconds is not None:
+            details_msg = f" (возможный сдвиг времени: {round(skew_seconds, 2)}с)"
+        else:
+            details_msg = ""
+        return Response({'detail': message + details_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 class WebAppRefreshView(APIView):
