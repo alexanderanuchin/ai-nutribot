@@ -25,6 +25,10 @@ class DatabaseLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:  # pragma: no cover - heavy IO guarded in tests
         if getattr(record, "skip_db_logging", False):
             return
+        if record.name == "django.request":
+            status_code = getattr(record, "status_code", None)
+            if isinstance(status_code, int) and status_code < 500:
+                return
         if not apps.ready:
             return
         try:

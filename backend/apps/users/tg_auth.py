@@ -13,12 +13,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.common.logging import summarize_token
+from apps.common.logging import summarize_token, telegram_token_fingerprint
 from nutribot.middleware import get_request_id
 
 from .api_payloads import build_profile_response
 from .models import Profile
-from .tg_utils import verify_init_data
+from .tg_utils import InitDataVerificationError, verify_init_data
 
 User = get_user_model()
 
@@ -71,6 +71,17 @@ def _get_user_by_telegram_id(tg_id: int, username: str) -> Tuple[Any, bool, bool
 class TelegramWebAppAuthError(Exception):
     """Raised when Telegram WebApp initData validation fails."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        details: Dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.reason = reason or message
+        self.details = details or {}
+
 
 def exchange_webapp_init_data(
     init_data: str | None,
@@ -78,26 +89,50 @@ def exchange_webapp_init_data(
     bot_token: str | None = None,
 ) -> Dict[str, Any]:
     if not init_data:
-        raise TelegramWebAppAuthError("initData is required")
+        raise TelegramWebAppAuthError("initData is required", reason="missing_init_data")
 
     token = bot_token or getattr(settings, "TELEGRAM_BOT_TOKEN", "")
+    rid = get_request_id()
+    base_extra: Dict[str, Any] = {
+        "rid": rid,
+        "request_id": rid,
+        "token_fingerprint": telegram_token_fingerprint(token),
+        "token_source": getattr(settings, "TELEGRAM_BOT_TOKEN_SOURCE", "unknown"),
+    }
+
     try:
         parsed = verify_init_data(init_data, token)
+    except InitDataVerificationError as exc:
+        tg_logger.warning(
+            "exchange init_data invalid",
+            extra={**base_extra, "reason": exc.reason, "details": exc.details},
+        )
+        raise TelegramWebAppAuthError(
+            f"invalid initData: {exc.reason}",
+            reason=exc.reason,
+            details=exc.details,
+        ) from exc
     except Exception as exc:  # pragma: no cover - depends on Telegram payload
-        raise TelegramWebAppAuthError(f"invalid initData: {exc}") from exc
+        tg_logger.exception(
+            "exchange init_data unexpected_error",
+            extra={**base_extra, "error": str(exc)},
+        )
+        raise TelegramWebAppAuthError("invalid initData: unexpected_error") from exc
 
-    rid = get_request_id()
+    meta = parsed.pop("__meta__", {}) if isinstance(parsed, dict) else {}
+
     tg_logger.info(
-        "exchange init_data rid=%s claims=%s", rid, sorted(parsed.keys())
+        "exchange init_data verified",
+        extra={**base_extra, "claims": sorted(parsed.keys()), "meta": meta},
     )
 
     user_json = parsed.get("user")
     if not user_json or not isinstance(user_json, dict):
-        raise TelegramWebAppAuthError("user missing in initData")
+        raise TelegramWebAppAuthError("user missing in initData", reason="user_missing")
 
     tg_id = user_json.get("id")
     if not tg_id:
-        raise TelegramWebAppAuthError("telegram id missing")
+        raise TelegramWebAppAuthError("telegram id missing", reason="telegram_id_missing")
 
     username = str(user_json.get("username") or f"tg_{tg_id}")
     user, user_created, profile_created = _get_user_by_telegram_id(int(tg_id), username)
@@ -121,21 +156,25 @@ def exchange_webapp_init_data(
     )
 
     tg_logger.info(
-        "exchange init_data resolved rid=%s telegram_user_id=%s user_id=%s user_created=%s profile_created=%s",
-        rid,
-        profile.telegram_id,
-        getattr(user, "id", None),
-        user_created,
-        profile_created,
+        "exchange init_data resolved",
+        extra={
+            **base_extra,
+            "telegram_user_id": profile.telegram_id,
+            "user_id": getattr(user, "id", None),
+            "user_created": user_created,
+            "profile_created": profile_created,
+        },
     )
     logger.info(
-        "webapp exchange tokens rid=%s telegram_user_id=%s user_id=%s access=%s refresh=%s exp=%s",
-        rid,
-        profile.telegram_id,
-        getattr(user, "id", None),
-        summarize_token(str(access_token)),
-        summarize_token(str(refresh)),
-        payload.get("exp"),
+        "webapp exchange tokens",
+        extra={
+            **base_extra,
+            "telegram_user_id": profile.telegram_id,
+            "user_id": getattr(user, "id", None),
+            "access": summarize_token(str(access_token)),
+            "refresh": summarize_token(str(refresh)),
+            "exp": payload.get("exp"),
+        },
     )
     return payload
 

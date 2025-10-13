@@ -20,6 +20,30 @@ export function getInitData(): string | null {
   return webApp?.initData || null
 }
 
+function logWebAppEnvironment(initData: string | null): void {
+  if (typeof window === 'undefined') return
+  const rid = generateRequestId()
+  const webApp = tg()
+  const hasTelegram = Boolean(webApp)
+  const length = initData?.length ?? 0
+  const preview = initData ? initData.slice(0, 16) : ''
+  const url = window.location.href
+  const payload = {
+    hasTelegram,
+    initDataLength: length,
+    initDataPreview: preview,
+    url,
+  }
+  console.info('[telegram/env] detection', payload)
+  void sendApplicationLog({
+    level: 'INFO',
+    logger: 'webapp.telegram.environment',
+    message: 'webapp bootstrap environment',
+    requestId: rid,
+    extra: payload,
+  })
+}
+
 export interface TelegramAuthSession {
   accessToken: string
   refreshToken?: string
@@ -177,6 +201,7 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
   }
 
   const initData = getInitData()
+  logWebAppEnvironment(initData)
   if (!initData) {
     cachedSession = null
     return cachedSession

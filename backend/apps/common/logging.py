@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any
+from typing import Any, Dict
 
 MASK_PREFIX_LEN = 4
 
@@ -21,6 +21,23 @@ def summarize_header(value: str | None) -> str:
     if not value:
         return "present=false"
     return summarize_token(value)
+
+
+def telegram_token_fingerprint(token: str | None) -> Dict[str, Any]:
+    """Return structured token fingerprint without leaking the secret."""
+
+    if not token:
+        return {"present": False}
+
+    total_length = len(token)
+    before_colon = token.split(":", 1)[0]
+    prefix = before_colon[:5]
+    return {
+        "present": True,
+        "length": total_length,
+        "prefix": prefix,
+        "has_colon": ":" in token,
+    }
 
 
 def redact_payload(payload: Any, *, max_length: int = 256) -> Any:
@@ -43,4 +60,9 @@ def redact_payload(payload: Any, *, max_length: int = 256) -> Any:
     return text
 
 
-__all__ = ["summarize_token", "summarize_header", "redact_payload"]
+__all__ = [
+    "summarize_token",
+    "summarize_header",
+    "redact_payload",
+    "telegram_token_fingerprint",
+]

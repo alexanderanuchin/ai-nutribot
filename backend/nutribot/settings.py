@@ -1,6 +1,7 @@
 import os
 from datetime import timedelta
 from pathlib import Path
+from typing import Tuple
 
 from corsheaders.defaults import default_headers
 
@@ -149,7 +150,24 @@ CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 BOT_INTERNAL_KEY = os.getenv("BOT_INTERNAL_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+def _load_telegram_bot_token() -> Tuple[str, str]:
+    file_path = os.getenv("TELEGRAM_BOT_TOKEN_FILE")
+    if file_path:
+        try:
+            token = Path(file_path).read_text(encoding="utf-8").strip()
+            if token:
+                return token, f"file:{file_path}"
+        except OSError:
+            pass
+
+    env_value = os.getenv("TELEGRAM_BOT_TOKEN")
+    if env_value:
+        return env_value, "env:TELEGRAM_BOT_TOKEN"
+
+    return "", "missing"
+
+
+TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_TOKEN_SOURCE = _load_telegram_bot_token()
 STARS_RECONCILE_ENABLED = os.getenv("STARS_RECONCILE_ENABLED", "0") == "1"
 
 # Email settings
@@ -180,14 +198,14 @@ LOGGING = {
     },
     "formatters": {
         "plain": {
-            "format": "%(asctime)s %(levelname)s rid=%(request_id)s %(name)s: %(message)s",
+            "format": "%(asctime)s %(levelname)s rid=%(request_id)s build=%(build_fingerprint)s %(name)s: %(message)s",
         },
         "json": {
             "()": "nutribot.middleware.JsonLogFormatter",
         },
         "color": {
             "()": "nutribot.middleware.ColoredConsoleFormatter",
-            "format": "%(asctime)s %(levelname)s %(name)s rid=%(request_id)s: %(message)s",
+            "format": "%(asctime)s %(levelname)s %(name)s rid=%(request_id)s build=%(build_fingerprint)s: %(message)s",
         },
     },
     "handlers": {

@@ -7,3 +7,6 @@ class UsersConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa
+        from .startup import log_bot_startup_metadata
+
+        log_bot_startup_metadata()

@@ -461,7 +461,11 @@ class USDAFoodImporter:
             items_iter = islice(items_iter, limit)
         items = list(items_iter)
         if dry_run:
-            logger.info("Dry run completed for %s items", len(items))
+            logger.info(
+                "Dry run completed for %s items",
+                len(items),
+                extra={"skip_db_logging": True},
+            )
             preview = items[: min(len(items), 5)]
             return {
                 "total": len(items),

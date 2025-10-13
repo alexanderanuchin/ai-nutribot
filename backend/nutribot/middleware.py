@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import platform
 import sys
 import time
 import uuid
@@ -15,6 +17,12 @@ from apps.common.logging import summarize_header
 
 
 _request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
+_build_fingerprint = (
+        os.getenv("BUILD_FINGERPRINT")
+        or os.getenv("HOSTNAME")
+        or platform.node()
+        or "unknown"
+)
 
 
 def get_request_id(default: str = "-") -> str:
@@ -22,11 +30,16 @@ def get_request_id(default: str = "-") -> str:
     return rid or default
 
 
+def get_build_fingerprint() -> str:
+    return _build_fingerprint
+
+
 class RequestIDLogFilter(logging.Filter):
     """Attach the current Request ID to log records."""
 
     def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover - logging
         record.request_id = get_request_id("-")
+        record.build_fingerprint = getattr(record, "build_fingerprint", get_build_fingerprint())
         return True
 
 
@@ -40,6 +53,7 @@ class JsonLogFormatter(logging.Formatter):
             "name": record.name,
             "message": record.getMessage(),
             "rid": getattr(record, "request_id", get_request_id("-")),
+            "build": getattr(record, "build_fingerprint", get_build_fingerprint()),
         }
         if record.exc_info:
             base["exc_info"] = self.formatException(record.exc_info)
@@ -64,13 +78,13 @@ class ColoredConsoleFormatter(logging.Formatter):
     }
 
     def __init__(
-        self,
-        fmt: str | None = None,
-        datefmt: str | None = None,
-        style: str = "%",
-        use_color: bool | None = None,
-        format: str | None = None,
-        **kwargs: Any,
+            self,
+            fmt: str | None = None,
+            datefmt: str | None = None,
+            style: str = "%",
+            use_color: bool | None = None,
+            format: str | None = None,
+            **kwargs: Any,
     ):
         if format and not fmt:
             fmt = format
@@ -86,6 +100,9 @@ class ColoredConsoleFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - logging cosmetics
         record.request_id = getattr(record, "request_id", get_request_id("-"))
+        record.build_fingerprint = getattr(
+            record, "build_fingerprint", get_build_fingerprint()
+        )
         original_levelname = record.levelname
         badge = self.BADGES.get(record.levelno)
         if badge:
@@ -127,32 +144,40 @@ class RequestIDMiddleware:
         except Exception as exc:
             duration_ms = (time.perf_counter() - start) * 1000
             if self.log_safe_headers:
+                log_extra = {
+                    "rid": rid,
+                    "request_id": rid,
+                    "method": request.method,
+                    "path": request.path,
+                    "duration_ms": round(duration_ms, 2),
+                    "headers": request_snapshot,
+                    "skip_db_logging": True,
+                }
                 self.logger.exception(
-                    "http request failed rid=%s method=%s path=%s duration_ms=%.2f headers=%s",  # noqa: E501
-                    rid,
-                    request.method,
-                    request.path,
-                    duration_ms,
-                    request_snapshot,
-                    extra={"request_id": rid},
+                    "http request failed",
+                    extra=log_extra,
                 )
             _request_id_var.reset(token)
             raise
 
         duration_ms = (time.perf_counter() - start) * 1000
-        response["X-Request-Id"] = rid
+        response["X-Request-ID"] = rid
 
         if self.log_safe_headers:
             status = getattr(response, "status_code", "?")
+            log_extra = {
+                "rid": rid,
+                "request_id": rid,
+                "method": request.method,
+                "path": request.path,
+                "status": status,
+                "duration_ms": round(duration_ms, 2),
+                "headers": request_snapshot,
+                "skip_db_logging": True,
+            }
             self.logger.info(
-                "http request completed rid=%s method=%s path=%s status=%s duration_ms=%.2f headers=%s",  # noqa: E501
-                rid,
-                request.method,
-                request.path,
-                status,
-                duration_ms,
-                request_snapshot,
-                extra={"request_id": rid},
+                "http request completed",
+                extra=log_extra,
             )
 
         _request_id_var.reset(token)
@@ -177,4 +202,5 @@ __all__ = [
     "JsonLogFormatter",
     "ColoredConsoleFormatter",
     "get_request_id",
+    "get_build_fingerprint",
 ]

@@ -37,6 +37,7 @@ from apps.orders.services import BillingService, DeliveryGateway, OrderService, 
 from apps.orders.services.payment import PaymentInitiationResult, PaymentProviderError
 from apps.orders.services.wallet import WalletInsufficientFunds, get_wallet_balance
 from apps.users.models import Profile
+from nutribot.middleware import get_build_fingerprint, get_request_id
 
 logger = logging.getLogger("audit.wallet")
 
@@ -135,22 +136,25 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
 
         charge_id = data["charge_id"]
         idempotency_key = request.META.get(self.idempotency_header) or charge_id
-        rid = request.META.get("HTTP_X_REQUEST_ID") or request.headers.get("X-Request-Id")
-        logger.info(
-            "bot payment report received rid=%s telegram_user_id=%s amount=%s currency=%s has_comment=%s charge_id=%s idempotency_key=%s",
-            rid,
-            data["user_id"],
-            data["amount"],
-            "XTR",
-            bool(data.get("comment")),
-            summarize_token(charge_id),
-            idempotency_key,
-        )
+        rid = getattr(request, "request_id", get_request_id())
+        log_extra: Dict[str, Any] = {
+            "rid": rid,
+            "request_id": rid,
+            "build_fingerprint": get_build_fingerprint(),
+            "telegram_user_id": data["user_id"],
+            "amount": data["amount"],
+            "currency": "XTR",
+            "has_comment": bool(data.get("comment")),
+            "charge_id": summarize_token(charge_id),
+            "idempotency_key": idempotency_key,
+        }
+        logger.info("bot payment report received", extra=log_extra)
 
         profile = Profile.objects.filter(telegram_id=data["user_id"]).first()
         if profile is None:
             logger.warning(
-                "bot payment report profile_missing rid=%s telegram_user_id=%s", rid, data["user_id"]
+                "bot payment report profile_missing",
+                extra={**log_extra, "reason": "profile_not_found"},
             )
             return Response(
                 {"detail": "Пользователь с таким Telegram ID не найден"},
@@ -167,14 +171,13 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
             metadata["comment"] = data["comment"]
 
         logger.info(
-            "bot payment report processing rid=%s profile_id=%s telegram_user_id=%s existing=%s amount=%s "
-            "idempotency_key=%s",
-            rid,
-            profile.id,
-            profile.telegram_id,
-            bool(existing),
-            data["amount"],
-            idempotency_key,
+            "bot payment report processing",
+            extra={
+                **log_extra,
+                "profile_id": profile.id,
+                "telegram_user_id": profile.telegram_id,
+                "existing": bool(existing),
+            },
         )
 
         try:
@@ -187,22 +190,22 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
             )
         except PaymentProviderError as exc:
             logger.error(
-                "bot payment report failed rid=%s telegram_user_id=%s reason=%s",
-                rid,
-                data["user_id"],
-                exc,
+                "bot payment report failed",
+                extra={**log_extra, "profile_id": getattr(profile, "id", None), "reason": str(exc)},
             )
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         response_data = WalletTransactionSerializer(tx).data
         status_code = status.HTTP_200_OK if existing else status.HTTP_201_CREATED
         logger.info(
-            "bot payment report success rid=%s telegram_user_id=%s tx_id=%s status=%s existing=%s",
-            rid,
-            data["user_id"],
-            getattr(tx, "id", None),
-            status_code,
-            bool(existing),
+            "bot payment report success",
+            extra={
+                **log_extra,
+                "profile_id": profile.id,
+                "transaction_id": getattr(tx, "id", None),
+                "status_code": status_code,
+                "existing": bool(existing),
+            },
         )
         return Response(response_data, status=status_code)
 

@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.users.models import Profile
 from apps.common.logging import summarize_token
-from nutribot.middleware import get_request_id
+from nutribot.middleware import get_build_fingerprint, get_request_id
 
 from ..models import IntegrationWebhookEvent, Order, PaymentAttempt, WalletTransaction
 from .order import OrderService, PaymentResult
@@ -632,15 +632,19 @@ class PaymentService:
         key = idempotency_key or charge_id
         rid = get_request_id()
         logger.info(
-            "payment_service wallet_topup start rid=%s profile_id=%s telegram_user_id=%s amount=%s currency=%s charge_id=%s idempotency_key=%s has_comment=%s",
-            rid,
-            getattr(profile, "id", None),
-            getattr(profile, "telegram_id", None),
-            amount,
-            WalletTransaction.Currency.TELEGRAM_STARS,
-            summarize_token(charge_id),
-            key,
-            bool((metadata or {}).get("comment")),
+            "payment_service wallet_topup start",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "build_fingerprint": get_build_fingerprint(),
+                "profile_id": getattr(profile, "id", None),
+                "telegram_user_id": getattr(profile, "telegram_id", None),
+                "amount": str(amount),
+                "currency": WalletTransaction.Currency.TELEGRAM_STARS,
+                "charge_id": summarize_token(charge_id),
+                "idempotency_key": key,
+                "has_comment": bool((metadata or {}).get("comment")),
+            },
         )
         tx = wallet_topup(
             profile,
@@ -652,12 +656,16 @@ class PaymentService:
             idempotency_key=key,
         )
         logger.info(
-            "payment_service wallet_topup done rid=%s profile_id=%s tx_id=%s amount=%s currency=%s",
-            rid,
-            getattr(profile, "id", None),
-            getattr(tx, "id", None),
-            amount,
-            WalletTransaction.Currency.TELEGRAM_STARS,
+            "payment_service wallet_topup done",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "build_fingerprint": get_build_fingerprint(),
+                "profile_id": getattr(profile, "id", None),
+                "transaction_id": getattr(tx, "id", None),
+                "amount": str(amount),
+                "currency": WalletTransaction.Currency.TELEGRAM_STARS,
+            },
         )
         return tx
 
