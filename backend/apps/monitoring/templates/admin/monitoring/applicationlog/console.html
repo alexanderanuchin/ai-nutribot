@@ -10,14 +10,38 @@
             gap: 16px;
         }
         .log-console__toolbar {
+            display: grid;
+            gap: 12px;
+        }
+        .log-console__toolbar-row {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
             align-items: center;
+            justify-content: space-between;
         }
-        .log-console__toolbar label {
+        .log-console__tabs {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .log-console__tab {
+            border: none;
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 13px;
             font-weight: 600;
-            margin-right: 4px;
+            color: #1f2328;
+            background: #dde1e6;
+            cursor: pointer;
+            transition: all 0.12s ease;
+        }
+        .log-console__tab[aria-selected="true"],
+        .log-console__tab:hover {
+            background: #1f6feb;
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(31, 111, 235, 0.28);
         }
         .log-console__buttons {
             display: inline-flex;
@@ -25,10 +49,60 @@
             align-items: center;
             flex-wrap: wrap;
         }
-        .log-console__buttons-label {
-            font-size: 13px;
+        .log-console__buttons--levels button,
+        .log-console__buttons--actions button {
+            background: #1f6feb;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
             font-weight: 600;
-            color: #6e7781;
+            font-size: 13px;
+            transition: filter 0.12s ease;
+        }
+        .log-console__buttons--levels button[data-active="true"],
+        .log-console__buttons--levels button:hover,
+        .log-console__buttons--actions button:hover {
+            filter: brightness(1.1);
+        }
+        .log-console__buttons--levels button[data-active="false"] {
+            background: #2f81f7;
+        }
+        .log-console__filters {
+            display: inline-flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        .log-console__filters label {
+            display: flex;
+            flex-direction: column;
+            font-weight: 600;
+            font-size: 12px;
+            color: #24292f;
+        }
+        .log-console__filters input,
+        .log-console__filters select {
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #d0d7de;
+            min-width: 150px;
+            font-size: 13px;
+        }
+        .log-console__summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .log-console__status {
+            font-size: 13px;
+            color: #535a62;
+        }
+        .log-console__status--meta {
+            color: #8b949e;
         }
         .log-console__viewport {
             background: #0b0b0b;
@@ -41,13 +115,9 @@
             overflow-y: auto;
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
         }
-        .log-console__status {
-            font-size: 13px;
-            color: #777;
-        }
         .log-line {
             display: grid;
-            grid-template-columns: 170px 90px 1fr;
+            grid-template-columns: minmax(160px, 180px) minmax(160px, 1fr) minmax(0, 1fr);
             gap: 12px;
             padding: 6px 8px;
             border-left: 3px solid transparent;
@@ -99,6 +169,10 @@
             background: rgba(244, 114, 182, 0.2);
             color: #f973c6;
         }
+        .log-line__badge--service {
+            background: rgba(96, 165, 250, 0.24);
+            color: #60a5fa;
+        }
         .log-line__exception {
             margin-top: 6px;
             padding: 8px 10px;
@@ -107,33 +181,6 @@
             overflow-x: auto;
             font-size: 12px;
         }
-        .log-console__buttons button {
-            background: #1f6feb;
-            color: #fff;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 600;
-        }
-        .log-console__buttons button[data-active="true"],
-        .log-console__buttons button:hover {
-            filter: brightness(1.1);
-        }
-        .log-console__buttons button:disabled {
-            opacity: 0.4;
-            cursor: default;
-        }
-        .log-console__filters input,
-        .log-console__filters select {
-            padding: 6px 10px;
-            border-radius: 4px;
-            border: 1px solid #d0d7de;
-            min-width: 150px;
-        }
-        .log-console__filters input {
-            background: #fff;
-        }
         .log-console__footer {
             display: flex;
             justify-content: space-between;
@@ -141,55 +188,70 @@
             font-size: 12px;
             color: #6e7781;
         }
+        @media (max-width: 960px) {
+            .log-console__toolbar-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .log-line {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 {% endblock %}
 
 {% block content %}
     <div class="log-console">
-        <h1 class="admin-title">{% blocktranslate %}Онлайн-консоль логов{% endblocktranslate %}</h1>
-        <div class="log-console__toolbar">
-            <div class="log-console__buttons log-console__buttons--levels" role="group" aria-label="{% trans 'Уровни' %}">
-                <button type="button" data-action="level" data-level="">{% trans "Все" %}</button>
-                <button type="button" data-action="level" data-level="ERROR">{% trans "Ошибки" %}</button>
-                <button type="button" data-action="level" data-level="WARNING">{% trans "Предупреждения" %}</button>
-                <button type="button" data-action="level" data-level="INFO">{% trans "Инфо" %}</button>
+        <h1 class="admin-title">{% blocktranslate %}{% endblocktranslate %}</h1>
+        <div class="log-console__toolbar" role="region" aria-label="{% trans 'Фильтры консоли логов' %}">
+            <div class="log-console__toolbar-row">
+                <div class="log-console__tabs" role="tablist" aria-label="{% trans 'Группы' %}">
+                    <button type="button" class="log-console__tab" role="tab" data-action="group" data-group="" aria-selected="true">{% trans "Все" %}</button>
+                    {% for group in groups %}
+                        <button type="button" class="log-console__tab" role="tab" data-action="group" data-group="{{ group.value }}" aria-selected="false">{{ group.label }}</button>
+                    {% endfor %}
+                </div>
+                <div class="log-console__buttons log-console__buttons--levels" role="group" aria-label="{% trans 'Уровни' %}">
+                    <button type="button" data-action="level" data-level="" data-active="true">{% trans "Все" %}</button>
+                    <button type="button" data-action="level" data-level="ERROR" data-active="false">{% trans "Ошибки" %}</button>
+                    <button type="button" data-action="level" data-level="WARNING" data-active="false">{% trans "Предупреждения" %}</button>
+                    <button type="button" data-action="level" data-level="INFO" data-active="false">{% trans "Инфо" %}</button>
+                </div>
             </div>
-            <div class="log-console__buttons log-console__buttons--groups" role="group" aria-label="{% trans 'Группы' %}">
-                <span class="log-console__buttons-label">{% trans "Группа" %}</span>
-                <button type="button" data-action="group" data-group="">{% trans "Все" %}</button>
-                {% for group in groups %}
-                    <button type="button" data-action="group" data-group="{{ group.value }}">{{ group.label }}</button>
-                {% endfor %}
-            </div>
-            <div class="log-console__filters">
-                <label>
-                    {% trans "Логгер" %}
-                    <input type="text" id="loggerFilter" placeholder="api, audit.http …" autocomplete="off" />
-                </label>
-                <label>
-                    {% trans "Request ID" %}
-                    <input type="text" id="ridFilter" placeholder="uuid" autocomplete="off" />
-                </label>
-                <label>
-                    {% trans "Лимит" %}
-                    <select id="limitSelect">
-                        <option value="100">100</option>
-                        <option value="200" selected>200</option>
-                        <option value="300">300</option>
-                        <option value="500">500</option>
-                    </select>
-                </label>
-            </div>
-            <div class="log-console__buttons">
-                <button type="button" id="refreshButton">{% trans "Обновить" %}</button>
-                <button type="button" id="togglePolling">{% trans "Пауза" %}</button>
-                <button type="button" id="clearButton">{% trans "Очистить" %}</button>
+            <div class="log-console__toolbar-row">
+                <div class="log-console__filters">
+                    <label>
+                        {% trans "Логгер" %}
+                        <input type="text" id="loggerFilter" placeholder="api, audit.http …" autocomplete="off" />
+                    </label>
+                    <label>
+                        {% trans "Request ID" %}
+                        <input type="text" id="ridFilter" placeholder="uuid" autocomplete="off" />
+                    </label>
+                    <label>
+                        {% trans "Лимит" %}
+                        <select id="limitSelect">
+                            <option value="100">100</option>
+                            <option value="200" selected>200</option>
+                            <option value="300">300</option>
+                            <option value="500">500</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="log-console__buttons log-console__buttons--actions">
+                    <button type="button" id="refreshButton">{% trans "Обновить" %}</button>
+                    <button type="button" id="togglePolling">{% trans "Пауза" %}</button>
+                    <button type="button" id="clearButton">{% trans "Очистить" %}</button>
+                </div>
             </div>
         </div>
-        <div class="log-console__status" id="logStatus">{% trans "Подключение к потоку…" %}</div>
+        <div class="log-console__summary">
+            <span id="logStatus" class="log-console__status">{% trans "Подключение к потоку…" %}</span>
+            <span id="logLastUpdate" class="log-console__status log-console__status--meta">{% trans "Последнее событие: —" %}</span>
+        </div>
         <div class="log-console__viewport" id="logViewport" aria-live="polite"></div>
         <div class="log-console__footer">
-            <span id="logCounter">0 {% trans "записей" %}</span>
+            <span id="logCounter" data-count="0">0 {% trans "записей" %}</span>
             <span id="pollingState">{% trans "Автообновление включено (3с)" %}</span>
         </div>
     </div>
@@ -198,6 +260,7 @@
             const streamUrl = "{{ stream_url|escapejs }}";
             const viewport = document.getElementById("logViewport");
             const status = document.getElementById("logStatus");
+            const lastUpdate = document.getElementById("logLastUpdate");
             const counter = document.getElementById("logCounter");
             const pollingState = document.getElementById("pollingState");
             const refreshButton = document.getElementById("refreshButton");
@@ -206,21 +269,36 @@
             const loggerFilter = document.getElementById("loggerFilter");
             const ridFilter = document.getElementById("ridFilter");
             const limitSelect = document.getElementById("limitSelect");
-            const levelButtons = document.querySelectorAll('[data-action="level"]');
-            const groupButtons = document.querySelectorAll('[data-action="group"]');
-            const groupLabels = Array.from(groupButtons).reduce((acc, button) => {
+            const levelButtons = Array.from(document.querySelectorAll('[data-action="level"]'));
+            const groupButtons = Array.from(document.querySelectorAll('[data-action="group"]'));
+            const groupLabels = groupButtons.reduce((acc, button) => {
                 const value = button.dataset.group || "";
                 acc[value] = button.textContent.trim();
                 return acc;
             }, {});
-
+            const text = {
+                connecting: "{{ _('Подключение к потоку…')|escapejs }}",
+                loading: "{{ _('Загружаем…')|escapejs }}",
+                updated: "{{ _('Последние события обновлены')|escapejs }}",
+                noUpdates: "{{ _('Новых событий нет')|escapejs }}",
+                error: "{{ _('Ошибка загрузки')|escapejs }}",
+                resume: "{{ _('Возобновить')|escapejs }}",
+                pause: "{{ _('Пауза')|escapejs }}",
+                paused: "{{ _('Автообновление остановлено')|escapejs }}",
+                running: "{{ _('Автообновление включено ({seconds}с)')|escapejs }}",
+                lastUpdateNone: "{{ _('Последнее событие: —')|escapejs }}",
+                lastUpdateTemplate: "{{ _('Последнее событие: {value}')|escapejs }}",
+            };
             const state = {
                 lastId: null,
                 isPaused: false,
                 level: "",
                 group: "",
                 pollDelay: 3000,
+                lastTimestamp: null,
             };
+            let pollTimer = null;
+            let filterTimer = null;
 
             function escapeHTML(value) {
                 const div = document.createElement("div");
@@ -256,28 +334,46 @@
                 viewport.scrollTop = viewport.scrollHeight;
             }
 
-            function updateCounter(delta) {
-                const current = parseInt(counter.dataset.count || "0", 10) + delta;
-                counter.dataset.count = String(Math.max(current, 0));
-                counter.textContent = `${counter.dataset.count} {{ _('записей') }}`;
+            function updateCounter({ reset = false, delta = 0 } = {}) {
+                const currentValue = reset ? 0 : parseInt(counter.dataset.count || "0", 10);
+                const nextValue = Math.max(currentValue + delta, 0);
+                counter.dataset.count = String(nextValue);
+                counter.textContent = `${nextValue} {{ _('записей') }}`;
             }
 
-            function setActiveLevelButton(level) {
-                levelButtons.forEach((button) => {
-                    button.dataset.active = button.dataset.level === level ? "true" : "false";
-                });
-            }
-
-            function setActiveGroupButton(group) {
-                groupButtons.forEach((button) => {
-                    button.dataset.active = button.dataset.group === group ? "true" : "false";
-                });
-            }
-
-            async function fetchLogs({ reset = false } = {}) {
-                if (state.isPaused && !reset) {
+            function updateLastUpdateLabel() {
+                if (!state.lastTimestamp) {
+                    lastUpdate.textContent = text.lastUpdateNone;
                     return;
                 }
+                const formatted = new Date(state.lastTimestamp).toLocaleString();
+                lastUpdate.textContent = text.lastUpdateTemplate.replace('{value}', formatted);
+            }
+
+            function updatePollingIndicators() {
+                const seconds = Math.max(Math.round(state.pollDelay / 1000), 1);
+                togglePollingButton.textContent = state.isPaused ? text.resume : text.pause;
+                pollingState.textContent = state.isPaused
+                    ? text.paused
+                    : text.running.replace('{seconds}', String(seconds));
+            }
+
+            function setActive(buttons, attr, value) {
+                buttons.forEach((button) => {
+                    const isActive = (button.dataset[attr] || "") === value;
+                    button.dataset.active = isActive ? "true" : "false";
+                    if (button.getAttribute("role") === "tab") {
+                        button.setAttribute("aria-selected", isActive ? "true" : "false");
+                    }
+                });
+            }
+
+            function clearViewport() {
+                viewport.innerHTML = "";
+                updateCounter({ reset: true, delta: 0 });
+            }
+
+            function buildParams(reset) {
                 const params = new URLSearchParams();
                 params.set("limit", limitSelect.value);
                 if (!reset && state.lastId) {
@@ -289,14 +385,24 @@
                 if (state.group) {
                     params.set("group", state.group);
                 }
-                if (loggerFilter.value) {
-                    params.set("logger", loggerFilter.value);
+                const loggerValue = loggerFilter.value.trim();
+                if (loggerValue) {
+                    params.set("logger", loggerValue);
                 }
-                if (ridFilter.value) {
-                    params.set("rid", ridFilter.value);
+                const ridValue = ridFilter.value.trim();
+                if (ridValue) {
+                    params.set("rid", ridValue);
                 }
+                return params;
+            }
+
+            async function fetchLogs({ reset = false } = {}) {
+                if (state.isPaused && !reset) {
+                    return;
+                }
+                status.textContent = text.loading;
                 try {
-                    status.textContent = "{% trans "Загружаем…" %}";
+                    const params = buildParams(reset);
                     const response = await fetch(`${streamUrl}?${params.toString()}`, {
                         headers: { "Accept": "application/json" },
                         cache: "no-store",
@@ -306,36 +412,37 @@
                     }
                     const data = await response.json();
                     if (reset) {
-                        viewport.innerHTML = "";
-                        counter.dataset.count = "0";
+                        clearViewport();
+                    }
+                    if (Array.isArray(data.results) && data.results.length) {
                         data.results.forEach((entry) => {
                             renderLog(entry, { append: true });
                         });
-                        updateCounter(data.results.length);
+                        updateCounter({ delta: data.results.length });
+                        const lastEntry = data.results[data.results.length - 1];
+                        state.lastId = lastEntry.id;
+                        state.lastTimestamp = lastEntry.created_at;
+                        status.textContent = text.updated;
                     } else {
-                        data.results.forEach((entry) => {
-                            renderLog(entry, { append: true });
-                        });
-                        updateCounter(data.results.length);
+                        if (reset) {
+                            state.lastId = null;
+                            state.lastTimestamp = null;
+                        }
+                        status.textContent = text.noUpdates;
                     }
-                    if (data.results.length) {
-                        state.lastId = data.results[data.results.length - 1].id;
-                    } else if (reset) {
-                        state.lastId = null;
-                    }
-                    status.textContent = data.results.length
-                        ? "{% trans "Последние события обновлены" %}"
-                        : "{% trans "Новых событий нет" %}";
                 } catch (error) {
-                    status.textContent = `{% trans "Ошибка загрузки" %}: ${error}`;
+                    status.textContent = `${text.error}: ${error}`;
+                } finally {
+                    updateLastUpdateLabel();
                 }
             }
 
             function schedulePoll() {
-                setTimeout(async () => {
-                    if (!state.isPaused) {
-                        await fetchLogs();
-                    }
+                if (pollTimer) {
+                    clearTimeout(pollTimer);
+                }
+                pollTimer = window.setTimeout(async () => {
+                    await fetchLogs();
                     schedulePoll();
                 }, state.pollDelay);
             }
@@ -345,46 +452,64 @@
                 fetchLogs({ reset: true });
             }
 
+            function handleFilterChange() {
+                if (filterTimer) {
+                    window.clearTimeout(filterTimer);
+                }
+                filterTimer = window.setTimeout(() => {
+                    resetAndFetch();
+                }, 300);
+            }
+
             refreshButton.addEventListener("click", () => {
                 resetAndFetch();
             });
             togglePollingButton.addEventListener("click", () => {
                 state.isPaused = !state.isPaused;
-                togglePollingButton.textContent = state.isPaused
-                    ? "{% trans "Возобновить" %}"
-                    : "{% trans "Пауза" %}";
-                pollingState.textContent = state.isPaused
-                    ? "{% trans "Автообновление остановлено" %}"
-                    : "{% trans "Автообновление включено (3с)" %}";
+                updatePollingIndicators();
+                if (!state.isPaused) {
+                    resetAndFetch();
+                }
             });
             clearButton.addEventListener("click", () => {
-                viewport.innerHTML = "";
-                counter.dataset.count = "0";
-                counter.textContent = `0 {{ _('записей') }}`;
+                clearViewport();
+                state.lastTimestamp = null;
+                updateLastUpdateLabel();
+                status.textContent = text.noUpdates;
             });
-
-            loggerFilter.addEventListener("change", resetAndFetch);
-            ridFilter.addEventListener("change", resetAndFetch);
-            limitSelect.addEventListener("change", resetAndFetch);
+            loggerFilter.addEventListener("input", handleFilterChange);
+            ridFilter.addEventListener("input", handleFilterChange);
+            limitSelect.addEventListener("change", () => {
+                resetAndFetch();
+            });
             levelButtons.forEach((button) => {
                 button.addEventListener("click", () => {
-                    const level = button.dataset.level;
+                    const level = button.dataset.level || "";
+                    if (state.level === level) {
+                        return;
+                    }
                     state.level = level;
-                    setActiveLevelButton(level);
+                    setActive(levelButtons, "level", level);
                     resetAndFetch();
                 });
             });
             groupButtons.forEach((button) => {
                 button.addEventListener("click", () => {
                     const group = button.dataset.group || "";
+                    if (state.group === group) {
+                        return;
+                    }
                     state.group = group;
-                    setActiveGroupButton(group);
+                    setActive(groupButtons, "group", group);
                     resetAndFetch();
                 });
             });
 
-            setActiveLevelButton("");
-            setActiveGroupButton("");
+            setActive(levelButtons, "level", state.level);
+            setActive(groupButtons, "group", state.group);
+            updatePollingIndicators();
+            updateLastUpdateLabel();
+            status.textContent = text.connecting;
             resetAndFetch();
             schedulePoll();
         })();

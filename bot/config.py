@@ -44,7 +44,9 @@ class Config:
         token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or ""
         bot_key = os.getenv("BOT_KEY") or os.getenv("BOT_INTERNAL_KEY") or "super-secret-bot-key"
         backend_base_url = _clean_backend_url(
-            os.getenv("BACKEND_BASE_URL") or os.getenv("BACKEND_URL") or os.getenv("API_BASE")
+            os.getenv("BACKEND_BASE_URL")
+            or os.getenv("API_BASE")
+            or os.getenv("BACKEND_URL")
         )
         webapp_url = os.getenv("WEBAPP_URL", "http://localhost:5173/")
         admin_ids = _parse_admin_ids(os.getenv("ADMIN_IDS") or os.getenv("BOT_ADMIN_IDS"))

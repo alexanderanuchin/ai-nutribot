@@ -12,6 +12,7 @@ from nutribot.middleware import get_request_id
 
 APPLICATION_GROUP = "application"
 ADMIN_GROUP = "administrative"
+SERVICE_GROUP = "service"
 
 
 class DatabaseLogHandler(logging.Handler):
@@ -83,13 +84,27 @@ class DatabaseLogHandler(logging.Handler):
         logger_name = record.name or ""
         admin_names = getattr(settings, "LOG_ADMIN_LOGGER_NAMES", ())
         admin_prefixes = getattr(settings, "LOG_ADMIN_LOGGER_PREFIXES", ("audit.",))
+        service_names = getattr(settings, "LOG_SERVICE_LOGGER_NAMES", ())
+        service_prefixes = getattr(settings, "LOG_SERVICE_LOGGER_PREFIXES", ())
+        service_substrings = getattr(settings, "LOG_SERVICE_LOGGER_SUBSTRINGS", ())
 
         if logger_name in admin_names:
             return ADMIN_GROUP
 
         for prefix in admin_prefixes:
-            if logger_name.startswith(prefix):
+            if prefix and logger_name.startswith(prefix):
                 return ADMIN_GROUP
+
+        if logger_name in service_names:
+            return SERVICE_GROUP
+
+        for prefix in service_prefixes:
+            if prefix and logger_name.startswith(prefix):
+                return SERVICE_GROUP
+
+        for needle in service_substrings:
+            if needle and needle in logger_name:
+                return SERVICE_GROUP
 
         return APPLICATION_GROUP
 

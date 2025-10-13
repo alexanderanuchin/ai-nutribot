@@ -77,6 +77,13 @@ async def main() -> None:
         logging.warning("WEBAPP_URL='%s' не HTTPS — кнопка WebApp будет скрыта, используем обычную ссылку.",
                         cfg.webapp_url)
 
+    if cfg.backend_base_url.startswith(("http://localhost", "https://localhost", "http://127.0.0.1", "https://127.0.0.1")):
+        logging.error(
+            "BACKEND_URL='%s' недостижим из контейнера бота. "
+            "Укажите адрес сервиса backend (например, http://backend:8000).",
+            cfg.backend_base_url,
+        )
+
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     redis = Redis(
         host=os.getenv("REDIS_HOST", "redis"),

@@ -56,6 +56,29 @@ def test_database_log_handler_marks_admin_group(settings):
 
 
 @pytest.mark.django_db
+def test_database_log_handler_marks_service_group(settings):
+    settings.LOG_SERVICE_LOGGER_PREFIXES = ("service.poller",)
+    settings.LOG_SERVICE_LOGGER_NAMES = ()
+    settings.LOG_SERVICE_LOGGER_SUBSTRINGS = ()
+    handler = DatabaseLogHandler(capacity=10)
+    record = logging.LogRecord(
+        name="service.poller.metrics",
+        level=logging.INFO,
+        pathname=__file__,
+        lineno=120,
+        msg="poll tick",
+        args=(),
+        exc_info=None,
+        func="poll",
+    )
+
+    handler.emit(record)
+
+    entry = ApplicationLog.objects.get()
+    assert entry.group == ApplicationLog.Group.SERVICE
+
+
+@pytest.mark.django_db
 def test_stream_view_filters_by_after(client, django_user_model):
     user = django_user_model.objects.create_superuser(
         username="admin", email="admin@example.com", password="pass"
@@ -112,3 +135,34 @@ def test_stream_view_filters_by_group(client, django_user_model):
     data = response.json()
     assert [item["id"] for item in data["results"]] == [admin_log.pk]
     assert data["results"][0]["group"] == ApplicationLog.Group.ADMINISTRATIVE
+
+
+@pytest.mark.django_db
+def test_stream_view_filters_service_group(client, django_user_model):
+    user = django_user_model.objects.create_superuser(
+        username="admin", email="admin@example.com", password="pass"
+    )
+    client.force_login(user)
+
+    service_log = ApplicationLog.objects.create(
+        level="INFO",
+        logger_name="service.poller",
+        message="tick",
+        group=ApplicationLog.Group.SERVICE,
+    )
+    ApplicationLog.objects.create(
+        level="INFO",
+        logger_name="demo",
+        message="skip",
+        group=ApplicationLog.Group.APPLICATION,
+    )
+
+    response = client.get(
+        reverse("admin:monitoring_applicationlog_stream"),
+        {"group": ApplicationLog.Group.SERVICE},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert [item["id"] for item in data["results"]] == [service_log.pk]
+    assert data["results"][0]["group"] == ApplicationLog.Group.SERVICE

@@ -193,6 +193,24 @@ def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 LOG_ADMIN_LOGGER_NAMES = _split_env_list("LOG_ADMIN_LOGGER_NAMES", ())
 LOG_ADMIN_LOGGER_PREFIXES = _split_env_list("LOG_ADMIN_LOGGER_PREFIXES", ("audit.",))
+LOG_SERVICE_LOGGER_NAMES = _split_env_list("LOG_SERVICE_LOGGER_NAMES", ())
+LOG_SERVICE_LOGGER_PREFIXES = _split_env_list(
+    "LOG_SERVICE_LOGGER_PREFIXES",
+    (
+        "monitoring.poller",
+        "monitoring.scheduler",
+        "service.",
+        "scheduler.",
+    ),
+)
+LOG_SERVICE_LOGGER_SUBSTRINGS = _split_env_list(
+    "LOG_SERVICE_LOGGER_SUBSTRINGS",
+    (
+        "poller",
+        "scheduler",
+        "heartbeat",
+    ),
+)
 
 LOGGING = {
     "version": 1,

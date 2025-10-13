@@ -16,6 +16,7 @@ class ApplicationLog(models.Model):
     class Group(models.TextChoices):
         APPLICATION = "application", _("Приложение")
         ADMINISTRATIVE = "administrative", _("Администрирование")
+        SERVICE = "service", _("Служебные процессы")
 
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     level = models.CharField(max_length=16, choices=Level.choices)
