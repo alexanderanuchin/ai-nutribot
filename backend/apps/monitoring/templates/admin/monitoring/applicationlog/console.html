@@ -69,6 +69,38 @@
         .log-console__buttons--levels button[data-active="false"] {
             background: #2f81f7;
         }
+        .log-console__toolbar-row--history {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .log-console__buttons--history {
+            display: flex;
+            width: 100%;
+        }
+        .log-console__buttons--history button {
+            width: 100%;
+            background: #b3261e;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+            transition: filter 0.12s ease, transform 0.12s ease;
+        }
+        .log-console__buttons--history button:hover {
+            filter: brightness(0.95);
+            transform: translateY(-1px);
+        }
+        .log-console__buttons--levels button:disabled,
+        .log-console__buttons--actions button:disabled,
+        .log-console__buttons--history button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            filter: none;
+        }
         .log-console__filters {
             display: inline-flex;
             flex-wrap: wrap;
@@ -254,6 +286,11 @@
             <span id="logCounter" data-count="0">0 {% trans "записей" %}</span>
             <span id="pollingState">{% trans "Автообновление включено (3с)" %}</span>
         </div>
+        <div class="log-console__toolbar-row log-console__toolbar-row--history">
+            <div class="log-console__buttons log-console__buttons--history">
+                <button type="button" id="clearHistoryButton">{% trans "Очистить историю консоли" %}</button>
+            </div>
+        </div>
     </div>
     <script>
         (function() {
@@ -266,11 +303,14 @@
             const refreshButton = document.getElementById("refreshButton");
             const togglePollingButton = document.getElementById("togglePolling");
             const clearButton = document.getElementById("clearButton");
+            const clearHistoryButton = document.getElementById("clearHistoryButton");
             const loggerFilter = document.getElementById("loggerFilter");
             const ridFilter = document.getElementById("ridFilter");
             const limitSelect = document.getElementById("limitSelect");
             const levelButtons = Array.from(document.querySelectorAll('[data-action="level"]'));
             const groupButtons = Array.from(document.querySelectorAll('[data-action="group"]'));
+            const clearHistoryUrl = "{{ clear_history_url|escapejs }}";
+            const clearHistoryButtonInitialText = clearHistoryButton.textContent;
             const groupLabels = groupButtons.reduce((acc, button) => {
                 const value = button.dataset.group || "";
                 acc[value] = button.textContent.trim();
@@ -288,6 +328,10 @@
                 running: "{{ _('Автообновление включено ({seconds}с)')|escapejs }}",
                 lastUpdateNone: "{{ _('Последнее событие: —')|escapejs }}",
                 lastUpdateTemplate: "{{ _('Последнее событие: {value}')|escapejs }}",
+                clearHistoryConfirm: "{{ _('Вы уверены, что хотите полностью очистить историю консоли?')|escapejs }}",
+                clearingHistory: "{{ _('Очищаем историю…')|escapejs }}",
+                historyCleared: "{{ _('История консоли очищена')|escapejs }}",
+                historyClearError: "{{ _('Не удалось очистить историю')|escapejs }}",
             };
             const state = {
                 lastId: null,
@@ -304,6 +348,11 @@
                 const div = document.createElement("div");
                 div.textContent = value ?? "";
                 return div.innerHTML;
+            }
+
+            function getCsrfToken() {
+                const match = document.cookie.match(/csrftoken=([^;]+)/);
+                return match ? decodeURIComponent(match[1]) : "";
             }
 
             function renderLog(entry, { append = true } = {}) {
@@ -476,6 +525,38 @@
                 state.lastTimestamp = null;
                 updateLastUpdateLabel();
                 status.textContent = text.noUpdates;
+            });
+            clearHistoryButton.addEventListener("click", async () => {
+                if (!window.confirm(text.clearHistoryConfirm)) {
+                    return;
+                }
+                clearHistoryButton.disabled = true;
+                clearHistoryButton.textContent = text.clearingHistory;
+                status.textContent = text.loading;
+                try {
+                    const response = await fetch(clearHistoryUrl, {
+                        method: "POST",
+                        headers: {
+                            "X-CSRFToken": getCsrfToken(),
+                            "Accept": "application/json",
+                        },
+                        credentials: "same-origin",
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    await response.json();
+                    clearViewport();
+                    state.lastTimestamp = null;
+                    state.lastId = null;
+                    updateLastUpdateLabel();
+                    status.textContent = text.historyCleared;
+                } catch (error) {
+                    status.textContent = `${text.historyClearError}: ${error}`;
+                } finally {
+                    clearHistoryButton.disabled = false;
+                    clearHistoryButton.textContent = clearHistoryButtonInitialText;
+                }
             });
             loggerFilter.addEventListener("input", handleFilterChange);
             ridFilter.addEventListener("input", handleFilterChange);

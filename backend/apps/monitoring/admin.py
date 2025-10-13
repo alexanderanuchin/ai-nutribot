@@ -38,6 +38,11 @@ class ApplicationLogAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.stream_view),
                 name="monitoring_applicationlog_stream",
             ),
+            path(
+                "clear/",
+                self.admin_site.admin_view(self.clear_history_view),
+                name="monitoring_applicationlog_clear",
+            ),
         ]
         return custom_urls + urls
 
@@ -49,6 +54,7 @@ class ApplicationLogAdmin(admin.ModelAdmin):
             "levels": ApplicationLog.Level,
             "groups": ApplicationLog.Group,
             "stream_url": reverse("admin:monitoring_applicationlog_stream"),
+            "clear_history_url": reverse("admin:monitoring_applicationlog_clear"),
         }
         return TemplateResponse(
             request,
@@ -110,6 +116,15 @@ class ApplicationLogAdmin(admin.ModelAdmin):
             for entry in entries
         ]
         return JsonResponse({"results": results})
+
+    def clear_history_view(self, request: HttpRequest) -> JsonResponse:
+        if request.method != "POST":
+            return JsonResponse({"detail": "Method not allowed"}, status=405)
+        if not self.has_delete_permission(request):
+            return JsonResponse({"detail": "Forbidden"}, status=403)
+
+        deleted_count, _ = ApplicationLog.objects.all().delete()
+        return JsonResponse({"deleted": deleted_count})
 
 
 __all__ = ["ApplicationLogAdmin"]
