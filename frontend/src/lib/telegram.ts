@@ -190,6 +190,7 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
   return session
 }
 
+
 export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
   if (cachedSession !== undefined) {
     if (shouldReuseSession(cachedSession)) {
