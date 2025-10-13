@@ -108,6 +108,11 @@ export function WalletBadge({ className }: WalletBadgeProps) {
                       <div className="mt-2 text-2xl font-semibold text-accent-foreground">{isLoading ? '•••' : formatNumber(calo)}</div>
                     </div>
                   </div>
+                  {data?.starsPurchaseBlocked && (
+                    <div className="mt-4 rounded-2xl border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-xs font-medium text-amber-900 dark:text-amber-200">
+                      Пополнение Stars временно недоступно: Telegram ограничил покупки в вашем регионе.
+                    </div>
+                  )}
                   <div className="mt-6">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Недавние операции</h3>
                     <div className="mt-2 space-y-2">

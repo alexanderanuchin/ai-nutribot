@@ -92,3 +92,21 @@ async def test_webapp_data_handler_sends_invoice_on_topup():
     assert kwargs["provider_token"] == ""
     assert "Комментарий" in kwargs["description"]
     message.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webapp_data_handler_respects_blocked_flag():
+    state = FakeState({"access_token": "token", "session_user_id": 42, "stars_purchase_blocked": True})
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.answer_invoice = AsyncMock()
+    message.from_user = SimpleNamespace(id=42)
+    payload = {"type": "topup", "amount": 90}
+    message.web_app_data = SimpleNamespace(data=json.dumps(payload))
+
+    await webapp_data_handler(message, state, access_token="token")
+
+    message.answer.assert_awaited()
+    text = message.answer.call_args[0][0]
+    assert "недоступ" in text.lower()
+    message.answer_invoice.assert_not_called()

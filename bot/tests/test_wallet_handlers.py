@@ -60,6 +60,7 @@ async def test_wallet_command_success():
     backend.get_my_stars.assert_awaited()
     assert state.data["access_token"] == "new-token"
     assert state.data["refresh_token"] == "new-refresh"
+    assert state.data.get("stars_purchase_blocked") is False
     args, kwargs = message.answer.call_args
     assert "Ваш баланс" in args[0]
     assert kwargs["reply_markup"] is not None
@@ -152,6 +153,32 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
     callback.message.answer.assert_awaited()
     text = callback.message.answer.call_args[0][0]
     assert "авториз" in text.lower()
+    callback.message.answer_invoice.assert_not_called()
+    callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wallet_topup_callback_respects_blocked():
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    callback.data = "wallet:topup:50"
+    callback.from_user = SimpleNamespace(id=5)
+    callback.message = MagicMock()
+    callback.message.answer = AsyncMock()
+    callback.message.answer_invoice = AsyncMock()
+
+    state = FakeState({"access_token": "token", "stars_purchase_blocked": True})
+
+    await wallet_topup_callback(
+        callback,
+        state,
+        access_token=None,
+        webapp_url="https://example.com",
+    )
+
+    callback.message.answer.assert_awaited()
+    text = callback.message.answer.call_args[0][0]
+    assert "недоступ" in text.lower()
     callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
 

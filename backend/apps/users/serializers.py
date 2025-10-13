@@ -217,6 +217,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     budget = serializers.SerializerMethodField()
     goals = serializers.SerializerMethodField()
     telegram_stars_balance = serializers.IntegerField(required=False, allow_null=True)
+    stars_purchase_blocked = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Profile
@@ -229,6 +230,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "allergies", "exclusions",
             "daily_budget",
             "telegram_stars_balance", "telegram_stars_rate_rub",
+            "stars_purchase_blocked",
             "calocoin_balance", "calocoin_rate_rub",
             "budget",
             "goals",

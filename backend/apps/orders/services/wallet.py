@@ -661,6 +661,9 @@ def build_wallet_summary(
     )
 
     return {
+        "flags": {
+            "stars_purchase_blocked": bool(getattr(profile, "stars_purchase_blocked", False)),
+        },
         "perks": _resolve_wallet_perks(profile),
         "targets": targets_payload,
         "recent_transactions": [_serialize_transaction(tx) for tx in transactions],

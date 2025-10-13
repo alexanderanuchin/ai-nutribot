@@ -128,6 +128,14 @@ async def _handle_topup_payload(
             return
 
     comment = payload.get("comment")
+    if state_data.get("stars_purchase_blocked"):
+        await message.answer(
+            "Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе."
+        )
+        logger.info(
+            "webapp topup blocked rid=%s telegram_user_id=%s", get_request_id(), getattr(message.from_user, "id", None)
+        )
+        return
     logger.info(
         "webapp topup_request rid=%s telegram_user_id=%s amount=%s has_comment=%s",
         get_request_id(),

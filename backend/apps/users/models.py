@@ -73,6 +73,10 @@ class Profile(models.Model):
         default=0,
         help_text="[deprecated] Используйте леджер TelegramStarLedgerEntry для актуального баланса",
     )
+    stars_purchase_blocked = models.BooleanField(
+        default=False,
+        help_text="Если True — Telegram запрещает покупки Stars для этого пользователя",
+    )
     telegram_stars_rate_rub = models.DecimalField(
         max_digits=7,
         decimal_places=2,

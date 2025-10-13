@@ -21,6 +21,7 @@ export interface WalletTransactionStub {
 export interface WalletSheetData {
   balance: WalletBalance
   transactions: WalletTransactionStub[]
+  starsPurchaseBlocked: boolean
 }
 
 export interface CurrentUserProfile {
@@ -132,6 +133,7 @@ export async function fetchWallet(): Promise<WalletSheetData> {
   let starsAmount = 0
   let updatedAt = new Date().toISOString()
   let starsTransactions: WalletTransactionStub[] = []
+  let starsPurchaseBlocked = false
 
   try {
     const { data } = await api.get<{
@@ -144,10 +146,12 @@ export async function fetchWallet(): Promise<WalletSheetData> {
         description?: string | null
         source?: string | null
       }>
+      stars_purchase_blocked?: boolean
     }>('/me/stars/')
 
     starsAmount = data.balance?.amount ?? 0
     updatedAt = data.balance?.updated_at ?? updatedAt
+    starsPurchaseBlocked = Boolean(data.stars_purchase_blocked)
     starsTransactions = (data.transactions ?? []).map(tx => ({
       id: String(tx.id),
       title: tx.description?.trim() || (tx.direction === 'in' ? 'Зачисление Stars' : 'Списание Stars'),
@@ -174,6 +178,7 @@ export async function fetchWallet(): Promise<WalletSheetData> {
       updatedAt,
     },
     transactions: starsTransactions,
+    starsPurchaseBlocked,
   }
 }
 

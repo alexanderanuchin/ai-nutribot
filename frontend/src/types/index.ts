@@ -107,6 +107,9 @@ export interface WalletOrderRecord {
 }
 
 export interface WalletSummary {
+  flags: {
+    stars_purchase_blocked: boolean
+  }
   perks: string[]
   targets: {
     stars: WalletTarget
@@ -120,6 +123,7 @@ export interface ProfileSidebarWalletMeta {
   show_wallet: boolean
   links: ProfileWalletLinks
   onboarding: ProfileWalletOnboarding
+  flags?: WalletSummary['flags']
   perks?: string[]
   targets?: WalletSummary['targets']
   recent_transactions?: WalletTransactionRecord[]

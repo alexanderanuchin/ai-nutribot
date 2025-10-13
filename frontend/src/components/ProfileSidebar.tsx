@@ -386,6 +386,8 @@ export default function ProfileSidebar({
   const walletMeta = sidebarMeta?.wallet ?? null
   const walletLinks = walletMeta?.links ?? null
   const walletOnboardingMessages = walletMeta?.onboarding?.messages ?? []
+  const starsPurchaseBlocked =
+    walletSummary?.flags?.stars_purchase_blocked ?? walletMeta?.flags?.stars_purchase_blocked ?? false
   const summaryTargets = walletSummary?.targets ?? walletMeta?.targets ?? null
   const walletPerksList = (walletSummary?.perks && walletSummary.perks.length > 0)
     ? walletSummary.perks
@@ -1197,9 +1199,11 @@ export default function ProfileSidebar({
                 )}
 
                 <div className="profile-sidebar__wallet-meta small">
-                  {hasTelegramLink
-                    ? 'Telegram Mini App подключён — пополнения синхронизируются автоматически.'
-                    : 'Подключите Telegram Mini App, чтобы пополнять Stars в один тап.'}
+                  {starsPurchaseBlocked
+                    ? 'Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе.'
+                    : hasTelegramLink
+                      ? 'Telegram Mini App подключён — пополнения синхронизируются автоматически.'
+                      : 'Подключите Telegram Mini App, чтобы пополнять Stars в один тап.'}
                 </div>
                 <div className="profile-sidebar__wallet-meta small">
                   {dailyBudgetDisplay

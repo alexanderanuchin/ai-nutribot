@@ -69,6 +69,7 @@ def build_stars_balance_payload(profile: Profile) -> Dict[str, Any]:
             "currency": "XTR",
             "updated_at": timezone.now().isoformat(),
         },
+        "stars_purchase_blocked": bool(getattr(profile, "stars_purchase_blocked", False)),
         "transactions": [
             {
                 "id": entry.pk,

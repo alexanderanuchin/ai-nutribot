@@ -22,6 +22,7 @@ class ProfileSerializerTest(TestCase):
         profile.telegram_stars_rate_rub = Decimal("7.50")
         profile.calocoin_balance = Decimal("1250.00")
         profile.calocoin_rate_rub = Decimal("3.20")
+        profile.stars_purchase_blocked = True
         profile.daily_budget = Decimal("1500.50")
         profile.experience_level = Profile.ExperienceLevel.LEGEND
         profile.avatar_preferences = {"kind": "preset", "preset_id": "focus"}
@@ -33,6 +34,7 @@ class ProfileSerializerTest(TestCase):
             "telegram_stars_rate_rub",
             "calocoin_balance",
             "calocoin_rate_rub",
+            "stars_purchase_blocked",
             "daily_budget",
             "experience_level",
             "avatar_preferences",
@@ -56,6 +58,7 @@ class ProfileSerializerTest(TestCase):
 
         self.assertEqual(data["city"], "Москва")
         self.assertEqual(data["telegram_stars_balance"], 125)
+        self.assertTrue(data["stars_purchase_blocked"])
         self.assertEqual(data["telegram_stars_rate_rub"], "7.50")
         self.assertEqual(data["calocoin_balance"], "1250.00")
         self.assertEqual(data["calocoin_rate_rub"], "3.20")
@@ -71,6 +74,7 @@ class ProfileSerializerTest(TestCase):
         self.assertIn("services", sidebar_meta)
 
         wallet_meta = sidebar_meta["wallet"]
+        self.assertTrue(wallet_meta["flags"]["stars_purchase_blocked"])
         self.assertFalse(wallet_meta["onboarding"]["needs_balance"])
         self.assertFalse(wallet_meta["onboarding"]["needs_city"])
         self.assertEqual(wallet_meta["links"]["topup"], "https://t.me/wallet?start=star-topup")

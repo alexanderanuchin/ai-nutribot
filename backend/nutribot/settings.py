@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 from typing import Tuple
@@ -73,7 +74,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "nutribot.wsgi.application"
 ASGI_APPLICATION = "nutribot.asgi.application"
 
-if os.getenv("USE_SQLITE", "0") == "1":
+USE_SQLITE_VALUE = os.getenv("USE_SQLITE")
+if USE_SQLITE_VALUE is None:
+    running_pytest = any("pytest" in arg for arg in sys.argv)
+    USE_SQLITE_VALUE = "1" if running_pytest else "0"
+
+if USE_SQLITE_VALUE == "1":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",

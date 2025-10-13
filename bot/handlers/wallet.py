@@ -47,10 +47,11 @@ def _authorization_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def _wallet_keyboard() -> InlineKeyboardMarkup:
+def _wallet_keyboard(*, stars_blocked: bool = False) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for amount in TOPUP_AMOUNTS:
-        builder.button(text=f"Пополнить {amount} XTR", callback_data=f"wallet:topup:{amount}")
+    if not stars_blocked:
+        for amount in TOPUP_AMOUNTS:
+            builder.button(text=f"Пополнить {amount} XTR", callback_data=f"wallet:topup:{amount}")
     builder.button(text="↩️ В меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -107,15 +108,20 @@ def _format_wallet_message(payload: dict) -> str:
     currency = balance.get("currency", "XTR")
     lines = [f"Ваш баланс: {amount} {currency}"]
     transactions = payload.get("transactions") or []
+    stars_blocked = bool(payload.get("stars_purchase_blocked"))
     if transactions:
         lines.append("\nПоследние операции:")
         for item in transactions[:3]:
             lines.append(_format_transaction_line(item))
     else:
         lines.append("\nПока нет операций.")
-    lines.append("\nВыберите сумму для быстрого пополнения 👇")
-    lines.append("\nНажимая «Пополнить», вы подтверждаете, что ознакомились с /terms и согласны с ними.")
-    lines.append("Для вопросов по оплате используйте /paysupport.")
+    if stars_blocked:
+        lines.append("\nПополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе.")
+        lines.append("Для вопросов по оплате используйте /paysupport.")
+    else:
+        lines.append("\nВыберите сумму для быстрого пополнения 👇")
+        lines.append("\nНажимая «Пополнить», вы подтверждаете, что ознакомились с /terms и согласны с ними.")
+        lines.append("Для вопросов по оплате используйте /paysupport.")
     return "\n".join(lines)
 
 
@@ -132,7 +138,11 @@ async def _load_wallet_payload(
         try:
             result = await backend.get_my_stars(access_token, refresh_token)
             await _apply_tokens(state, result)
-            return result.payload
+            payload = result.payload
+            await state.update_data(
+                stars_purchase_blocked=bool(payload.get("stars_purchase_blocked"))
+            )
+            return payload
         except BackendAuthError as exc:
             await state.update_data(access_token=None, refresh_token=None)
             raise exc
@@ -331,7 +341,8 @@ async def wallet_command(
         return
 
     text = _format_wallet_message(payload)
-    await message.answer(text, reply_markup=_wallet_keyboard())
+    stars_blocked = bool(payload.get("stars_purchase_blocked"))
+    await message.answer(text, reply_markup=_wallet_keyboard(stars_blocked=stars_blocked))
 
 
 @router.callback_query(F.data == "wallet:open")
@@ -384,7 +395,10 @@ async def wallet_open_callback(
         await callback.answer()
         return
 
-    await callback.message.answer(_format_wallet_message(payload), reply_markup=_wallet_keyboard())
+    stars_blocked = bool(payload.get("stars_purchase_blocked"))
+    await callback.message.answer(
+        _format_wallet_message(payload), reply_markup=_wallet_keyboard(stars_blocked=stars_blocked)
+    )
     await callback.answer()
 
 
@@ -399,6 +413,7 @@ async def wallet_topup_callback(
         await callback.answer()
         return
 
+    state_data = await state.get_data()
     from_user_id = getattr(callback.from_user, "id", None)
     stored_access_token, _ = await _get_tokens(
         state,
@@ -409,6 +424,12 @@ async def wallet_topup_callback(
         await callback.message.answer(
             "Сначала авторизуйтесь через WebApp, чтобы пополнить баланс.",
             reply_markup=_authorization_keyboard(webapp_url),
+        )
+        await callback.answer()
+        return
+    if state_data.get("stars_purchase_blocked"):
+        await callback.message.answer(
+            "Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе."
         )
         await callback.answer()
         return

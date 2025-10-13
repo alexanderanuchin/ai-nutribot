@@ -60,6 +60,7 @@ vi.mock('../../api/api', () => ({
         timestamp: new Date('2024-11-01T09:50:00Z').toISOString(),
       },
     ],
+    starsPurchaseBlocked: false,
   })),
   fetchBotStarsBalance: vi.fn(async () => ({
     amount: 9999,

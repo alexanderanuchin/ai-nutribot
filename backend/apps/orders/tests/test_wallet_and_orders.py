@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.users.services import get_profile_stars_balance
@@ -22,6 +23,7 @@ from apps.orders.models import (
     WalletTransaction,
 )
 from apps.orders.services import BillingService, PaymentService
+from apps.orders.services.payment import PaymentProviderError
 from apps.orders.services.wallet import get_wallet_balance
 
 User = get_user_model()
@@ -103,6 +105,21 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
 
 
 @pytest.mark.django_db
+def test_payment_service_rejects_topup_when_blocked(user: User, payment_service: PaymentService):
+    profile = user.profile
+    profile.telegram_id = 9001
+    profile.stars_purchase_blocked = True
+    profile.save(update_fields=["telegram_id", "stars_purchase_blocked"])
+
+    with pytest.raises(PaymentProviderError):
+        payment_service.wallet_topup(
+            profile,
+            amount=Decimal("10"),
+            charge_id="test-charge",
+        )
+
+
+@pytest.mark.django_db
 def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient, user: User):
     WalletPerk.objects.create(
         profile=user.profile,
@@ -129,12 +146,32 @@ def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient
     resp = auth_client.get("/api/orders/wallet/summary/")
     assert resp.status_code == 200
     data = resp.json()
+    assert data["flags"]["stars_purchase_blocked"] is False
     calo_target = data["targets"]["calo"]
     assert calo_target["balance"] >= 450
     assert calo_target["target"] == pytest.approx(900.0)
     assert calo_target.get("label") == "До расширенного PRO"
     assert calo_target.get("progress_message").startswith("Осталось")
     assert calo_target.get("completed_message").startswith("CaloCoin достаточно")
+
+
+@pytest.mark.django_db
+def test_bot_payment_report_rejects_when_blocked(api_client: APIClient, user: User, settings):
+    settings.BOT_INTERNAL_KEY = "bot-secret"
+    profile = user.profile
+    profile.telegram_id = 555123
+    profile.stars_purchase_blocked = True
+    profile.save(update_fields=["telegram_id", "stars_purchase_blocked"])
+
+    resp = api_client.post(
+        "/api/orders/bot/telegram-stars/payment/",
+        {"user_id": profile.telegram_id, "amount": 50, "charge_id": "blocked-1"},
+        format="json",
+        HTTP_X_BOT_KEY="bot-secret",
+    )
+
+    assert resp.status_code == status.HTTP_403_FORBIDDEN
+    assert "заблокировал" in resp.json().get("detail", "")
 
 
 @pytest.mark.django_db

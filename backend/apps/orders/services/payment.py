@@ -624,6 +624,10 @@ class PaymentService:
             metadata: Dict[str, Any] | None = None,
     ) -> WalletTransaction:
         profile = self._resolve_profile(user)
+        if getattr(profile, "stars_purchase_blocked", False):
+            raise PaymentProviderError(
+                "Telegram сообщает, что пополнения Stars недоступны в вашем регионе."
+            )
         meta = {
             "source": "telegram_bot_invoice",
             "telegram_payment_charge_id": charge_id,

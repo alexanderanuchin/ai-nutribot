@@ -166,6 +166,8 @@ def build_profile_sidebar_meta(profile: Profile) -> Dict[str, Any]:
 
     show_wallet = bool(profile.wallet_settings.get("show_wallet", False)) if profile.wallet_settings else False
 
+    wallet_flags = {"stars_purchase_blocked": bool(getattr(profile, "stars_purchase_blocked", False))}
+
     wallet_payload = {
         "show_wallet": show_wallet,
         "links": wallet_links,
@@ -178,6 +180,10 @@ def build_profile_sidebar_meta(profile: Profile) -> Dict[str, Any]:
         summary = {}
     else:
         wallet_payload.update(summary)
+        summary_flags = summary.get("flags") or {}
+        wallet_flags.update({k: bool(v) for k, v in summary_flags.items()})
+
+    wallet_payload["flags"] = wallet_flags
 
     return {
         "wallet": wallet_payload,

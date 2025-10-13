@@ -161,6 +161,16 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        if getattr(profile, "stars_purchase_blocked", False):
+            logger.warning(
+                "bot payment report blocked",
+                extra={**log_extra, "profile_id": profile.id, "reason": "stars_purchase_blocked"},
+            )
+            return Response(
+                {"detail": "Telegram заблокировал покупки Stars для этого пользователя."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         existing = WalletTransaction.objects.filter(
             profile=profile,
             idempotency_key=idempotency_key,

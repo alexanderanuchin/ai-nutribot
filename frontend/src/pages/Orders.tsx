@@ -149,12 +149,18 @@ export default function Orders(): JSX.Element {
     return null
   }, [])
 
-  const operationsDisabled = useMemo(() => submitting || !authReady, [authReady, submitting])
+  const baseOperationsDisabled = useMemo(() => submitting || !authReady, [authReady, submitting])
+  const starsPurchaseBlocked = summary?.flags?.stars_purchase_blocked ?? false
+  const topupDisabled = baseOperationsDisabled || starsPurchaseBlocked
 
   const handleTopUpSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (!authReady) {
       setError('Подождите, авторизация WebApp ещё не завершена.')
+      return
+    }
+    if (starsPurchaseBlocked) {
+      setError('Пополнение Stars недоступно в вашем регионе — Telegram временно отключил покупки.')
       return
     }
     const amount = parseAmount(topupForm.amount)
@@ -415,7 +421,7 @@ export default function Orders(): JSX.Element {
                 step="0.01"
                 value={topupForm.amount}
                 onChange={event => setTopupForm(prev => ({ ...prev, amount: event.target.value }))}
-                disabled={operationsDisabled}
+                disabled={topupDisabled}
                 required
               />
             </label>
@@ -425,10 +431,15 @@ export default function Orders(): JSX.Element {
                 type="text"
                 value={topupForm.description}
                 onChange={event => setTopupForm(prev => ({ ...prev, description: event.target.value }))}
-                disabled={operationsDisabled}
-              />
+                disabled={topupDisabled}
+            />
             </label>
-            <button type="submit" className="orders-button" disabled={operationsDisabled}>
+            {starsPurchaseBlocked && (
+              <div className="orders-alert orders-alert--warning">
+                Пополнение Stars временно отключено Telegram для вашего региона.
+              </div>
+            )}
+            <button type="submit" className="orders-button" disabled={topupDisabled}>
               Пополнить
             </button>
           </form>
@@ -440,7 +451,7 @@ export default function Orders(): JSX.Element {
               <select
                 value={withdrawForm.currency}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, currency: event.target.value as WalletCurrency }))}
-                disabled={operationsDisabled}
+                disabled={baseOperationsDisabled}
               >
                 <option value="stars">Telegram Stars</option>
                 <option value="calo">CaloCoin</option>
@@ -454,7 +465,7 @@ export default function Orders(): JSX.Element {
                 step="0.01"
                 value={withdrawForm.amount}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, amount: event.target.value }))}
-                disabled={operationsDisabled}
+                disabled={baseOperationsDisabled}
                 required
               />
             </label>
@@ -464,10 +475,10 @@ export default function Orders(): JSX.Element {
                 type="text"
                 value={withdrawForm.description}
                 onChange={event => setWithdrawForm(prev => ({ ...prev, description: event.target.value }))}
-                disabled={operationsDisabled}
+                disabled={baseOperationsDisabled}
               />
             </label>
-            <button type="submit" className="orders-button orders-button--secondary" disabled={operationsDisabled}>
+            <button type="submit" className="orders-button orders-button--secondary" disabled={baseOperationsDisabled}>
               Списать
             </button>
           </form>
