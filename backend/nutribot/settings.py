@@ -21,7 +21,6 @@ ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
 CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -93,7 +92,6 @@ else:
         }
     }
 
-
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = os.getenv("TIME_ZONE", "Europe/Amsterdam")
 USE_I18N = True
@@ -150,6 +148,8 @@ CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 BOT_INTERNAL_KEY = os.getenv("BOT_INTERNAL_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+
 def _load_telegram_bot_token() -> Tuple[str, str]:
     file_path = os.getenv("TELEGRAM_BOT_TOKEN_FILE")
     if file_path:
@@ -163,6 +163,10 @@ def _load_telegram_bot_token() -> Tuple[str, str]:
     env_value = os.getenv("TELEGRAM_BOT_TOKEN")
     if env_value:
         return env_value, "env:TELEGRAM_BOT_TOKEN"
+    bot_token = os.getenv("BOT_TOKEN")
+
+    if bot_token:
+        return bot_token, "env:BOT_TOKEN"
 
     return "", "missing"
 
@@ -179,6 +183,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 CATALOG_MINIMUM_AVAILABLE_ITEMS = int(os.getenv("CATALOG_MINIMUM_AVAILABLE_ITEMS", "120"))
 
+
 def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     raw_value = os.getenv(env_name)
     if not raw_value:
@@ -188,7 +193,6 @@ def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 LOG_ADMIN_LOGGER_NAMES = _split_env_list("LOG_ADMIN_LOGGER_NAMES", ())
 LOG_ADMIN_LOGGER_PREFIXES = _split_env_list("LOG_ADMIN_LOGGER_PREFIXES", ("audit.",))
-
 
 LOGGING = {
     "version": 1,
