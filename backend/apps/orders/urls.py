@@ -9,7 +9,7 @@ from .views import (
     SubscriptionAutopayToggleView,
     SubscriptionChargeView,
     TelegramBotPaymentReportView,
-    TelegramStarsWebhookView,
+    TelegramStarsInvoiceView,
     WalletBalancesView,
     WalletManualStarsTopUpView,
     WalletSummaryView,
@@ -26,6 +26,11 @@ urlpatterns = [
     path("wallet/summary/", WalletSummaryView.as_view(), name="wallet-summary"),
     path("wallet/balances/", WalletBalancesView.as_view(), name="wallet-balances"),
     path("wallet/topup/", WalletTopUpView.as_view(), name="wallet-topup"),
+    path(
+        "wallet/telegram-stars/invoice/",
+        TelegramStarsInvoiceView.as_view(),
+        name="wallet-telegram-stars-invoice",
+    ),
     path("wallet/manual-stars/", WalletManualStarsTopUpView.as_view(), name="wallet-manual-stars"),
     path(
         "bot/telegram-stars/payment/",
@@ -54,11 +59,6 @@ urlpatterns = [
         "features/compose_recipe/purchase/",
         ComposeRecipePurchaseView.as_view(),
         name="feature-compose-recipe-purchase",
-    ),
-    path(
-        "webhooks/payments/telegram-stars/",
-        TelegramStarsWebhookView.as_view(),
-        name="webhook-telegram-stars",
     ),
     path(
         "webhooks/payments/card/",

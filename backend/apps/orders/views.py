@@ -167,7 +167,11 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 extra={**log_extra, "profile_id": profile.id, "reason": "stars_purchase_blocked"},
             )
             return Response(
-                {"detail": "Telegram заблокировал покупки Stars для этого пользователя."},
+                {
+                    "detail": "Telegram заблокировал покупки Stars для этого пользователя.",
+                    "code": "purchases_disabled",
+                    "stars_purchase_blocked": True,
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -199,11 +203,25 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 metadata=metadata or None,
             )
         except PaymentProviderError as exc:
+            should_block = exc.details.get("block_purchases") or exc.code in {"purchases_disabled", "user_not_found"}
+            if should_block and not getattr(profile, "stars_purchase_blocked", False):
+                profile.stars_purchase_blocked = True
+                profile.save(update_fields=["stars_purchase_blocked", "updated_at"])
             logger.error(
                 "bot payment report failed",
-                extra={**log_extra, "profile_id": getattr(profile, "id", None), "reason": str(exc)},
+                extra={
+                    **log_extra,
+                    "profile_id": getattr(profile, "id", None),
+                    "reason": str(exc),
+                    "code": exc.code,
+                },
             )
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            payload = {"detail": str(exc)}
+            if exc.code:
+                payload["code"] = exc.code
+            if getattr(profile, "stars_purchase_blocked", False) or should_block:
+                payload["stars_purchase_blocked"] = True
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
 
         response_data = WalletTransactionSerializer(tx).data
         status_code = status.HTTP_200_OK if existing else status.HTTP_201_CREATED
@@ -303,6 +321,7 @@ class WalletTopUpView(WalletProfileMixin, IdempotencyMixin, APIView):
         serializer.is_valid(raise_exception=True)
         profile = self.get_profile()
         amount = Decimal(serializer.validated_data["amount"])
+        rid = getattr(request, "request_id", get_request_id())
         result: PaymentInitiationResult = self.payment_service.start_wallet_topup(
             profile,
             currency=serializer.validated_data["currency"],
@@ -310,6 +329,7 @@ class WalletTopUpView(WalletProfileMixin, IdempotencyMixin, APIView):
             provider=serializer.validated_data["provider"],
             idempotency_key=key,
             metadata=serializer.validated_data.get("metadata"),
+            request_id=rid,
         )
         payload = {
             "payment_attempt_id": result.payment_attempt.pk,
@@ -317,6 +337,79 @@ class WalletTopUpView(WalletProfileMixin, IdempotencyMixin, APIView):
             "status": result.payment_attempt.status,
             "confirmation": result.confirmation_data,
         }
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class TelegramStarsInvoiceView(WalletProfileMixin, IdempotencyMixin, APIView):
+    permission_classes = [IsAuthenticated]
+    payment_service = PaymentService()
+
+    class Serializer(serializers.Serializer):
+        amount = serializers.IntegerField(min_value=1)
+        comment = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+    def post(self, request, *args, **kwargs):
+        key = self.require_idempotency_key()
+        serializer = self.Serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile = self.get_profile()
+        if not getattr(profile, "telegram_id", None):
+            raise serializers.ValidationError(
+                {"detail": "Аккаунт Telegram не связан. Авторизуйтесь и попробуйте снова."})
+
+        amount = int(serializer.validated_data["amount"])
+        comment = serializer.validated_data.get("comment") or None
+        metadata: Dict[str, Any] | None = {"comment": comment} if comment else None
+        rid = getattr(request, "request_id", get_request_id())
+
+        log_extra = {
+            "rid": rid,
+            "request_id": rid,
+            "profile_id": profile.pk,
+            "telegram_user_id": profile.telegram_id,
+            "amount": amount,
+            "idempotency_key": key,
+            "has_comment": bool(comment),
+        }
+        logger.info("wallet telegram_invoice request", extra=log_extra)
+
+        try:
+            result = self.payment_service.start_wallet_topup(
+                profile,
+                currency=WalletTransaction.Currency.TELEGRAM_STARS,
+                amount=Decimal(amount),
+                provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+                idempotency_key=key,
+                metadata=metadata,
+                request_id=rid,
+            )
+        except PaymentProviderError as exc:
+            logger.warning(
+                "wallet telegram_invoice failed",
+                extra={**log_extra, "error": str(exc), "code": exc.code},
+            )
+            payload = {"detail": str(exc)}
+            if exc.code:
+                payload["code"] = exc.code
+            should_block = exc.details.get("block_purchases") or getattr(profile, "stars_purchase_blocked", False)
+            if should_block:
+                payload["stars_purchase_blocked"] = True
+            return Response(payload, status=status.HTTP_400_BAD_REQUEST)
+
+        confirmation = result.confirmation_data
+        payload = {
+            "payment_attempt_id": result.payment_attempt.pk,
+            "provider": result.payment_attempt.provider,
+            "status": result.payment_attempt.status,
+            "invoice_link": confirmation.get("invoice_link"),
+            "invoice_id": confirmation.get("invoice_id"),
+            "confirmation": confirmation,
+            "stars_purchase_blocked": bool(getattr(profile, "stars_purchase_blocked", False)),
+        }
+        logger.info(
+            "wallet telegram_invoice success",
+            extra={**log_extra, "payment_attempt_id": result.payment_attempt.pk},
+        )
         return Response(payload, status=status.HTTP_201_CREATED)
 
 
@@ -499,21 +592,6 @@ class ComposeRecipePurchaseView(WalletProfileMixin, IdempotencyMixin, APIView):
         return Response(WalletTransactionSerializer(tx).data, status=status.HTTP_201_CREATED)
 
 
-class TelegramStarsWebhookView(IdempotencyMixin, APIView):
-    permission_classes = [AllowAny]
-    payment_service = PaymentService()
-
-    def post(self, request, *args, **kwargs):
-        key = self.require_idempotency_key()
-        event = self.payment_service.handle_webhook(
-            PaymentAttempt.Provider.TELEGRAM_STARS,
-            request.data,
-            idempotency_key=key,
-        )
-        status_code = status.HTTP_200_OK if event.status != IntegrationWebhookEvent.ProcessingStatus.FAILED else status.HTTP_400_BAD_REQUEST
-        return Response({"status": event.status, "event_id": event.pk}, status=status_code)
-
-
 class CardWebhookView(IdempotencyMixin, APIView):
     permission_classes = [AllowAny]
     payment_service = PaymentService()
@@ -534,6 +612,7 @@ __all__ = [
     "OrderViewSet",
     "WalletSummaryView",
     "WalletBalancesView",
+    "TelegramStarsInvoiceView",
     "WalletTopUpView",
     "WalletManualStarsTopUpView",
     "CheckoutView",
@@ -541,6 +620,5 @@ __all__ = [
     "SubscriptionChargeView",
     "TelegramBotPaymentReportView",
     "ComposeRecipePurchaseView",
-    "TelegramStarsWebhookView",
     "CardWebhookView",
 ]

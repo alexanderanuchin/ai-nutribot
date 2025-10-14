@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { fetchWalletSummary, listWalletTransactions, walletWithdraw, listOrders, createOrder, payOrder } from '../api/orders'
+import {
+  fetchWalletSummary,
+  listWalletTransactions,
+  walletWithdraw,
+  listOrders,
+  createOrder,
+  payOrder,
+  createTelegramStarsInvoice,
+} from '../api/orders'
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
 import { tg } from '../lib/telegram'
 import { debugLog, generateRequestId, warnLog } from '../lib/logging'
@@ -121,6 +129,41 @@ export default function Orders(): JSX.Element {
   }, [authReady, loadData])
 
   useEffect(() => {
+    const webApp = tg()
+    if (!webApp || typeof webApp.onEvent !== 'function') {
+      return
+    }
+    const handler = (event: { status?: string } | undefined) => {
+      const status = event?.status
+      debugLog('webapp/topup', 'invoiceClosed event', { status })
+      void sendApplicationLog({
+        level: 'INFO',
+        logger: 'webapp.topup',
+        message: 'invoiceClosed event',
+        requestId: generateRequestId(),
+        extra: { status },
+      })
+      if (status && status !== 'pending') {
+        clearTopupLock()
+      }
+      if (status === 'paid') {
+        setMessage('Платёж Stars подтверждён. Баланс обновится в течение пары секунд.')
+        void loadData()
+      } else if (status === 'cancelled') {
+        setMessage('Оплата по счёту отменена. Попробуйте оформить новый счёт при необходимости.')
+      } else if (status === 'failed') {
+        setError('Telegram сообщил об ошибке при оплате Stars. Попробуйте позже.')
+      }
+    }
+    webApp.onEvent('invoiceClosed', handler)
+    return () => {
+      if (typeof webApp.offEvent === 'function') {
+        webApp.offEvent('invoiceClosed', handler)
+      }
+    }
+  }, [loadData])
+
+  useEffect(() => {
     if (!message) return
     const timer = window.setTimeout(() => setMessage(null), 5000)
     return () => window.clearTimeout(timer)
@@ -153,7 +196,7 @@ export default function Orders(): JSX.Element {
   const starsPurchaseBlocked = summary?.flags?.stars_purchase_blocked ?? false
   const topupDisabled = baseOperationsDisabled || starsPurchaseBlocked
 
-  const handleTopUpSubmit = (event: React.FormEvent) => {
+  const handleTopUpSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!authReady) {
       setError('Подождите, авторизация WebApp ещё не завершена.')
@@ -205,62 +248,93 @@ export default function Orders(): JSX.Element {
     }
     const rid = generateRequestId()
     lastTopupAttemptRef.current = { rid, expiresAt: Date.now() + TOPUP_SUBMIT_LOCK_MS }
-    try {
-      setSubmitting(true)
-      setError(null)
-      debugLog('webapp/topup', 'sendData', {
-        rid,
+    setSubmitting(true)
+    setError(null)
+    const trimmedComment = topupForm.description.trim()
+    debugLog('webapp/topup', 'invoice request', {
+      rid,
+      amount: rounded,
+      hasComment: Boolean(trimmedComment),
+    })
+    void sendApplicationLog({
+      level: 'INFO',
+      logger: 'webapp.topup',
+      message: 'invoice request',
+      requestId: rid,
+      extra: {
         amount: rounded,
-        hasComment: Boolean(topupForm.description.trim()),
+        hasComment: Boolean(trimmedComment),
+      },
+    })
+    try {
+      const response = await createTelegramStarsInvoice({
+        amount: rounded,
+        comment: trimmedComment || undefined,
       })
-      void sendApplicationLog({
-        level: 'INFO',
-        logger: 'webapp.topup',
-        message: 'sendData',
-        requestId: rid,
-        extra: {
-          amount: rounded,
-          hasComment: Boolean(topupForm.description.trim()),
-        },
-      })
-      webApp.sendData(
-        JSON.stringify({
-          type: 'topup',
-          action: 'topup',
-          amount: rounded,
-          comment: topupForm.description.trim() || undefined,
-          rid,
-        })
-      )
+      const invoiceLink = response?.invoice_link
+      if (!invoiceLink) {
+        throw new Error('Не удалось получить ссылку на счёт Telegram.')
+      }
       scheduleTopupRelease(rid)
-      debugLog('webapp/topup', 'sendData success', { rid })
+      if (typeof webApp.openInvoice !== 'function') {
+        throw new Error('Telegram-клиент не поддерживает openInvoice для Mini App.')
+      }
+      webApp.openInvoice(invoiceLink, status => {
+        debugLog('webapp/topup', 'invoice callback', { rid, status })
+        void sendApplicationLog({
+          level: 'INFO',
+          logger: 'webapp.topup',
+          message: 'invoice callback',
+          requestId: rid,
+          extra: { status },
+        })
+        if (status === 'paid') {
+          clearTopupLock()
+          setMessage('Платёж Stars подтверждён. Баланс обновится в течение пары секунд.')
+          void loadData()
+        } else if (status === 'cancelled') {
+          clearTopupLock()
+          setMessage('Оплата отменена пользователем. Повторите попытку при необходимости.')
+        } else if (status === 'failed') {
+          clearTopupLock()
+          setError('Telegram сообщил об ошибке при оплате. Попробуйте ещё раз позже.')
+        }
+      })
+      debugLog('webapp/topup', 'invoice opened', { rid })
       void sendApplicationLog({
         level: 'INFO',
         logger: 'webapp.topup',
-        message: 'sendData success',
+        message: 'invoice opened',
         requestId: rid,
-        extra: {
-          amount: rounded,
-        },
+        extra: { amount: rounded },
       })
-      setMessage('Запрос на пополнение отправлен в бота. Проверьте Telegram для выставленного счёта.')
+      setMessage('Счёт на пополнение открыт. Подтвердите оплату в Telegram-клиенте.')
       setTopupForm(prev => ({ ...prev, description: '' }))
+      if (response?.stars_purchase_blocked) {
+        setSummary(prev => (prev ? { ...prev, flags: { ...prev.flags, stars_purchase_blocked: true } } : prev))
+      }
     } catch (err) {
-      warnLog('webapp/topup', 'sendData failed', {
+      warnLog('webapp/topup', 'invoice request failed', {
         rid,
         error: err instanceof Error ? err.message : String(err),
       })
       void sendApplicationLog({
         level: 'WARNING',
         logger: 'webapp.topup',
-        message: 'sendData failed',
+        message: 'invoice request failed',
         requestId: rid,
         extra: {
           error: err instanceof Error ? err.message : String(err),
         },
       })
       clearTopupLock()
-      setError('Не удалось отправить запрос в бота. Попробуйте повторить позже.')
+      const payload = (err as any)?.data ?? err
+      if (payload?.stars_purchase_blocked) {
+        setSummary(prev => (prev ? { ...prev, flags: { ...prev.flags, stars_purchase_blocked: true } } : prev))
+        setMessage('Telegram временно отключил покупки Stars для вашего аккаунта.')
+      }
+      const messageFromError = extractErrorMessage(payload)
+      setError(messageFromError ?? 'Не удалось создать счёт на пополнение. Попробуйте позже.')
     }
   }
 

@@ -9,12 +9,17 @@ from typing import Any, Dict, Union
 from django.db import transaction
 from django.utils import timezone
 
-from apps.users.models import Profile
 from apps.common.logging import summarize_token
+from apps.users.models import Profile
 from nutribot.middleware import get_build_fingerprint, get_request_id
 
 from ..models import IntegrationWebhookEvent, Order, PaymentAttempt, WalletTransaction
 from .order import OrderService, PaymentResult
+from .telegram_invoice import (
+    TelegramInvoiceResult,
+    TelegramStarsInvoiceError,
+    TelegramStarsInvoiceService,
+)
 from .wallet import (
     WalletInsufficientFunds,
     wallet_consume_hold,
@@ -25,12 +30,16 @@ from .wallet import (
     wallet_withdraw,
 )
 
-from apps.common.logging import summarize_token
-from nutribot.middleware import get_request_id
+logger = logging.getLogger("audit.wallet")
 
 
 class PaymentProviderError(Exception):
     """Base class for provider related errors."""
+
+    def __init__(self, message: str, *, code: str | None = None, details: Dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.details = details or {}
 
 
 @dataclass
@@ -54,6 +63,7 @@ class BasePaymentProvider:
             amount: Decimal,
             idempotency_key: str | None,
             metadata: Dict[str, Any] | None = None,
+            request_id: str | None = None,
     ) -> PaymentInitiationResult:
         raise NotImplementedError
 
@@ -81,6 +91,36 @@ class BasePaymentProvider:
 
 class TelegramStarsProvider(BasePaymentProvider):
     code = PaymentAttempt.Provider.TELEGRAM_STARS
+    invoice_service_class = TelegramStarsInvoiceService
+
+    def __init__(self, service: "PaymentService", invoice_service: TelegramStarsInvoiceService | None = None) -> None:
+        super().__init__(service)
+        self.invoice_service = invoice_service or self.invoice_service_class()
+
+    def _ensure_integer_amount(self, amount: Decimal) -> int:
+        integer_amount = int(amount)
+        if Decimal(integer_amount) != amount:
+            raise PaymentProviderError(
+                "Сумма для пополнения Stars должна быть целым числом.",
+                code="invalid_amount",
+            )
+        return integer_amount
+
+    def _find_idempotent_attempt(
+            self,
+            *,
+            idempotency_key: str | None,
+    ) -> PaymentAttempt | None:
+        if not idempotency_key:
+            return None
+        return (
+            PaymentAttempt.objects.filter(
+                provider=self.code,
+                confirmation_payload__idempotency_key=idempotency_key,
+            )
+            .order_by("-initiated_at", "-id")
+            .first()
+        )
 
     def start_wallet_topup(
             self,
@@ -90,29 +130,76 @@ class TelegramStarsProvider(BasePaymentProvider):
             amount: Decimal,
             idempotency_key: str | None,
             metadata: Dict[str, Any] | None = None,
+            request_id: str | None = None,
     ) -> PaymentInitiationResult:
         if currency != WalletTransaction.Currency.TELEGRAM_STARS:
-            raise PaymentProviderError("Telegram Stars provider accepts only STARS currency")
+            raise PaymentProviderError("Telegram Stars provider принимает только валюту STARS", code="invalid_currency")
+
+        existing = self._find_idempotent_attempt(idempotency_key=idempotency_key)
+        if existing:
+            confirmation = existing.confirmation_payload or {}
+            return PaymentInitiationResult(payment_attempt=existing, confirmation_data=confirmation)
+
+        integer_amount = self._ensure_integer_amount(amount)
         external_payment_id = uuid.uuid4().hex
+        confirmation_payload: Dict[str, Any] = {
+            "invoice_id": external_payment_id,
+            "profile_id": profile.pk,
+            "metadata": metadata or {},
+            "idempotency_key": idempotency_key,
+        }
         attempt = PaymentAttempt.objects.create(
             provider=self.code,
             status=PaymentAttempt.Status.INITIATED,
             amount=amount,
             currency=currency,
             external_payment_id=external_payment_id,
-            confirmation_payload={
-                "invoice_id": external_payment_id,
-                "profile_id": profile.pk,
-                "metadata": metadata or {},
-            },
+            confirmation_payload=confirmation_payload,
         )
+
+        try:
+            invoice: TelegramInvoiceResult = self.invoice_service.create_wallet_topup_invoice(
+                profile=profile,
+                amount_stars=integer_amount,
+                comment=(metadata or {}).get("comment") if metadata else None,
+                metadata={"payment_attempt_id": attempt.pk, **(metadata or {})},
+                idempotency_key=idempotency_key,
+                request_id=request_id,
+            )
+        except TelegramStarsInvoiceError as exc:
+            if exc.details.get("block_purchases"):
+                Profile.objects.filter(pk=profile.pk).update(
+                    stars_purchase_blocked=True,
+                    updated_at=timezone.now(),
+                )
+                profile.stars_purchase_blocked = True
+            attempt.status = PaymentAttempt.Status.FAILED
+            attempt.failure_code = exc.code or "invoice_error"
+            attempt.failure_reason = str(exc)
+            attempt.processed_at = timezone.now()
+            attempt.save(update_fields=[
+                "status",
+                "failure_code",
+                "failure_reason",
+                "processed_at",
+                "updated_at",
+            ])
+            raise PaymentProviderError(str(exc), code=exc.code, details=exc.details) from exc
+
         confirmation = {
             "invoice_id": external_payment_id,
-            "payload": {
-                "amount": int(amount),
-                "currency": currency,
-            },
+            "invoice_link": invoice.invoice_link,
+            "payload": invoice.payload,
+            "profile_id": profile.pk,
+            "telegram_user_id": profile.telegram_id,
+            "metadata": metadata or {},
+            "idempotency_key": idempotency_key,
+            "title": invoice.title,
+            "description": invoice.description,
+            "start_parameter": invoice.start_parameter,
         }
+        attempt.confirmation_payload = confirmation
+        attempt.save(update_fields=["confirmation_payload", "updated_at"])
         return PaymentInitiationResult(payment_attempt=attempt, confirmation_data=confirmation)
 
     def start_order_payment(
@@ -271,6 +358,7 @@ class CaloCoinProvider(BasePaymentProvider):
             amount: Decimal,
             idempotency_key: str | None,
             metadata: Dict[str, Any] | None = None,
+            request_id: str | None = None,
     ) -> PaymentInitiationResult:
         raise PaymentProviderError("CaloCoin provider does not support direct top ups")
 
@@ -392,6 +480,7 @@ class CardProvider(BasePaymentProvider):
             amount: Decimal,
             idempotency_key: str | None,
             metadata: Dict[str, Any] | None = None,
+            request_id: str | None = None,
     ) -> PaymentInitiationResult:
         external_payment_id = uuid.uuid4().hex
         attempt = PaymentAttempt.objects.create(
@@ -542,6 +631,7 @@ class PaymentService:
             provider: str,
             idempotency_key: str | None = None,
             metadata: Dict[str, Any] | None = None,
+            request_id: str | None = None,
     ) -> PaymentInitiationResult:
         provider_instance = self.get_provider(provider)
         return provider_instance.start_wallet_topup(
@@ -550,6 +640,7 @@ class PaymentService:
             amount=amount,
             idempotency_key=idempotency_key,
             metadata=metadata,
+            request_id=request_id,
         )
 
     def start_order_payment(
@@ -626,7 +717,9 @@ class PaymentService:
         profile = self._resolve_profile(user)
         if getattr(profile, "stars_purchase_blocked", False):
             raise PaymentProviderError(
-                "Telegram сообщает, что пополнения Stars недоступны в вашем регионе."
+                "Telegram сообщает, что пополнения Stars недоступны в вашем регионе.",
+                code="purchases_disabled",
+                details={"block_purchases": True},
             )
         meta = {
             "source": "telegram_bot_invoice",

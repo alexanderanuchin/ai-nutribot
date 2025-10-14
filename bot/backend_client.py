@@ -126,7 +126,8 @@ class BackendClient:
                                 extra=log_extra,
                             )
                         raise BackendAuthError("Unauthorized")
-                    if resp.status in {400, 422}:
+                    is_structured_error = isinstance(data, dict) and data.get("code")
+                    if resp.status in {400, 422} or (resp.status in {403, 409} and is_structured_error):
                         if log_requests:
                             self._logger.warning(
                                 "backend request validation",

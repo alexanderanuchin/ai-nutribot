@@ -23,7 +23,8 @@ from apps.orders.models import (
     WalletTransaction,
 )
 from apps.orders.services import BillingService, PaymentService
-from apps.orders.services.payment import PaymentProviderError
+from apps.orders.services.payment import PaymentProviderError, TelegramStarsProvider
+from apps.orders.services.telegram_invoice import TelegramInvoiceResult, TelegramStarsInvoiceError
 from apps.orders.services.wallet import get_wallet_balance
 
 User = get_user_model()
@@ -36,11 +37,51 @@ def api_client() -> APIClient:
 
 @pytest.fixture
 def user() -> User:
-    return User.objects.create_user(
+    user = User.objects.create_user(
         username="+79990001122",
         email="wallet@example.com",
         password="StrongPass!1",
     )
+    profile = user.profile
+    if not profile.telegram_id:
+        profile.telegram_id = 700000 + user.pk
+        profile.save(update_fields=["telegram_id", "updated_at"])
+    return user
+
+
+@pytest.fixture(autouse=True)
+def stub_invoice_service(monkeypatch, settings):
+    settings.TELEGRAM_BOT_TOKEN = "test-token"
+
+    class FakeInvoiceService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def create_wallet_topup_invoice(
+                self,
+                *,
+                profile,
+                amount_stars: int,
+                comment,
+                metadata,
+                idempotency_key,
+                request_id,
+        ) -> TelegramInvoiceResult:
+            return TelegramInvoiceResult(
+                invoice_link="https://t.me/pay?start=stub",
+                payload=f"uid={profile.telegram_id}",
+                title="Пополнение баланса Stars",
+                description=f"Быстрое пополнение на {amount_stars} XTR.",
+                start_parameter="wallet",
+            )
+
+    monkeypatch.setattr(TelegramStarsProvider, "invoice_service_class", FakeInvoiceService)
+
+    from apps.orders import views as orders_views
+
+    orders_views.WalletTopUpView.payment_service = PaymentService()
+    orders_views.TelegramStarsInvoiceView.payment_service = PaymentService()
+    orders_views.TelegramBotPaymentReportView.payment_service = PaymentService()
 
 
 @pytest.fixture
@@ -102,6 +143,103 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     )
     assert resp.status_code == 400
     assert "amount" in resp.json()
+
+
+@pytest.mark.django_db
+def test_generate_telegram_invoice(auth_client: APIClient, user: User):
+    headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    resp = auth_client.post(
+        "/api/orders/wallet/telegram-stars/invoice/",
+        {"amount": 150, "comment": "CRM topup"},
+        format="json",
+        **headers,
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["payment_attempt_id"]
+    assert data["invoice_link"].startswith("https://")
+    assert data["stars_purchase_blocked"] is False
+    attempt = PaymentAttempt.objects.get(pk=data["payment_attempt_id"])
+    assert attempt.provider == PaymentAttempt.Provider.TELEGRAM_STARS
+    assert attempt.confirmation_payload["invoice_link"] == data["invoice_link"]
+
+    repeat = auth_client.post(
+        "/api/orders/wallet/telegram-stars/invoice/",
+        {"amount": 150, "comment": "CRM topup"},
+        format="json",
+        **headers,
+    )
+    assert repeat.status_code == 201
+    assert repeat.json()["payment_attempt_id"] == data["payment_attempt_id"]
+
+
+@pytest.mark.django_db
+def test_generate_telegram_invoice_blocks_on_purchases_disabled(monkeypatch, auth_client: APIClient, user: User):
+    class FailingInvoiceService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def create_wallet_topup_invoice(self, **kwargs):
+            raise TelegramStarsInvoiceError(
+                "Telegram временно отключил покупки Stars",
+                code="purchases_disabled",
+                details={"block_purchases": True},
+            )
+
+    monkeypatch.setattr(TelegramStarsProvider, "invoice_service_class", FailingInvoiceService)
+
+    from apps.orders import views as orders_views
+
+    orders_views.TelegramStarsInvoiceView.payment_service = PaymentService()
+
+    headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    resp = auth_client.post(
+        "/api/orders/wallet/telegram-stars/invoice/",
+        {"amount": 200},
+        format="json",
+        **headers,
+    )
+    assert resp.status_code == 400
+    payload = resp.json()
+    assert payload["code"] == "purchases_disabled"
+    assert payload["stars_purchase_blocked"] is True
+    user.profile.refresh_from_db()
+    assert user.profile.stars_purchase_blocked is True
+
+
+@pytest.mark.django_db
+def test_generate_telegram_invoice_blocks_on_user_not_found(monkeypatch, auth_client: APIClient, user: User):
+    class MissingUserInvoiceService:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def create_wallet_topup_invoice(self, **kwargs):
+            raise TelegramStarsInvoiceError(
+                "Telegram не смог найти ваш аккаунт для оплаты Stars.",
+                code="user_not_found",
+                details={"block_purchases": True},
+            )
+
+    monkeypatch.setattr(TelegramStarsProvider, "invoice_service_class", MissingUserInvoiceService)
+
+    from apps.orders import views as orders_views
+
+    orders_views.TelegramStarsInvoiceView.payment_service = PaymentService()
+
+    headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    resp = auth_client.post(
+        "/api/orders/wallet/telegram-stars/invoice/",
+        {"amount": 200},
+        format="json",
+        **headers,
+    )
+
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    payload = resp.json()
+    assert payload["code"] == "user_not_found"
+    assert payload["stars_purchase_blocked"] is True
+    user.profile.refresh_from_db()
+    assert user.profile.stars_purchase_blocked is True
 
 
 @pytest.mark.django_db
@@ -171,7 +309,46 @@ def test_bot_payment_report_rejects_when_blocked(api_client: APIClient, user: Us
     )
 
     assert resp.status_code == status.HTTP_403_FORBIDDEN
-    assert "заблокировал" in resp.json().get("detail", "")
+    payload = resp.json()
+    assert "заблокировал" in payload.get("detail", "")
+    assert payload.get("code") == "purchases_disabled"
+
+
+@pytest.mark.django_db
+def test_bot_payment_report_blocks_when_user_missing(monkeypatch, api_client: APIClient, user: User, settings):
+    settings.BOT_INTERNAL_KEY = "bot-secret"
+    from apps.orders import views as orders_views
+
+    orders_views.TelegramStarsInvoiceView.payment_service = PaymentService()
+    payment_service = PaymentService()
+    orders_views.TelegramBotPaymentReportView.payment_service = payment_service
+
+    def failing_wallet_topup(*args, **kwargs):
+        raise PaymentProviderError(
+            "Telegram не смог найти ваш аккаунт для оплаты Stars.",
+            code="user_not_found",
+            details={"block_purchases": True},
+        )
+
+    monkeypatch.setattr(payment_service, "wallet_topup", failing_wallet_topup)
+
+    profile = user.profile
+    profile.telegram_id = 775566
+    profile.save(update_fields=["telegram_id", "updated_at"])
+
+    resp = api_client.post(
+        "/api/orders/bot/telegram-stars/payment/",
+        {"user_id": profile.telegram_id, "amount": 50, "charge_id": "missing-user"},
+        format="json",
+        HTTP_X_BOT_KEY="bot-secret",
+    )
+
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    payload = resp.json()
+    assert payload["code"] == "user_not_found"
+    assert payload["stars_purchase_blocked"] is True
+    profile.refresh_from_db()
+    assert profile.stars_purchase_blocked is True
 
 
 @pytest.mark.django_db

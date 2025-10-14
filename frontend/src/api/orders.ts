@@ -84,6 +84,34 @@ export async function walletWithdraw(payload: WalletOperationPayload): Promise<W
   )
 }
 
+export interface TelegramStarsInvoicePayload {
+  amount: number
+  comment?: string
+}
+
+export interface TelegramStarsInvoiceResponse {
+  payment_attempt_id: number
+  provider: string
+  status: string
+  invoice_link: string
+  invoice_id?: string
+  confirmation: Record<string, unknown>
+  stars_purchase_blocked: boolean
+}
+
+export async function createTelegramStarsInvoice(
+  payload: TelegramStarsInvoicePayload
+): Promise<TelegramStarsInvoiceResponse> {
+  const config = withTelegramInitData()
+  const headers = { ...(config?.headers ?? {}), 'Idempotency-Key': generateIdempotencyKey() }
+  return unwrap(
+    api.post('/orders/wallet/telegram-stars/invoice/', payload, {
+      ...(config ?? {}),
+      headers,
+    })
+  )
+}
+
 export interface OrderPayload {
   title: string
   kind: string

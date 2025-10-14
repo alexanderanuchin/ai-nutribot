@@ -667,6 +667,9 @@ async def successful_payment_handler(
         )
     except BackendValidationError as exc:
         details = exc.errors if isinstance(exc.errors, dict) else {"detail": str(exc)}
+        code = details.get("code") if isinstance(details, dict) else None
+        if details.get("stars_purchase_blocked") or code in {"purchases_disabled", "user_not_found"}:
+            await state.update_data(stars_purchase_blocked=True)
         detail_msg = details.get("detail") or details.get("charge_id") or str(details)
         logger.error(
             "wallet payment_report_validation",
@@ -676,11 +679,23 @@ async def successful_payment_handler(
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
                 "error": details,
+                "code": code,
             },
         )
-        await message.answer(
-            "Оплата получена, но не удалось зафиксировать зачисление: " f"{detail_msg}"
-        )
+        if code == "purchases_disabled":
+            await message.answer(
+                "Telegram временно отключил покупки Stars для вашего аккаунта. "
+                "Попробуйте позже или обратитесь в поддержку."
+            )
+        elif code == "user_not_found":
+            await message.answer(
+                "Telegram не смог найти ваш аккаунт для оплаты Stars. "
+                "Убедитесь, что вы авторизованы в мини-приложении и попробуйте снова."
+            )
+        else:
+            await message.answer(
+                "Оплата получена, но не удалось зафиксировать зачисление: " f"{detail_msg}"
+            )
         return
     except BackendError as exc:
         logger.error(
