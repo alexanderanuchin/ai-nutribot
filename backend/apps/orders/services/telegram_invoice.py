@@ -56,7 +56,6 @@ class TelegramStarsInvoiceService:
             description: str,
             payload: str,
             amount: int,
-            start_parameter: str | None,
     ) -> str:
         async with Bot(token=self._bot_token) as bot:
             prices = [LabeledPrice(label=title, amount=amount)]
@@ -67,7 +66,6 @@ class TelegramStarsInvoiceService:
                 currency=self.currency_code,
                 prices=prices,
                 provider_token="",
-                start_parameter=start_parameter,
             )
 
     def create_wallet_topup_invoice(
@@ -133,7 +131,6 @@ class TelegramStarsInvoiceService:
                 description=description,
                 payload=payload,
                 amount=amount_stars,
-                start_parameter=start_parameter,
             )
         except TelegramBadRequest as exc:
             description_lower = str(exc).lower()
