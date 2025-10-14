@@ -10,7 +10,7 @@ from aiogram.types import Message
 
 from bot.logging_utils import get_request_id, mask_token
 
-from .wallet import build_stars_topup_invoice
+from .wallet import MAX_TOPUP_AMOUNT, MIN_TOPUP_AMOUNT, build_stars_topup_invoice
 
 router = Router()
 logger = logging.getLogger("audit.telegram")
@@ -90,9 +90,28 @@ async def _handle_topup_payload(
         logger.warning("webapp topup invalid_amount rid=%s amount=%s", get_request_id(), raw_amount)
         return
 
-    if amount <= 0:
-        await message.answer("Сумма пополнения должна быть положительным числом.")
-        logger.warning("webapp topup non_positive rid=%s amount=%s", get_request_id(), amount)
+    if amount < MIN_TOPUP_AMOUNT:
+        await message.answer(
+            "Сумма пополнения слишком мала. Минимум — " f"{MIN_TOPUP_AMOUNT} XTR."
+        )
+        logger.warning(
+            "webapp topup below_min rid=%s amount=%s min=%s",
+            get_request_id(),
+            amount,
+            MIN_TOPUP_AMOUNT,
+        )
+        return
+
+    if amount > MAX_TOPUP_AMOUNT:
+        await message.answer(
+            "Сумма пополнения слишком большая. Разделите платёж на несколько операций."
+        )
+        logger.warning(
+            "webapp topup above_max rid=%s amount=%s max=%s",
+            get_request_id(),
+            amount,
+            MAX_TOPUP_AMOUNT,
+        )
         return
 
     state_data = await state.get_data()

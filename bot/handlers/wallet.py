@@ -32,6 +32,8 @@ router = Router()
 logger = logging.getLogger("audit.wallet")
 
 TOPUP_AMOUNTS: Tuple[int, ...] = (50, 100)
+MIN_TOPUP_AMOUNT = 1
+MAX_TOPUP_AMOUNT = 10000
 TOPUP_SOURCE = "telegram_bot_invoice"
 
 
@@ -508,15 +510,29 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         )
         return
 
-    if amount not in TOPUP_AMOUNTS:
+    if amount < MIN_TOPUP_AMOUNT:
         await query.answer(
             ok=False,
-            error_message="Сумма счёта не поддерживается. Создайте новый счёт через /wallet.",
+            error_message=f"Минимальная сумма пополнения — {MIN_TOPUP_AMOUNT} XTR.",
         )
         logger.warning(
-            "wallet pre_checkout invalid_amount rid=%s amount=%s",
+            "wallet pre_checkout below_min rid=%s amount=%s min=%s",
             get_request_id(),
             amount,
+            MIN_TOPUP_AMOUNT,
+        )
+        return
+
+    if amount > MAX_TOPUP_AMOUNT:
+        await query.answer(
+            ok=False,
+            error_message="Сумма слишком большая. Попробуйте уменьшить пополнение.",
+        )
+        logger.warning(
+            "wallet pre_checkout above_max rid=%s amount=%s max=%s",
+            get_request_id(),
+            amount,
+            MAX_TOPUP_AMOUNT,
         )
         return
 

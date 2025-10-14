@@ -14,7 +14,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from bot.backend_client import AuthResult, BackendNetworkError
 from bot.handlers.wallet import (
+    MAX_TOPUP_AMOUNT,
+    MIN_TOPUP_AMOUNT,
     bot_stars_command,
+    pre_checkout_handler,
     successful_payment_handler,
     wallet_command,
     wallet_topup_callback,
@@ -181,6 +184,40 @@ async def test_wallet_topup_callback_respects_blocked():
     assert "недоступ" in text.lower()
     callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_pre_checkout_rejects_amount_below_min():
+    query = MagicMock()
+    query.answer = AsyncMock()
+    query.from_user = SimpleNamespace(id=MIN_TOPUP_AMOUNT)
+    query.currency = "XTR"
+    query.total_amount = MIN_TOPUP_AMOUNT - 1
+    query.invoice_payload = f"uid={MIN_TOPUP_AMOUNT};amt={MIN_TOPUP_AMOUNT - 1};token=abc"
+
+    await pre_checkout_handler(query)
+
+    query.answer.assert_awaited()
+    kwargs = query.answer.call_args.kwargs
+    assert kwargs["ok"] is False
+    assert "миним" in kwargs["error_message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_pre_checkout_rejects_amount_above_max():
+    query = MagicMock()
+    query.answer = AsyncMock()
+    query.from_user = SimpleNamespace(id=1)
+    query.currency = "XTR"
+    query.total_amount = MAX_TOPUP_AMOUNT + 1
+    query.invoice_payload = f"uid=1;amt={MAX_TOPUP_AMOUNT + 1};token=abc"
+
+    await pre_checkout_handler(query)
+
+    query.answer.assert_awaited()
+    kwargs = query.answer.call_args.kwargs
+    assert kwargs["ok"] is False
+    assert "больш" in kwargs["error_message"].lower()
 
 
 @pytest.mark.asyncio

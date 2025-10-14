@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from bot.handlers.wallet import MIN_TOPUP_AMOUNT
 from bot.handlers.webapp_data import webapp_data_handler
 
 
@@ -109,4 +110,22 @@ async def test_webapp_data_handler_respects_blocked_flag():
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
     assert "недоступ" in text.lower()
+    message.answer_invoice.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webapp_data_handler_rejects_amount_below_min():
+    state = FakeState({"access_token": "token", "session_user_id": 42})
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.answer_invoice = AsyncMock()
+    message.from_user = SimpleNamespace(id=42)
+    payload = {"type": "topup", "amount": MIN_TOPUP_AMOUNT - 1}
+    message.web_app_data = SimpleNamespace(data=json.dumps(payload))
+
+    await webapp_data_handler(message, state, access_token="token")
+
+    message.answer.assert_awaited()
+    text = message.answer.call_args[0][0]
+    assert "миним" in text.lower()
     message.answer_invoice.assert_not_called()
