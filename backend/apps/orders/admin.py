@@ -8,20 +8,24 @@ from .models import (
     IntegrationWebhookEvent,
 )
 
+
 @admin.register(DeliveryService)
 class DeliveryServiceAdmin(admin.ModelAdmin):
     list_display = ("slug", "name", "city", "is_active")
     list_filter = ("city", "is_active")
     search_fields = ("slug", "name", "city")
 
+
 @admin.register(DeliveryWindow)
 class DeliveryWindowAdmin(admin.ModelAdmin):
     list_display = ("service", "city", "start_time", "end_time", "is_default")
     list_filter = ("city", "service", "is_default")
 
+
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
+
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
@@ -32,12 +36,14 @@ class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
     readonly_fields = ("created_at", "updated_at", "paid_at", "cancelled_at")
 
+
 @admin.register(SubscriptionPlan)
 class SubscriptionPlanAdmin(admin.ModelAdmin):
     list_display = ("slug", "name", "city", "billing_period", "is_active",
                     "price_rub", "price_telegram_stars", "price_calocoin")
     list_filter = ("city", "billing_period", "is_active")
     search_fields = ("slug", "name")
+
 
 @admin.register(MealSubscription)
 class MealSubscriptionAdmin(admin.ModelAdmin):
@@ -47,6 +53,7 @@ class MealSubscriptionAdmin(admin.ModelAdmin):
     search_fields = ("user__username", "plan__slug")
     readonly_fields = ("created_at", "updated_at")
 
+
 @admin.register(PaymentAttempt)
 class PaymentAttemptAdmin(admin.ModelAdmin):
     list_display = ("id", "provider", "status", "amount", "currency",
@@ -54,12 +61,14 @@ class PaymentAttemptAdmin(admin.ModelAdmin):
     list_filter = ("provider", "status", "currency", "initiated_at")
     search_fields = ("external_payment_id", "order__id", "subscription__id")
 
+
 @admin.register(WalletTransaction)
 class WalletTransactionAdmin(admin.ModelAdmin):
     list_display = ("id", "profile", "currency", "direction", "status",
                     "amount", "occurred_at", "idempotency_key", "related_order")
     list_filter = ("currency", "direction", "status", "occurred_at")
     search_fields = ("idempotency_key", "profile__user__username", "related_order__id")
+
 
 @admin.register(IntegrationWebhookEvent)
 class IntegrationWebhookEventAdmin(admin.ModelAdmin):
