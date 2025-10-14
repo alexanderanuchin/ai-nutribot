@@ -17,15 +17,19 @@ logger = logging.getLogger("audit.telegram")
 
 
 async def _handle_auth_payload(message: Message, state: FSMContext, payload: dict) -> None:
+    rid = get_request_id()
     access_token = payload.get("access_token")
     if not access_token:
         await message.answer(
             "WebApp не передал токен авторизации. Запустите кабинет заново и подтвердите вход."
         )
         logger.warning(
-            "webapp auth missing_token rid=%s from_user=%s",
-            get_request_id(),
-            getattr(message.from_user, "id", None),
+            "webapp auth missing_token",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "from_user": getattr(message.from_user, "id", None),
+            },
         )
         return
 
@@ -36,10 +40,13 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
             "WebApp передал сессию другого пользователя. Закройте экран и откройте его заново."
         )
         logger.warning(
-            "webapp auth user_mismatch rid=%s payload_user=%s telegram_user=%s",
-            get_request_id(),
-            webapp_user_id,
-            from_user_id,
+            "webapp auth user_mismatch",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "payload_user": webapp_user_id,
+                "telegram_user": from_user_id,
+            },
         )
         return
 
@@ -57,12 +64,15 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
         updates["session_expires_at"] = expires_at
 
     logger.info(
-        "webapp auth_success rid=%s telegram_user_id=%s access=%s refresh=%s expires_at=%s",
-        get_request_id(),
-        webapp_user_id or from_user_id,
-        mask_token(access_token),
-        mask_token(refresh_token),
-        expires_at,
+        "webapp auth_success",
+        extra={
+            "rid": rid,
+            "request_id": rid,
+            "telegram_user_id": webapp_user_id or from_user_id,
+            "access": mask_token(access_token),
+            "refresh": mask_token(refresh_token),
+            "expires_at": expires_at,
+        },
     )
     await state.update_data(**updates)
     await message.answer(
@@ -77,9 +87,13 @@ async def _handle_topup_payload(
     *,
     access_token: str | None,
 ) -> None:
+    rid = get_request_id()
     if message.from_user is None:
         await message.answer("Не удалось определить пользователя Telegram.")
-        logger.warning("webapp topup missing_user rid=%s", get_request_id())
+        logger.warning(
+            "webapp topup missing_user",
+            extra={"rid": rid, "request_id": rid},
+        )
         return
 
     raw_amount = payload.get("amount")
@@ -87,7 +101,10 @@ async def _handle_topup_payload(
         amount = int(raw_amount)
     except (TypeError, ValueError):
         await message.answer("WebApp передал некорректную сумму для пополнения.")
-        logger.warning("webapp topup invalid_amount rid=%s amount=%s", get_request_id(), raw_amount)
+        logger.warning(
+            "webapp topup invalid_amount",
+            extra={"rid": rid, "request_id": rid, "amount": raw_amount},
+        )
         return
 
     if amount < MIN_TOPUP_AMOUNT:
@@ -95,10 +112,13 @@ async def _handle_topup_payload(
             "Сумма пополнения слишком мала. Минимум — " f"{MIN_TOPUP_AMOUNT} XTR."
         )
         logger.warning(
-            "webapp topup below_min rid=%s amount=%s min=%s",
-            get_request_id(),
-            amount,
-            MIN_TOPUP_AMOUNT,
+            "webapp topup below_min",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "amount": amount,
+                "min_amount": MIN_TOPUP_AMOUNT,
+            },
         )
         return
 
@@ -107,10 +127,13 @@ async def _handle_topup_payload(
             "Сумма пополнения слишком большая. Разделите платёж на несколько операций."
         )
         logger.warning(
-            "webapp topup above_max rid=%s amount=%s max=%s",
-            get_request_id(),
-            amount,
-            MAX_TOPUP_AMOUNT,
+            "webapp topup above_max",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "amount": amount,
+                "max_amount": MAX_TOPUP_AMOUNT,
+            },
         )
         return
 
@@ -123,7 +146,10 @@ async def _handle_topup_payload(
             "Сначала авторизуйтесь через WebApp, чтобы пополнить баланс. "
             "Если экран был открыт давно, закройте его и авторизуйтесь заново."
         )
-        logger.warning("webapp topup missing_token rid=%s", get_request_id())
+        logger.warning(
+            "webapp topup missing_token",
+            extra={"rid": rid, "request_id": rid},
+        )
         return
 
     if session_user_id is not None:
@@ -133,17 +159,23 @@ async def _handle_topup_payload(
                     "Сессия WebApp принадлежит другому пользователю. Закройте экран и войдите снова."
                 )
                 logger.warning(
-                    "webapp topup session_mismatch rid=%s stored=%s actual=%s",
-                    get_request_id(),
-                    session_user_id,
-                    message.from_user.id,
+                    "webapp topup session_mismatch",
+                    extra={
+                        "rid": rid,
+                        "request_id": rid,
+                        "stored_user_id": session_user_id,
+                        "actual_user_id": message.from_user.id,
+                    },
                 )
                 return
         except (TypeError, ValueError):
             await message.answer(
                 "Не удалось проверить пользователя WebApp. Закройте экран и авторизуйтесь заново."
             )
-            logger.warning("webapp topup session_parse_error rid=%s", get_request_id())
+            logger.warning(
+                "webapp topup session_parse_error",
+                extra={"rid": rid, "request_id": rid},
+            )
             return
 
     comment = payload.get("comment")
@@ -152,21 +184,29 @@ async def _handle_topup_payload(
             "Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе."
         )
         logger.info(
-            "webapp topup blocked rid=%s telegram_user_id=%s", get_request_id(), getattr(message.from_user, "id", None)
+            "webapp topup blocked",
+            extra={
+                "rid": rid,
+                "request_id": rid,
+                "telegram_user_id": getattr(message.from_user, "id", None),
+            },
         )
         return
     logger.info(
-        "webapp topup_request rid=%s telegram_user_id=%s amount=%s has_comment=%s",
-        get_request_id(),
-        getattr(message.from_user, "id", None),
-        amount,
-        bool(comment),
+        "webapp topup_request",
+        extra={
+            "rid": rid,
+            "request_id": rid,
+            "telegram_user_id": getattr(message.from_user, "id", None),
+            "amount": amount,
+            "has_comment": bool(comment),
+        },
     )
     invoice = build_stars_topup_invoice(
         message.from_user.id,
         amount,
         comment=comment,
-        rid=get_request_id(),
+        rid=rid,
     )
     await message.answer_invoice(**invoice)
 
@@ -177,11 +217,15 @@ async def webapp_data_handler(
     state: FSMContext,
     access_token: str | None,
 ) -> None:
+    rid = get_request_id()
     if state is None:
         await message.answer(
             "Не удалось получить состояние диалога. Закройте WebApp и откройте его заново."
         )
-        logger.error("webapp state_missing rid=%s", get_request_id())
+        logger.error(
+            "webapp state_missing",
+            extra={"rid": rid, "request_id": rid},
+        )
         return
 
     data = getattr(message.web_app_data, "data", None)
@@ -189,7 +233,10 @@ async def webapp_data_handler(
         await message.answer(
             "Получены пустые данные из WebApp. Откройте кабинет и попробуйте авторизоваться ещё раз."
         )
-        logger.warning("webapp empty_payload rid=%s", get_request_id())
+        logger.warning(
+            "webapp empty_payload",
+            extra={"rid": rid, "request_id": rid},
+        )
         return
 
     try:
@@ -198,17 +245,24 @@ async def webapp_data_handler(
         await message.answer(
             "Не удалось прочитать данные WebApp. Переоткройте экран и повторите попытку."
         )
-        logger.warning("webapp decode_failed rid=%s", get_request_id())
+        logger.warning(
+            "webapp decode_failed",
+            extra={"rid": rid, "request_id": rid},
+        )
         return
 
     payload_type = str(payload.get("type") or "").lower()
     action = str(payload.get("action") or "").lower()
+    payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
     logger.info(
-        "webapp payload rid=%s type=%s action=%s keys=%s",
-        get_request_id(),
-        payload_type,
-        action,
-        sorted(payload.keys()),
+        "webapp payload",
+        extra={
+            "rid": rid,
+            "request_id": rid,
+            "type": payload_type,
+            "action": action,
+            "payload_keys": payload_keys,
+        },
     )
 
     if payload_type == "auth" or action == "auth":
@@ -226,7 +280,10 @@ async def webapp_data_handler(
 
     await message.answer("Получено неизвестное действие из WebApp.")
     logger.warning(
-        "webapp unknown_payload rid=%s keys=%s",
-        get_request_id(),
-        sorted(payload.keys()),
+        "webapp unknown_payload",
+        extra={
+            "rid": rid,
+            "request_id": rid,
+            "payload_keys": payload_keys,
+        },
     )

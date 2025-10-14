@@ -38,12 +38,15 @@ class LoggingMiddleware(BaseMiddleware):
         )
         try:
             self.logger.info(
-                "bot update received rid=%s update_id=%s from_user=%s chat_id=%s event_type=%s",
-                rid,
-                update_id,
-                getattr(from_user, "id", None),
-                getattr(chat, "id", None),
-                event_type,
+                "bot update received",
+                extra={
+                    "rid": rid,
+                    "request_id": rid,
+                    "update_id": update_id,
+                    "from_user": getattr(from_user, "id", None),
+                    "chat_id": getattr(chat, "id", None),
+                    "event_type": event_type,
+                },
             )
             return await handler(event, data)
         except Exception as exc:
@@ -146,7 +149,11 @@ class LoggingMiddleware(BaseMiddleware):
                 extra=extra,
             )
         except Exception:  # pragma: no cover - logging fallback
-            self.logger.debug("failed to push monitoring log rid=%s", rid, exc_info=True)
+            self.logger.debug(
+                "failed to push monitoring log",
+                extra={"rid": rid, "request_id": rid},
+                exc_info=True,
+            )
 
 
 __all__ = ["LoggingMiddleware"]

@@ -104,61 +104,52 @@ class BackendClient:
                         data = await resp.text()
 
                     duration_ms = (time.perf_counter() - started) * 1000
+                    log_extra = {
+                        "rid": rid,
+                        "request_id": rid,
+                        "method": method,
+                        "path": path,
+                        "status": resp.status,
+                        "duration_ms": duration_ms,
+                    }
                     if resp.status >= 500:
                         if log_requests:
                             self._logger.error(
-                                "backend request server_error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
-                                rid,
-                                method,
-                                path,
-                                resp.status,
-                                duration_ms,
+                                "backend request server_error",
+                                extra=log_extra,
                             )
                         raise BackendNetworkError(f"Server error {resp.status}")
                     if resp.status == 401:
                         if log_requests:
                             self._logger.warning(
-                                "backend request unauthorized rid=%s method=%s path=%s duration_ms=%.2f",
-                                rid,
-                                method,
-                                path,
-                                duration_ms,
+                                "backend request unauthorized",
+                                extra=log_extra,
                             )
                         raise BackendAuthError("Unauthorized")
                     if resp.status in {400, 422}:
                         if log_requests:
                             self._logger.warning(
-                                "backend request validation rid=%s method=%s path=%s status=%s duration_ms=%.2f",
-                                rid,
-                                method,
-                                path,
-                                resp.status,
-                                duration_ms,
+                                "backend request validation",
+                                extra={**log_extra, "response_payload": data},
                             )
                         errors = data if isinstance(data, dict) else {"detail": data}
                         raise BackendValidationError(errors)
                     if resp.status >= 400:
                         if log_requests:
                             self._logger.error(
-                                "backend request error rid=%s method=%s path=%s status=%s duration_ms=%.2f",
-                                rid,
-                                method,
-                                path,
-                                resp.status,
-                                duration_ms,
+                                "backend request error",
+                                extra={**log_extra, "response_payload": data},
                             )
                         raise BackendError(f"Unexpected status {resp.status}: {data}")
 
                     if log_requests:
                         self._logger.info(
-                            "backend request ok rid=%s method=%s path=%s status=%s duration_ms=%.2f attempt=%s headers=%s",
-                            rid,
-                            method,
-                            path,
-                            resp.status,
-                            duration_ms,
-                            attempt,
-                            header_snapshot,
+                            "backend request ok",
+                            extra={
+                                **log_extra,
+                                "attempt": attempt,
+                                "headers": header_snapshot,
+                            },
                         )
                     return data
             except BackendValidationError:
@@ -176,24 +167,30 @@ class BackendClient:
                 wait_time = self._retry_delay * attempt
                 if log_requests:
                     self._logger.warning(
-                        "backend request retry rid=%s method=%s path=%s attempt=%s/%s error=%s",
-                        rid,
-                        method,
-                        path,
-                        attempt,
-                        self._max_retries,
-                        last_error,
+                        "backend request retry",
+                        extra={
+                            "rid": rid,
+                            "request_id": rid,
+                            "method": method,
+                            "path": path,
+                            "attempt": attempt,
+                            "max_retries": self._max_retries,
+                            "error": str(last_error),
+                        },
                     )
                 await asyncio.sleep(wait_time)
 
         assert last_error is not None
         if log_requests:
             self._logger.error(
-                "backend request failed rid=%s method=%s path=%s error=%s",
-                rid,
-                method,
-                path,
-                last_error,
+                "backend request failed",
+                extra={
+                    "rid": rid,
+                    "request_id": rid,
+                    "method": method,
+                    "path": path,
+                    "error": str(last_error),
+                },
             )
         raise last_error
 
@@ -529,4 +526,11 @@ class BackendClient:
                 log_requests=False,
             )
         except BackendError as err:
-            self._logger.debug("monitoring push failed rid=%s error=%s", rid, err)
+            self._logger.debug(
+                "monitoring push failed",
+                extra={
+                    "rid": rid,
+                    "request_id": rid,
+                    "error": str(err),
+                },
+            )
