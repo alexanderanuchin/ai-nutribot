@@ -17,7 +17,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
-ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
+
+
+def _parse_allowed_hosts(raw_value: str | None) -> list[str]:
+    default_hosts = {"backend", "localhost", "127.0.0.1", "[::1]"}
+    if not raw_value:
+        return ["*"]
+    hosts = {host.strip() for host in raw_value.split(",") if host.strip()}
+    if not hosts:
+        return ["*"]
+    if "*" in hosts:
+        return ["*"]
+    return sorted(hosts | default_hosts)
+
+
+ALLOWED_HOSTS = _parse_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
 
 CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
