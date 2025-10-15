@@ -179,6 +179,11 @@ def _load_telegram_bot_token() -> Tuple[str, str]:
 
 TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_TOKEN_SOURCE = _load_telegram_bot_token()
 STARS_RECONCILE_ENABLED = os.getenv("STARS_RECONCILE_ENABLED", "0") == "1"
+TELEGRAM_MT_SESSION = os.getenv("TELEGRAM_MT_SESSION", "")
+TELEGRAM_MT_BOT_TOKEN = os.getenv("TELEGRAM_MT_BOT_TOKEN") or TELEGRAM_BOT_TOKEN
+TELEGRAM_MT_API_ID = int(os.getenv("TELEGRAM_MT_API_ID", "0") or 0)
+TELEGRAM_MT_API_HASH = os.getenv("TELEGRAM_MT_API_HASH", "")
+TELEGRAM_MT_TEST_MODE = os.getenv("TELEGRAM_MT_TEST_MODE", "0") == "1"
 
 # Email settings
 EMAIL_BACKEND = os.getenv(
@@ -217,6 +222,10 @@ LOG_SERVICE_LOGGER_SUBSTRINGS = _split_env_list(
         "heartbeat",
     ),
 )
+
+# Alerts & notifications
+STARS_RECONCILE_EMAILS = _split_env_list("STARS_RECONCILE_EMAILS", ())
+SLACK_STARS_ALERT_WEBHOOK = os.getenv("SLACK_STARS_ALERT_WEBHOOK", "")
 
 LOGGING = {
     "version": 1,

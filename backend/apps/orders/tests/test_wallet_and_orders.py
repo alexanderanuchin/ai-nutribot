@@ -352,6 +352,50 @@ def test_bot_payment_report_blocks_when_user_missing(monkeypatch, api_client: AP
 
 
 @pytest.mark.django_db
+def test_bot_payment_report_updates_attempt(api_client: APIClient, user: User, payment_service: PaymentService, settings):
+    settings.BOT_INTERNAL_KEY = "bot-secret"
+    profile = user.profile
+    profile.telegram_id = 712345
+    profile.save(update_fields=["telegram_id", "updated_at"])
+
+    attempt_result = payment_service.start_wallet_topup(
+        profile,
+        currency=WalletTransaction.Currency.TELEGRAM_STARS,
+        amount=Decimal("75"),
+        provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+        idempotency_key=uuid.uuid4().hex,
+        metadata={"comment": "auto"},
+        request_id="test",
+    )
+    attempt = attempt_result.payment_attempt
+
+    charge_id = "aid-charge-1"
+    resp = api_client.post(
+        "/api/orders/bot/telegram-stars/payment/",
+        {
+            "user_id": profile.telegram_id,
+            "amount": 75,
+            "charge_id": charge_id,
+            "payment_attempt_id": attempt.pk,
+        },
+        format="json",
+        HTTP_X_BOT_KEY="bot-secret",
+        HTTP_IDEMPOTENCY_KEY=f"telegram-stars:{profile.telegram_id}:{charge_id}",
+    )
+
+    assert resp.status_code == status.HTTP_201_CREATED
+    attempt.refresh_from_db()
+    assert attempt.telegram_payment_charge_id == charge_id
+    assert attempt.status == PaymentAttempt.Status.SUCCEEDED
+    assert attempt.wallet_transaction is not None
+
+    event = IntegrationWebhookEvent.objects.get(external_event_id=charge_id)
+    assert event.related_payment_id == attempt.pk
+    assert event.status == IntegrationWebhookEvent.ProcessingStatus.PROCESSED
+    assert event.payload["payment_attempt_id"] == attempt.pk
+
+
+@pytest.mark.django_db
 def test_duplicate_webhook_is_idempotent(user: User, payment_service: PaymentService):
     profile = user.profile
     result = payment_service.start_wallet_topup(
@@ -547,9 +591,18 @@ def test_checkout_order_payment_flows(auth_client: APIClient, user: User, paymen
             "amount": 300,
             "currency": WalletTransaction.Currency.TELEGRAM_STARS,
             "profile_id": user.profile.pk,
+            "telegram_payment_charge_id": "charge-topup-1",
         },
         idempotency_key=uuid.uuid4().hex,
     )
+
+    topup_result.payment_attempt.refresh_from_db()
+    assert topup_result.payment_attempt.telegram_payment_charge_id == "charge-topup-1"
+    topup_event = IntegrationWebhookEvent.objects.get(
+        external_event_id=topup_result.payment_attempt.external_payment_id
+    )
+    assert topup_event.payload["telegram_payment_charge_id"] == "charge-topup-1"
+    assert topup_event.related_payment_id == topup_result.payment_attempt.pk
 
     checkout_stars = auth_client.post(
         "/api/orders/orders/checkout/",
@@ -584,11 +637,19 @@ def test_checkout_order_payment_flows(auth_client: APIClient, user: User, paymen
             "currency": WalletTransaction.Currency.TELEGRAM_STARS,
             "order_id": order_stars.pk,
             "profile_id": user.profile.pk,
+            "telegram_payment_charge_id": "charge-order-1",
         },
         idempotency_key=uuid.uuid4().hex,
     )
     order_stars.refresh_from_db()
     assert order_stars.status == Order.Status.PAID
+    attempt.refresh_from_db()
+    assert attempt.telegram_payment_charge_id == "charge-order-1"
+    event = IntegrationWebhookEvent.objects.get(
+        external_event_id=attempt.external_payment_id
+    )
+    assert event.related_order_id == order_stars.pk
+    assert event.payload["telegram_payment_charge_id"] == "charge-order-1"
 
     @pytest.mark.django_db
     def test_feature_purchase_with_idempotency(auth_client: APIClient, user: User):

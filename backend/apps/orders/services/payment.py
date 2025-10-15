@@ -253,6 +253,7 @@ class TelegramStarsProvider(BasePaymentProvider):
                 "event_type": "telegram_stars.payment",
                 "payload": payload,
                 "related_payment": attempt,
+                "related_order": getattr(attempt, "order", None),
                 "status": IntegrationWebhookEvent.ProcessingStatus.RECEIVED,
             },
         )
@@ -302,8 +303,12 @@ class TelegramStarsProvider(BasePaymentProvider):
                         },
                         idempotency_key=idempotency_key or external_payment_id,
                     )
+                update_fields = ["wallet_transaction", "updated_at"]
                 locked_attempt.wallet_transaction = wallet_tx
-                locked_attempt.save(update_fields=["wallet_transaction", "updated_at"])
+                if charge_id:
+                    locked_attempt.telegram_payment_charge_id = charge_id
+                    update_fields.append("telegram_payment_charge_id")
+                locked_attempt.save(update_fields=update_fields)
                 if locked_attempt.order_id:
                     order_service = OrderService(locked_attempt.order)
                     order_service.apply_payment_result(
@@ -317,22 +322,30 @@ class TelegramStarsProvider(BasePaymentProvider):
                     )
                     locked_attempt.refresh_from_db()
                 else:
+                    locked_attempt.status = PaymentAttempt.Status.SUCCEEDED
+                    locked_attempt.processed_at = timezone.now()
+                    locked_attempt.save(update_fields=["status", "processed_at", "updated_at"])
                     event.status = IntegrationWebhookEvent.ProcessingStatus.PROCESSED
                     event.processed_at = timezone.now()
                     event.related_payment = locked_attempt
+                    event.related_order = locked_attempt.order
                     event.save(update_fields=["status", "processed_at", "related_payment", "updated_at"])
             else:
                 locked_attempt.status = PaymentAttempt.Status.FAILED
                 locked_attempt.failure_code = payload.get("error_code", "unknown")
                 locked_attempt.failure_reason = payload.get("error_message", "Payment failed")
                 locked_attempt.processed_at = timezone.now()
-                locked_attempt.save(update_fields=[
+                update_fields = [
                     "status",
                     "failure_code",
                     "failure_reason",
                     "processed_at",
                     "updated_at",
-                ])
+                ]
+                if charge_id:
+                    locked_attempt.telegram_payment_charge_id = charge_id
+                    update_fields.append("telegram_payment_charge_id")
+                locked_attempt.save(update_fields=update_fields)
                 event.status = IntegrationWebhookEvent.ProcessingStatus.FAILED
                 event.error_details = locked_attempt.failure_reason
                 event.processed_at = timezone.now()
@@ -752,6 +765,31 @@ class PaymentService:
             metadata=meta,
             idempotency_key=key,
         )
+        attempt_id = (metadata or {}).get("payment_attempt_id") if metadata else None
+        if attempt_id:
+            timestamp = timezone.now()
+            updated = PaymentAttempt.objects.filter(
+                pk=attempt_id,
+                provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+            ).update(
+                telegram_payment_charge_id=charge_id,
+                wallet_transaction=tx,
+                status=PaymentAttempt.Status.SUCCEEDED,
+                processed_at=timestamp,
+                updated_at=timestamp,
+            )
+            if updated:
+                logger.info(
+                    "payment_service wallet_topup attempt_linked",
+                    extra={
+                        "rid": rid,
+                        "request_id": rid,
+                        "build_fingerprint": get_build_fingerprint(),
+                        "payment_attempt_id": attempt_id,
+                        "wallet_transaction_id": getattr(tx, "id", None),
+                        "charge_id": summarize_token(charge_id),
+                    },
+                )
         logger.info(
             "payment_service wallet_topup done",
             extra={

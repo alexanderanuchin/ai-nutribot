@@ -268,6 +268,7 @@ class BackendClient:
             user_id: int,
             amount: int,
             charge_id: str,
+            payment_attempt_id: int | None = None,
     ) -> Dict[str, Any]:
         if not self._bot_key:
             raise BackendError("Bot key is not configured")
@@ -276,14 +277,18 @@ class BackendClient:
         }
         if charge_id:
             headers["Idempotency-Key"] = f"telegram-stars:{user_id}:{charge_id}"
+        body: Dict[str, Any] = {
+            "user_id": int(user_id),
+            "amount": int(amount),
+            "charge_id": str(charge_id),
+        }
+        if payment_attempt_id is not None:
+            body["payment_attempt_id"] = int(payment_attempt_id)
+
         payload = await self._request(
             "POST",
             "/api/orders/bot/telegram-stars/payment/",
-            json={
-                "user_id": int(user_id),
-                "amount": int(amount),
-                "charge_id": str(charge_id),
-            },
+            json=body,
             headers=headers,
         )
         if not isinstance(payload, dict):

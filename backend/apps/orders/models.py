@@ -440,6 +440,11 @@ class PaymentAttempt(models.Model):
         related_name="payment_attempt",
     )
     external_payment_id = models.CharField(max_length=128, blank=True)
+    telegram_payment_charge_id = models.CharField(
+        max_length=128,
+        blank=True,
+        help_text="Идентификатор платежа из Telegram successful_payment",
+    )
     confirmation_payload = models.JSONField(
         default=dict,
         blank=True,
@@ -458,6 +463,7 @@ class PaymentAttempt(models.Model):
         indexes = [
             models.Index(fields=["provider", "status"], name="orders_payment_provider_status"),
             models.Index(fields=["external_payment_id"], name="orders_payment_external_idx"),
+            models.Index(fields=["telegram_payment_charge_id"], name="orders_payment_charge_idx"),
         ]
 
         constraints = [
@@ -465,7 +471,12 @@ class PaymentAttempt(models.Model):
                 fields=["provider", "external_payment_id"],
                 name="orders_payment_provider_external_unique",
                 condition=models.Q(external_payment_id__gt=""),
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["provider", "telegram_payment_charge_id"],
+                name="orders_payment_provider_charge_unique",
+                condition=models.Q(telegram_payment_charge_id__gt=""),
+            ),
         ]
 
     def __str__(self) -> str:  # pragma: no cover

@@ -614,6 +614,7 @@ async def successful_payment_handler(
         return
 
     payload_meta = _parse_invoice_payload(payment.invoice_payload)
+    attempt_id: int | None = None
     if payload_meta:
         uid_raw = payload_meta.get("uid")
         try:
@@ -636,6 +637,13 @@ async def successful_payment_handler(
             )
             return
 
+        raw_attempt = payload_meta.get("aid")
+        if raw_attempt is not None:
+            try:
+                attempt_id = int(raw_attempt)
+            except (TypeError, ValueError):
+                attempt_id = None
+
     idempotency_key = f"telegram-stars:{user.id}:{charge_id}"
     logger.info(
         "wallet payment_report",
@@ -648,6 +656,7 @@ async def successful_payment_handler(
             "charge_id": charge_id,
             "idempotency_key": idempotency_key,
             "has_comment": bool((payload_meta or {}).get("comment")),
+            "payment_attempt_id": attempt_id,
         },
     )
     try:
@@ -655,6 +664,7 @@ async def successful_payment_handler(
             user_id=user.id,
             amount=amount,
             charge_id=charge_id,
+            payment_attempt_id=attempt_id,
         )
         logger.info(
             "wallet payment_report_success",
@@ -663,6 +673,7 @@ async def successful_payment_handler(
                 "request_id": rid,
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
+                "payment_attempt_id": attempt_id,
             },
         )
     except BackendValidationError as exc:

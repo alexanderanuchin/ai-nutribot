@@ -128,6 +128,7 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
         amount = serializers.IntegerField(min_value=1)
         charge_id = serializers.CharField(max_length=128)
         comment = serializers.CharField(required=False, allow_blank=True, max_length=255)
+        payment_attempt_id = serializers.IntegerField(required=False)
 
     def post(self, request, *args, **kwargs):
         serializer = self.Serializer(data=request.data)
@@ -180,9 +181,31 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
             idempotency_key=idempotency_key,
         ).first()
 
-        metadata = {}
-        if data.get("comment"):
-            metadata["comment"] = data["comment"]
+        metadata: Dict[str, Any] = {}
+        comment = data.get("comment")
+        if comment:
+            metadata["comment"] = comment
+
+        attempt: PaymentAttempt | None = None
+        attempt_id = data.get("payment_attempt_id")
+        if attempt_id:
+            attempt = (
+                PaymentAttempt.objects.filter(
+                    pk=attempt_id,
+                    provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+                )
+                .select_related("order", "wallet_transaction")
+                .first()
+            )
+            if attempt is None:
+                return Response({"detail": "Payment attempt not found"}, status=status.HTTP_404_NOT_FOUND)
+            expected_profile = (attempt.confirmation_payload or {}).get("profile_id")
+            if expected_profile and int(expected_profile) != profile.pk:
+                return Response(
+                    {"detail": "Payment attempt belongs to a different profile"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            metadata["payment_attempt_id"] = attempt.pk
 
         logger.info(
             "bot payment report processing",
@@ -191,6 +214,19 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 "profile_id": profile.id,
                 "telegram_user_id": profile.telegram_id,
                 "existing": bool(existing),
+                "payment_attempt_id": getattr(attempt, "pk", None),
+            },
+        )
+
+        event, _ = IntegrationWebhookEvent.objects.update_or_create(
+            source=IntegrationWebhookEvent.Source.PAYMENT,
+            external_event_id=charge_id,
+            defaults={
+                "event_type": "telegram_stars.bot_report",
+                "payload": data,
+                "related_payment": attempt,
+                "related_order": getattr(attempt, "order", None),
+                "status": IntegrationWebhookEvent.ProcessingStatus.RECEIVED,
             },
         )
 
@@ -203,6 +239,10 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 metadata=metadata or None,
             )
         except PaymentProviderError as exc:
+            event.status = IntegrationWebhookEvent.ProcessingStatus.FAILED
+            event.error_details = str(exc)
+            event.processed_at = timezone.now()
+            event.save(update_fields=["status", "error_details", "processed_at", "updated_at"])
             should_block = exc.details.get("block_purchases") or exc.code in {"purchases_disabled", "user_not_found"}
             if should_block and not getattr(profile, "stars_purchase_blocked", False):
                 profile.stars_purchase_blocked = True
@@ -225,6 +265,50 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
 
         response_data = WalletTransactionSerializer(tx).data
         status_code = status.HTTP_200_OK if existing else status.HTTP_201_CREATED
+
+        if attempt:
+            timestamp = timezone.now()
+            attempt.wallet_transaction = tx
+            attempt.telegram_payment_charge_id = charge_id
+            attempt.status = PaymentAttempt.Status.SUCCEEDED
+            attempt.processed_at = timestamp
+            attempt.updated_at = timestamp
+            updated = PaymentAttempt.objects.filter(pk=attempt.pk).update(
+                wallet_transaction_id=getattr(tx, "pk", None),
+                telegram_payment_charge_id=charge_id,
+                status=PaymentAttempt.Status.SUCCEEDED,
+                processed_at=timestamp,
+                updated_at=timestamp,
+            )
+            if not updated:
+                logger.warning(
+                    "bot payment report attempt_update_missing",
+                    extra={**log_extra, "payment_attempt_id": attempt.pk},
+                )
+            else:
+                db_state = PaymentAttempt.objects.filter(pk=attempt.pk).values(
+                    "telegram_payment_charge_id"
+                ).first()
+                logger.info(
+                    "bot payment report attempt_updated",
+                    extra={
+                        **log_extra,
+                        "payment_attempt_id": attempt.pk,
+                        "db_charge": db_state.get("telegram_payment_charge_id") if db_state else None,
+                    },
+                )
+            event.related_payment = attempt
+            event.related_order = attempt.order
+
+        event.status = IntegrationWebhookEvent.ProcessingStatus.PROCESSED
+        event.processed_at = timezone.now()
+        event.payload = data
+        if event.related_payment_id is None and attempt:
+            event.related_payment = attempt
+        if event.related_order_id is None and getattr(attempt, "order", None):
+            event.related_order = attempt.order
+        event.save(update_fields=["status", "processed_at", "payload", "related_payment", "related_order", "updated_at"])
+
         logger.info(
             "bot payment report success",
             extra={
@@ -233,6 +317,7 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
                 "transaction_id": getattr(tx, "id", None),
                 "status_code": status_code,
                 "existing": bool(existing),
+                "payment_attempt_id": getattr(attempt, "pk", None),
             },
         )
         return Response(response_data, status=status_code)

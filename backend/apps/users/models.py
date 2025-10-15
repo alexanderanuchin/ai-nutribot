@@ -153,3 +153,22 @@ class TelegramStarLedgerEntry(models.Model):
 
     def __str__(self):  # pragma: no cover
         return f"StarLedger<{self.profile_id}:{self.direction}:{self.amount}>"
+
+
+class StarsRevenueSnapshot(models.Model):
+    """Stores aggregated revenue metrics returned by payments.getStarsRevenueStats."""
+
+    fetched_at = models.DateTimeField(default=timezone.now, db_index=True)
+    stars_total = models.PositiveIntegerField(default=0)
+    revenue_rub = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
+    currency = models.CharField(max_length=8, default="RUB")
+    rate_rub = models.DecimalField(max_digits=10, decimal_places=4, default=Decimal("0.0000"))
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "Снимок метрик Stars"
+        verbose_name_plural = "Метрики Stars"
+        ordering = ("-fetched_at", "-id")
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"StarsMetrics<{self.fetched_at:%Y-%m-%d %H:%M}>"

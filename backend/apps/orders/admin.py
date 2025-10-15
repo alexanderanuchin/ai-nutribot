@@ -73,6 +73,7 @@ class WalletTransactionAdmin(admin.ModelAdmin):
 @admin.register(IntegrationWebhookEvent)
 class IntegrationWebhookEventAdmin(admin.ModelAdmin):
     list_display = ("id", "source", "event_type", "status",
-                    "external_event_id", "received_at", "processed_at")
+                    "external_event_id", "related_order", "related_payment",
+                    "received_at", "processed_at")
     list_filter = ("source", "status", "received_at")
     search_fields = ("external_event_id", "event_type")

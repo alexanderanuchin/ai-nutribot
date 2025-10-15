@@ -233,7 +233,7 @@ async def test_successful_payment_handler_records_topup():
         provider_payment_charge_id=None,
         total_amount=50,
         currency="XTR",
-        invoice_payload="uid=1;amt=50;token=abc",
+        invoice_payload="uid=1;amt=50;token=abc;aid=77",
     )
     message.successful_payment = payment
 
@@ -243,6 +243,7 @@ async def test_successful_payment_handler_records_topup():
     kwargs = backend.report_stars_payment.call_args.kwargs
     assert kwargs["amount"] == 50
     assert kwargs["charge_id"] == "charge123"
+    assert kwargs["payment_attempt_id"] == 77
     message.answer.assert_awaited()
     assert any("Баланс пополнен" in call.args[0] for call in message.answer.call_args_list)
 

@@ -9,6 +9,8 @@ from .stars import (
     build_stars_balance_payload,
     get_bot_star_balance,
 )
+from .stars_metrics import StarsMetricsResult, StarsMetricsService
+from .stars_reconcile import ReconciliationSummary, StarsReconciliationService
 
 __all__ = [
     "build_profile_metrics",
@@ -18,4 +20,8 @@ __all__ = [
     "sync_stars_ledger_for_transaction",
     "build_stars_balance_payload",
     "get_bot_star_balance",
+    "StarsMetricsService",
+    "StarsMetricsResult",
+    "StarsReconciliationService",
+    "ReconciliationSummary",
 ]
