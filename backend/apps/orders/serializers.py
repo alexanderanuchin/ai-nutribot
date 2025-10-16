@@ -65,7 +65,7 @@ class WalletOperationSerializer(serializers.Serializer):
     currency = serializers.CharField()
     amount = serializers.DecimalField(max_digits=12, decimal_places=2)
     description = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    reference = serializers.CharField(required=False, allow_blank=True, max_length=64)
+    reference = serializers.CharField(required=False, allow_blank=True, max_length=255)
     metadata = serializers.JSONField(required=False)
 
     def validate_amount(self, value: Decimal) -> Decimal:

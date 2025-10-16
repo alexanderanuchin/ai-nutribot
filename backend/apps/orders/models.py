@@ -441,7 +441,7 @@ class PaymentAttempt(models.Model):
     )
     external_payment_id = models.CharField(max_length=128, blank=True)
     telegram_payment_charge_id = models.CharField(
-        max_length=128,
+        max_length=255,
         blank=True,
         help_text="Идентификатор платежа из Telegram successful_payment",
     )
@@ -518,12 +518,12 @@ class WalletTransaction(models.Model):
         related_name="wallet_transactions",
     )
     idempotency_key = models.CharField(
-        max_length=128,
+        max_length=255,
         default=uuid.uuid4,
         help_text="Используется для защиты от двойного списания",
     )
     description = models.CharField(max_length=255, blank=True)
-    reference = models.CharField(max_length=64, blank=True)
+    reference = models.CharField(max_length=255, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
     occurred_at = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)

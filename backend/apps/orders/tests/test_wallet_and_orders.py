@@ -396,6 +396,33 @@ def test_bot_payment_report_updates_attempt(api_client: APIClient, user: User, p
 
 
 @pytest.mark.django_db
+def test_bot_payment_report_accepts_long_charge_id(api_client: APIClient, user: User, settings):
+    settings.BOT_INTERNAL_KEY = "bot-secret"
+    profile = user.profile
+    profile.telegram_id = 845001
+    profile.save(update_fields=["telegram_id", "updated_at"])
+
+    long_charge = "charge-" + ("x" * 210)
+    resp = api_client.post(
+        "/api/orders/bot/telegram-stars/payment/",
+        {
+            "user_id": profile.telegram_id,
+            "amount": 25,
+            "charge_id": long_charge,
+        },
+        format="json",
+        HTTP_X_BOT_KEY="bot-secret",
+        HTTP_IDEMPOTENCY_KEY=f"telegram-stars:{profile.telegram_id}:{long_charge}",
+    )
+
+    assert resp.status_code == status.HTTP_201_CREATED
+    payload = resp.json()
+    tx = WalletTransaction.objects.get(pk=payload["id"])
+    assert tx.reference == long_charge
+    assert tx.idempotency_key == f"telegram-stars:{profile.telegram_id}:{long_charge}"
+
+
+@pytest.mark.django_db
 def test_duplicate_webhook_is_idempotent(user: User, payment_service: PaymentService):
     profile = user.profile
     result = payment_service.start_wallet_topup(

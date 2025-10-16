@@ -126,7 +126,7 @@ class TelegramBotPaymentReportView(IdempotencyMixin, APIView):
     class Serializer(serializers.Serializer):
         user_id = serializers.IntegerField()
         amount = serializers.IntegerField(min_value=1)
-        charge_id = serializers.CharField(max_length=128)
+        charge_id = serializers.CharField(max_length=255)
         comment = serializers.CharField(required=False, allow_blank=True, max_length=255)
         payment_attempt_id = serializers.IntegerField(required=False)
 
