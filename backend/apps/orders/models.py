@@ -568,7 +568,7 @@ class IntegrationWebhookEvent(models.Model):
         FAILED = "failed", "Ошибка обработки"
 
     source = models.CharField(max_length=16, choices=Source.choices)
-    external_event_id = models.CharField(max_length=128, blank=True)
+    external_event_id = models.CharField(max_length=255, blank=True)
     event_type = models.CharField(max_length=64)
     payload = models.JSONField()
     related_order = models.ForeignKey(
