@@ -146,6 +146,36 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
 
 
 @pytest.mark.django_db
+def test_wallet_webhook_accepts_xtr_currency(payment_service: PaymentService, user: User):
+    topup_result = payment_service.start_wallet_topup(
+        user.profile,
+        currency=WalletTransaction.Currency.TELEGRAM_STARS,
+        amount=Decimal("150"),
+        provider=PaymentAttempt.Provider.TELEGRAM_STARS,
+        idempotency_key=uuid.uuid4().hex,
+    )
+    charge_id = "charge-xtr-1"
+    payment_service.handle_webhook(
+        PaymentAttempt.Provider.TELEGRAM_STARS,
+        {
+            "external_payment_id": topup_result.payment_attempt.external_payment_id,
+            "status": "succeeded",
+            "amount": 150,
+            "currency": "XTR",
+            "profile_id": user.profile.pk,
+            "telegram_payment_charge_id": charge_id,
+        },
+        idempotency_key=uuid.uuid4().hex,
+    )
+
+    user.profile.refresh_from_db()
+    assert get_profile_stars_balance(user.profile) == 150
+
+    wallet_tx = WalletTransaction.objects.get(reference=charge_id)
+    assert wallet_tx.currency == WalletTransaction.Currency.TELEGRAM_STARS
+
+
+@pytest.mark.django_db
 def test_generate_telegram_invoice(auth_client: APIClient, user: User):
     headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
     resp = auth_client.post(

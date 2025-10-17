@@ -55,33 +55,48 @@ class WalletBalance:
     available: Decimal
 
 
+def _normalize_currency_code(currency: str) -> str:
+    code = str(currency or "").upper()
+    if not code:
+        raise ValueError("Currency code is required")
+    if code in {WalletTransaction.Currency.TELEGRAM_STARS, "XTR"}:
+        return WalletTransaction.Currency.TELEGRAM_STARS
+    if code in {WalletTransaction.Currency.CALOCOIN, "CALO", "CALOCOIN"}:
+        return WalletTransaction.Currency.CALOCOIN
+    raise ValueError(f"Unsupported currency: {currency}")
+
+
 def _quant_for_currency(currency: str) -> Decimal:
-    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+    normalized = _normalize_currency_code(currency)
+    if normalized == WalletTransaction.Currency.TELEGRAM_STARS:
         return Decimal("1")
     return Decimal("0.01")
 
 
 def _normalize_amount(currency: str, amount: Any) -> Decimal:
+    normalized_currency = _normalize_currency_code(currency)
     if isinstance(amount, Decimal):
         value = amount
     else:
         value = Decimal(str(amount))
     if value <= 0:
         raise ValueError("Amount must be positive")
-    quant = _quant_for_currency(currency)
+    quant = _quant_for_currency(normalized_currency)
     return value.quantize(quant, rounding=ROUND_HALF_UP)
 
 
 def _profile_balance(profile: Profile, currency: str) -> Decimal:
-    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+    normalized_currency = _normalize_currency_code(currency)
+    if normalized_currency == WalletTransaction.Currency.TELEGRAM_STARS:
         return Decimal(get_profile_stars_balance(profile))
     return Decimal(profile.calocoin_balance or 0)
 
 
 def _set_profile_balance(profile: Profile, currency: str, balance: Decimal) -> None:
-    quant = _quant_for_currency(currency)
+    normalized_currency = _normalize_currency_code(currency)
+    quant = _quant_for_currency(normalized_currency)
     normalized = balance.quantize(quant, rounding=ROUND_HALF_UP)
-    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+    if normalized_currency == WalletTransaction.Currency.TELEGRAM_STARS:
         profile.telegram_stars_balance = int(normalized)
         profile.save(update_fields=["telegram_stars_balance", "updated_at"])
     else:
@@ -90,9 +105,10 @@ def _set_profile_balance(profile: Profile, currency: str, balance: Decimal) -> N
 
 
 def _active_hold_amount(profile: Profile, currency: str, *, exclude: Iterable[int] | None = None) -> Decimal:
+    normalized_currency = _normalize_currency_code(currency)
     qs = WalletTransaction.objects.filter(
         profile=profile,
-        currency=currency,
+        currency=normalized_currency,
         direction=WalletTransaction.Direction.HOLD,
         status__in=[WalletTransaction.Status.PENDING, WalletTransaction.Status.CONFIRMED],
     )
@@ -126,32 +142,34 @@ def _create_transaction(
         balance_before: Decimal,
         balance_after: Decimal,
 ) -> WalletTransaction:
+    normalized_currency = _normalize_currency_code(currency)
     transaction_record = WalletTransaction.objects.create(
         profile=profile,
-        currency=currency,
+        currency=normalized_currency,
         direction=direction,
         status=status,
         amount=amount,
-        balance_before=balance_before.quantize(_quant_for_currency(currency)),
-        balance_after=balance_after.quantize(_quant_for_currency(currency)),
+        balance_before=balance_before.quantize(_quant_for_currency(normalized_currency)),
+        balance_after=balance_after.quantize(_quant_for_currency(normalized_currency)),
         description=description or "",
         reference=reference or "",
         metadata=metadata,
         related_order=related_order,
         idempotency_key=idempotency_key or uuid.uuid4().hex,
     )
-    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+    if normalized_currency == WalletTransaction.Currency.TELEGRAM_STARS:
         sync_stars_ledger_for_transaction(transaction_record)
     return transaction_record
 
 
 def get_wallet_balance(profile: Profile, currency: str) -> WalletBalance:
+    normalized_currency = _normalize_currency_code(currency)
     if isinstance(profile, Profile) and profile.pk:
-        if currency == WalletTransaction.Currency.CALOCOIN:
+        if normalized_currency == WalletTransaction.Currency.CALOCOIN:
             profile.refresh_from_db(fields=["calocoin_balance"])
-    total = _profile_balance(profile, currency)
-    holds = _active_hold_amount(profile, currency)
-    quant = _quant_for_currency(currency)
+    total = _profile_balance(profile, normalized_currency)
+    holds = _active_hold_amount(profile, normalized_currency)
+    quant = _quant_for_currency(normalized_currency)
     return WalletBalance(
         total=total.quantize(quant, rounding=ROUND_HALF_UP),
         available=(total - holds).quantize(quant, rounding=ROUND_HALF_UP),
@@ -170,19 +188,20 @@ def wallet_topup(
         idempotency_key: str | None = None,
         status: str = WalletTransaction.Status.CONFIRMED,
 ) -> WalletTransaction:
-    normalized_amount = _normalize_amount(currency, amount)
+    normalized_currency = _normalize_currency_code(currency)
+    normalized_amount = _normalize_amount(normalized_currency, amount)
     meta = metadata or {}
     with transaction.atomic():
         locked = Profile.objects.select_for_update().get(pk=profile.pk)
         existing = _get_existing_transaction(locked, idempotency_key=idempotency_key)
         if existing:
             return existing
-        balance_before = _profile_balance(locked, currency)
+        balance_before = _profile_balance(locked, normalized_currency)
         balance_after = balance_before + normalized_amount
-        _set_profile_balance(locked, currency, balance_after)
+        _set_profile_balance(locked, normalized_currency, balance_after)
         transaction_record = _create_transaction(
             locked,
-            currency=currency,
+            currency=normalized_currency,
             direction=WalletTransaction.Direction.CREDIT,
             amount=normalized_amount,
             description=description or "Пополнение баланса",
@@ -209,22 +228,23 @@ def wallet_withdraw(
         idempotency_key: str | None = None,
         status: str = WalletTransaction.Status.CONFIRMED,
 ) -> WalletTransaction:
-    normalized_amount = _normalize_amount(currency, amount)
+    normalized_currency = _normalize_currency_code(currency)
+    normalized_amount = _normalize_amount(normalized_currency, amount)
     meta = metadata or {}
     with transaction.atomic():
         locked = Profile.objects.select_for_update().get(pk=profile.pk)
         existing = _get_existing_transaction(locked, idempotency_key=idempotency_key)
         if existing:
             return existing
-        balance_before = _profile_balance(locked, currency)
-        available = get_wallet_balance(locked, currency).available
+        balance_before = _profile_balance(locked, normalized_currency)
+        available = get_wallet_balance(locked, normalized_currency).available
         if available < normalized_amount:
             raise WalletInsufficientFunds("Недостаточно средств для списания")
         balance_after = balance_before - normalized_amount
-        _set_profile_balance(locked, currency, balance_after)
+        _set_profile_balance(locked, normalized_currency, balance_after)
         transaction_record = _create_transaction(
             locked,
-            currency=currency,
+            currency=normalized_currency,
             direction=WalletTransaction.Direction.DEBIT,
             amount=normalized_amount,
             description=description or "Списание средств",
@@ -251,20 +271,21 @@ def wallet_hold(
         idempotency_key: str | None = None,
         status: str = WalletTransaction.Status.PENDING,
 ) -> WalletTransaction:
-    normalized_amount = _normalize_amount(currency, amount)
+    normalized_currency = _normalize_currency_code(currency)
+    normalized_amount = _normalize_amount(normalized_currency, amount)
     meta = metadata or {}
     with transaction.atomic():
         locked = Profile.objects.select_for_update().get(pk=profile.pk)
         existing = _get_existing_transaction(locked, idempotency_key=idempotency_key)
         if existing:
             return existing
-        available = get_wallet_balance(locked, currency).available
+        available = get_wallet_balance(locked, normalized_currency).available
         if available < normalized_amount:
             raise WalletInsufficientFunds("Недостаточно средств для блокировки")
-        balance_before = _profile_balance(locked, currency)
+        balance_before = _profile_balance(locked, normalized_currency)
         tx = _create_transaction(
             locked,
-            currency=currency,
+            currency=normalized_currency,
             direction=WalletTransaction.Direction.HOLD,
             amount=normalized_amount,
             description=description or "Блокировка средств",
@@ -388,13 +409,14 @@ def create_order(
         metadata: Dict[str, Any] | None = None,
         status: str | None = None,
 ) -> Order:
-    normalized_amount = _normalize_amount(currency, amount)
+    normalized_currency = _normalize_currency_code(currency)
+    normalized_amount = _normalize_amount(normalized_currency, amount)
     meta = metadata or {}
     order = Order.objects.create(
         user=profile.user,
         profile=profile,
         title=title,
-        currency=currency,
+        currency=normalized_currency,
         total_price=normalized_amount,
         description=description or "",
         kind=kind or Order.Kind.PRO_SUBSCRIPTION,
@@ -439,9 +461,10 @@ def pay_order_from_wallet(
 
 
 def _format_decimal(value: Decimal, currency: str) -> float | int:
-    if currency == WalletTransaction.Currency.TELEGRAM_STARS:
+    normalized_currency = _normalize_currency_code(currency)
+    if normalized_currency == WalletTransaction.Currency.TELEGRAM_STARS:
         return int(value)
-    quant = _quant_for_currency(currency)
+    quant = _quant_for_currency(normalized_currency)
     return float(value.quantize(quant, rounding=ROUND_HALF_UP))
 
 
