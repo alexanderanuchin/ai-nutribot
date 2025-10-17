@@ -17,24 +17,28 @@ from bot.handlers.support import (
 )
 from bot.handlers.wallet import wallet_command as handle_wallet_command
 from bot.keyboards.inline import QuickAction, QuickActionCallback
-from bot.routers.commands import process_start
 from bot.logging_utils import get_request_id
+from bot.routers.commands import process_start
 
 logger = logging.getLogger("bot.menu")
 
 router = Router(name="menu")
 
 
-@router.message(F.text.in_({
-    "🏠 Главная",
-    "👤 Профиль",
-    "🧾 Тариф",
-    "📜 История",
-    "👛 Кошелёк",
-    "🆘 Поддержка",
-    "💳 Оплата/помощь",
-    "📄 Условия",
-}))
+@router.message(
+    F.text.in_(
+        {
+            "🏠 Главная",
+            "👤 Профиль",
+            "🧾 Тариф",
+            "📜 История",
+            "👛 Кошелёк",
+            "🆘 Поддержка",
+            "💳 Оплата/помощь",
+            "📄 Условия",
+        }
+    )
+)
 async def on_main_menu_button(
     message: Message,
     backend: BackendClient,
@@ -136,3 +140,6 @@ async def on_quick_action(
         extra={"action": action, "rid": get_request_id()},
     )
     await callback.answer()
+
+
+__all__ = ["router"]

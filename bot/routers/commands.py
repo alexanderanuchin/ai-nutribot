@@ -104,3 +104,6 @@ async def on_cansel_alias(message: Message, state: FSMContext) -> None:
 @router.message(F.text == "✖️ Отмена")
 async def on_cancel_button(message: Message, state: FSMContext) -> None:
     await process_cancel(message, state)
+
+
+__all__ = ["router", "process_start", "process_cancel"]

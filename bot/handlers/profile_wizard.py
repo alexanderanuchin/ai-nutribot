@@ -7,11 +7,22 @@ from typing import Any, Dict, List
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, LabeledPrice, Message, WebAppInfo
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    LabeledPrice,
+    Message,
+    WebAppInfo,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from ..backend_client import BackendAuthError, BackendClient, BackendError, BackendValidationError
-from ..states import ProfileWizard
+from bot.backend_client import (
+    BackendAuthError,
+    BackendClient,
+    BackendError,
+    BackendValidationError,
+)
+from bot.states import ProfileWizard
 from .wallet import _authorization_keyboard, _build_invoice_payload, _get_tokens
 
 router = Router()

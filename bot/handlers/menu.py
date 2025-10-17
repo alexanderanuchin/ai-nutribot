@@ -12,6 +12,7 @@ import ipaddress
 
 router = Router()
 
+
 def _is_public_host(host: str) -> bool:
     if not host:
         return False
@@ -28,12 +29,14 @@ def _is_public_host(host: str) -> bool:
         # Не IP — похоже на доменное имя. Считаем публичным.
         return True
 
+
 def _is_https_public(url: str) -> bool:
     try:
         p = urlparse(url)
     except Exception:
         return False
     return p.scheme == "https" and _is_public_host(p.hostname)
+
 
 def menu_kb(url: str) -> InlineKeyboardMarkup:
     rows = []
@@ -45,16 +48,18 @@ def menu_kb(url: str) -> InlineKeyboardMarkup:
     rows.append([InlineKeyboardButton(text="🧭 Заполнить профиль", callback_data="wizard:start")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+
 def _compose_menu_text(base: str, url: str) -> str:
     if _is_https_public(url):
         return base
     # Фоллбек для локалки/HTTP: даём копируемую ссылку текстом
     return (
-        base
-        + "\n\n⚠️ Telegram запрещает кнопки для локальных/не-HTTPS ссылок."
-          "\nСкопируйте и откройте в браузере:"
-          f"\n{url}"
+            base
+            + "\n\n⚠️ Telegram запрещает кнопки для локальных/не-HTTPS ссылок."
+              "\nСкопируйте и откройте в браузере:"
+              f"\n{url}"
     )
+
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, webapp_url: str):
@@ -63,12 +68,14 @@ async def cmd_start(message: Message, webapp_url: str):
         reply_markup=menu_kb(webapp_url),
     )
 
+
 @router.message(Command("menu"))
 async def cmd_menu(message: Message, webapp_url: str):
     await message.answer(
         _compose_menu_text("Меню:", webapp_url),
         reply_markup=menu_kb(webapp_url),
     )
+
 
 @router.callback_query(F.data == "menu")
 async def cb_menu(cb: CallbackQuery, webapp_url: str):

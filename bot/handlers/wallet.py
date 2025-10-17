@@ -18,8 +18,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from bot.logging_utils import get_request_id
-from ..backend_client import (
+from bot.backend_client import (
     AuthResult,
     BackendAuthError,
     BackendClient,
@@ -27,6 +26,7 @@ from ..backend_client import (
     BackendNetworkError,
     BackendValidationError,
 )
+from bot.logging_utils import get_request_id
 
 router = Router()
 logger = logging.getLogger("audit.wallet")
@@ -34,7 +34,6 @@ logger = logging.getLogger("audit.wallet")
 TOPUP_AMOUNTS: Tuple[int, ...] = (50, 100)
 MIN_TOPUP_AMOUNT = 1
 MAX_TOPUP_AMOUNT = 10000
-TOPUP_SOURCE = "telegram_bot_invoice"
 
 
 def _authorization_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
@@ -193,49 +192,6 @@ async def _load_bot_balance(
     if last_error:
         raise last_error
     raise BackendError("Не удалось получить баланс бота")
-
-
-async def _manual_topup(
-    backend: BackendClient,
-    state: FSMContext,
-    access_token: str | None,
-    refresh_token: str | None,
-    *,
-    amount: int,
-    idempotency_key: str,
-    metadata: dict,
-    notify_retry,
-):
-    attempt = 0
-    last_error: Exception | None = None
-    while attempt < 2:
-        try:
-            result = await backend.manual_stars_topup(
-                access_token,
-                refresh_token,
-                amount=amount,
-                idempotency_key=idempotency_key,
-                source=TOPUP_SOURCE,
-                metadata=metadata,
-            )
-            await _apply_tokens(state, result)
-            return result.payload
-        except BackendAuthError as exc:
-            await state.update_data(access_token=None, refresh_token=None)
-            raise exc
-        except BackendNetworkError as exc:
-            last_error = exc
-            attempt += 1
-            if attempt == 1:
-                await notify_retry()
-                access_token, refresh_token = await _get_tokens(state, access_token)
-                continue
-            break
-        except BackendError as exc:
-            raise exc
-    if last_error:
-        raise last_error
-    raise BackendError("Не удалось обработать пополнение")
 
 
 def _parse_invoice_payload(payload: str) -> dict:
