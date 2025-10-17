@@ -9,7 +9,6 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import Redis, RedisStorage
-from aiogram.types import BotCommand
 
 # NOTE:
 # The bot can be executed both as a module (``python -m bot.app``)
@@ -26,7 +25,6 @@ if __package__ in {None, ""}:
 
 from bot.backend_client import BackendClient
 from bot.config import Config
-from bot.handlers.menu import router as menu_router
 from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.support import router as support_router
@@ -36,6 +34,11 @@ from bot.logging_utils import JsonLogFormatter, RequestIdFilter
 from bot.middlewares.access_token import AccessTokenMiddleware
 from bot.middlewares.logging import LoggingMiddleware
 from bot.middlewares.store import StoreMiddleware
+from bot.middlewares.throttle import ThrottleMiddleware
+from bot.routers.commands import router as commands_router
+from bot.routers.errors import register_error_handlers
+from bot.routers.menu import router as menu_router
+from bot.services.commands import set_my_commands
 
 
 def _is_https(url: str) -> bool:
@@ -94,29 +97,29 @@ async def main() -> None:
 
     backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)
     dp.update.middleware(LoggingMiddleware())
-    dp.update.middleware(StoreMiddleware(backend, cfg.webapp_url, admin_ids=cfg.admin_ids))
+    dp.update.middleware(
+        StoreMiddleware(
+            backend,
+            cfg.webapp_url,
+            admin_ids=cfg.admin_ids,
+            bot_username=cfg.bot_username,
+        )
+    )
+    dp.update.middleware(
+        ThrottleMiddleware(limit=cfg.throttle_limit, interval=cfg.throttle_interval)
+    )
     dp.update.middleware(AccessTokenMiddleware(dp.storage))
 
     dp.include_router(webapp_router)
+    dp.include_router(commands_router)
     dp.include_router(menu_router)
     dp.include_router(plan_router)
     dp.include_router(wizard_router)
     dp.include_router(support_router)
     dp.include_router(wallet_router)
 
-    await bot.set_my_commands(
-        [
-            BotCommand(command="start", description="Запуск"),
-            BotCommand(command="profile", description="Анкета профиля"),
-            BotCommand(command="plan", description="Новый план питания"),
-            BotCommand(command="history", description="История планов"),
-            BotCommand(command="cancel", description="Отмена"),
-            BotCommand(command="wallet", description="Баланс Stars"),
-            BotCommand(command="terms", description="Условия покупки"),
-            BotCommand(command="support", description="Поддержка"),
-            BotCommand(command="paysupport", description="Оплата — помощь"),
-        ]
-    )
+    register_error_handlers(dp)
+    await set_my_commands(bot)
 
     logging.info("Bot started in POLLING mode")
     try:

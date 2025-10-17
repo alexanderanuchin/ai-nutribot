@@ -37,6 +37,9 @@ class Config:
     bot_key: str
     backend_base_url: str
     webapp_url: str
+    bot_username: str
+    throttle_limit: int
+    throttle_interval: float
     admin_ids: Tuple[int, ...]
 
     @classmethod
@@ -49,12 +52,18 @@ class Config:
             or os.getenv("BACKEND_URL")
         )
         webapp_url = os.getenv("WEBAPP_URL", "http://localhost:5173/")
+        bot_username = os.getenv("BOT_USERNAME") or os.getenv("TELEGRAM_BOT_USERNAME") or ""
+        throttle_limit = int(os.getenv("BOT_THROTTLE_LIMIT", "3"))
+        throttle_interval = float(os.getenv("BOT_THROTTLE_INTERVAL", "10"))
         admin_ids = _parse_admin_ids(os.getenv("ADMIN_IDS") or os.getenv("BOT_ADMIN_IDS"))
         return cls(
             token=token,
             bot_key=bot_key,
             backend_base_url=backend_base_url,
             webapp_url=webapp_url,
+            bot_username=bot_username,
+            throttle_limit=throttle_limit,
+            throttle_interval=throttle_interval,
             admin_ids=admin_ids,
         )
 
