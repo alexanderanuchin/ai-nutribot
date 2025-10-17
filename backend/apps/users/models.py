@@ -127,7 +127,7 @@ class TelegramStarLedgerEntry(models.Model):
     description = models.CharField(max_length=255, blank=True)
     source = models.CharField(max_length=64, blank=True)
     telegram_payment_charge_id = models.CharField(
-        max_length=128,
+        max_length=255,
         blank=True,
         null=True,
         help_text="Идентификатор successful_payment из Telegram",
