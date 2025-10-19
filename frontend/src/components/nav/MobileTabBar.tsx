@@ -48,12 +48,11 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
           <Dialog.Trigger asChild>
             <motion.button
               type="button"
-              className="absolute top-[-3.5rem] left-1 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label="AI быстрые действия"
+              className="absolute top-[-3.5rem] left-1 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full border border-primary bg-transparent text-primary-foreground shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/40"
               whileTap={{ scale: 0.94 }}
               whileHover={{ scale: 1.05 }}
             >
-              <Lottie animationData={Chat_Bot} loop autoplay style={{ width: 28, height: 28 }} />
+              <Lottie animationData={Chat_Bot} loop autoplay style={{ width: 36, height: 36 }} />
             </motion.button>
           </Dialog.Trigger>
           <AnimatePresence>
