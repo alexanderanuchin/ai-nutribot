@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import Lottie from 'lottie-react'
-import Chat_Bot from '../../assets/Chat_Bot.json'
+import Ai_bot from '../../assets/Ai_bot.json'
 import clsx from 'clsx'
 import { PRIMARY_NAVIGATION, COMMAND_ACTIONS } from '../../navigation/schema'
 import { useActiveRoute } from '../../hooks/useActiveRoute'
@@ -48,11 +48,21 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
           <Dialog.Trigger asChild>
             <motion.button
               type="button"
-              className="absolute top-[-3.5rem] left-1 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full border border-primary bg-transparent text-primary-foreground shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary dark:border-white/40"
+              className="absolute top-[-3.5rem] left-1 inline-flex h-fit w-fit -translate-x-1/2 items-center justify-center rounded-full bg-transparent text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary p-0"
+              aria-label="AI быстрые действия"
               whileTap={{ scale: 0.94 }}
               whileHover={{ scale: 1.05 }}
             >
-              <Lottie animationData={Chat_Bot} loop autoplay style={{ width: 36, height: 36 }} />
+              <Lottie
+                animationData={Ai_bot}
+                loop
+                autoplay
+                // размеры анимации управляют размерами кнопки
+                style={{ width: 100, height: 100, pointerEvents: 'none' }}
+                // корректное масштабирование без искажений
+                rendererSettings={{ preserveAspectRatio: 'xMidYMid meet' }}
+                aria-hidden
+              />
             </motion.button>
           </Dialog.Trigger>
           <AnimatePresence>
