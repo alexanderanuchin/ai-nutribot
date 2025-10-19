@@ -1,8 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  HomeIcon,
-  UserRoundIcon,
   Wallet2Icon,
+  BellIcon,
   FlameKindlingIcon,
   ChefHatIcon,
   ShoppingBagIcon,
@@ -13,6 +12,11 @@ import {
   OrbitIcon,
   CableIcon,
   FileTextIcon,
+  NewspaperIcon,
+  PlusCircleIcon,
+  SearchIcon,
+  UserRoundIcon,
+  Wallet2Icon,
 } from 'lucide-react'
 
 export type FeatureFlag =
@@ -53,11 +57,32 @@ export interface NavSection {
 
 export const PRIMARY_NAVIGATION: NavItem[] = [
   {
-    id: 'plan',
-    label: 'План',
-    path: '/plan',
-    icon: HomeIcon,
-    description: 'Ваш персональный план питания и тренировок',
+    id: 'feed',
+    label: 'Лента',
+    path: '/feed',
+    icon: NewspaperIcon,
+    description: 'Новости, рецепты и акции',
+  },
+  {
+    id: 'billing',
+    label: 'Кошелёк',
+    path: '/billing',
+    icon: Wallet2Icon,
+    description: 'Управление кошельком и подписками',
+  },
+  {
+    id: 'compose',
+    label: 'Добавить',
+    path: '/compose',
+    icon: PlusCircleIcon,
+    description: 'Создать рецепт или предложение',
+  },
+  {
+    id: 'notifications',
+    label: 'Уведомления',
+    path: '/notifications',
+    icon: BellIcon,
+    description: 'Лента уведомлений и событий',
   },
   {
     id: 'profile',
@@ -65,13 +90,6 @@ export const PRIMARY_NAVIGATION: NavItem[] = [
     path: '/profile',
     icon: UserRoundIcon,
     description: 'Настройки и персональные данные',
-  },
-  {
-    id: 'billing',
-    label: 'Монетизация',
-    path: '/billing',
-    icon: Wallet2Icon,
-    description: 'Управление кошельком и подписками',
   },
 ]
 

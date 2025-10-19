@@ -3,8 +3,12 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
+import Feed from './pages/Feed'
 import Profile from './pages/Profile'
 import Orders from './pages/Orders'
+import Search from './pages/Search'
+import Compose from './pages/Compose'
+import Notifications from './pages/Notifications'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import ProtectedRoute from './routes/ProtectedRoute'
@@ -43,8 +47,12 @@ export default function App(){
             <main className="flex min-h-screen flex-1 flex-col bg-transparent pb-24">
               <div className="relative z-10 px-4 pb-12 pt-6 sm:px-6 lg:px-10">
                 <Routes>
-                  <Route path="/" element={<Navigate to="/plan" replace />} />
+                  <Route path="/" element={<Navigate to="/feed" replace />} />
+                  <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
                   <Route path="/plan" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
+                  <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />
+                  <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
                   <Route path="*" element={<div className="card">Страница не найдена</div>} />

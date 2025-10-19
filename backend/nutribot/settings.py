@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # 3rd party
+    "channels",
     "rest_framework",
     "corsheaders",
     # project apps
@@ -53,6 +54,7 @@ INSTALLED_APPS = [
     "apps.nutrition",
     "apps.orders",
     "apps.monitoring",
+    "apps.feed",
 ]
 
 MIDDLEWARE = [
@@ -87,6 +89,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "nutribot.wsgi.application"
 ASGI_APPLICATION = "nutribot.asgi.application"
+
+_redis_url = os.getenv("REDIS_URL", "")
+if _redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [_redis_url]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 USE_SQLITE_VALUE = os.getenv("USE_SQLITE")
 if USE_SQLITE_VALUE is None:

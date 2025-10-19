@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
-import { SparklesIcon } from 'lucide-react'
+import Lottie from 'lottie-react'
+import Chat_Bot from '../../assets/Chat_Bot.json'
 import clsx from 'clsx'
 import { PRIMARY_NAVIGATION, COMMAND_ACTIONS } from '../../navigation/schema'
 import { useActiveRoute } from '../../hooks/useActiveRoute'
@@ -47,12 +48,12 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
           <Dialog.Trigger asChild>
             <motion.button
               type="button"
-              className="absolute -top-6 left-1/2 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="absolute top-[-3.5rem] left-1 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               aria-label="AI быстрые действия"
               whileTap={{ scale: 0.94 }}
               whileHover={{ scale: 1.05 }}
             >
-              <SparklesIcon className="h-7 w-7" aria-hidden="true" />
+              <Lottie animationData={Chat_Bot} loop autoplay style={{ width: 28, height: 28 }} />
             </motion.button>
           </Dialog.Trigger>
           <AnimatePresence>

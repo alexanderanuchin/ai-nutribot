@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { login, loginWithEmail } from '../api/auth'
-import { useNavigate, Link } from 'react-router-dom'
+import { useLocation, useNavigate, Link } from 'react-router-dom'
+import type { Location } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -14,6 +15,8 @@ export default function Login(){
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const nav = useNavigate()
+  const location = useLocation()
+  const redirectTo = (location.state as { from?: Location } | undefined)?.from
   const queryClient = useQueryClient()
 
   useEffect(()=>{
@@ -30,7 +33,8 @@ export default function Login(){
         await loginWithEmail(email, password)
       }
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
-      nav('/plan', { replace: true })
+      const nextPath = redirectTo?.pathname ? `${redirectTo.pathname}${redirectTo.search ?? ''}` : '/feed'
+      nav(nextPath, { replace: true })
     }catch(err: any){
       setError(err?.response?.data?.detail || 'Неверные учётные данные')
     }finally{
