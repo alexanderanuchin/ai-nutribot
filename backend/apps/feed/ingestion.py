@@ -16,6 +16,7 @@ from django.utils import timezone
 from nutribot.middleware import get_request_id
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
+from .adapters import FeedAdapterError, parse_feed_response
 from .alerts import notify_ingestion_failure
 from .metrics import record_ingestion_metrics
 from .models import NewsArticle
@@ -33,6 +34,7 @@ class FeedSourceConfig(BaseModel):
     timeout: float = Field(default=10.0, ge=0.1)
     enabled: bool = True
     params: dict[str, str] = Field(default_factory=dict)
+    parser: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def headers(self) -> dict[str, str]:
@@ -46,6 +48,13 @@ class FeedSourceConfig(BaseModel):
         if self.categories:
             params.setdefault("categories", ",".join(sorted(self.categories)))
         return params
+
+    @property
+    def blueprint_name(self) -> str | None:
+        blueprint = self.parser.get("blueprint") if isinstance(self.parser, dict) else None
+        if isinstance(blueprint, str) and blueprint.strip():
+            return blueprint.strip()
+        return None
 
 
 class FeedItemPayload(BaseModel):
@@ -195,8 +204,8 @@ def ingest_sources(*, rid: str | None = None, http_client: httpx.Client | None =
                         timeout=config.timeout,
                     )
                     response.raise_for_status()
-                    payload = response.json()
-                except (httpx.HTTPError, ValueError) as exc:
+                    payload = parse_feed_response(response, source=config, rid=rid)
+                except (httpx.HTTPError, FeedAdapterError) as exc:
                     logger.warning(
                         "feed source request failed",
                         extra={

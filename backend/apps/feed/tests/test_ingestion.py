@@ -13,6 +13,34 @@ from apps.feed.ingestion import FeedItemPayload, FeedSourceConfig, ingest_source
 from apps.feed.models import NewsArticle
 
 
+class _ResponsesHttpxResponse:
+    def __init__(self, response: requests.Response) -> None:
+        self._response = response
+
+    @property
+    def headers(self):
+        return self._response.headers
+
+    @property
+    def text(self) -> str:
+        return self._response.text
+
+    def json(self) -> dict:
+        return self._response.json()
+
+    def raise_for_status(self) -> None:
+        self._response.raise_for_status()
+
+
+class _ResponsesHttpxClient:
+    def get(self, url: str, *, headers=None, params=None, timeout=None):
+        response = requests.request("GET", url, headers=headers, params=params, timeout=timeout)
+        return _ResponsesHttpxResponse(response)
+
+    def close(self) -> None:  # pragma: no cover - compatibility shim
+        return None
+
+
 def test_normalise_payload_union_categories(settings):
     settings.BOT_INTERNAL_KEY = "integration-key"
     config = FeedSourceConfig(
@@ -69,24 +97,6 @@ def test_ingest_sources_creates_article(settings):
         "sentiment": "neutral",
         "imageUrl": "https://publisher.example/workout.jpg",
     }
-
-    class _ResponsesHttpxResponse:
-        def __init__(self, response: requests.Response) -> None:
-            self._response = response
-
-        def json(self) -> dict:
-            return self._response.json()
-
-        def raise_for_status(self) -> None:
-            self._response.raise_for_status()
-
-    class _ResponsesHttpxClient:
-        def get(self, url: str, *, headers=None, params=None, timeout=None):
-            response = requests.request("GET", url, headers=headers, params=params, timeout=timeout)
-            return _ResponsesHttpxResponse(response)
-
-        def close(self) -> None:  # pragma: no cover - compatibility shim
-            return None
 
     with responses.RequestsMock() as rsps:
         rsps.add(
@@ -152,3 +162,99 @@ def test_ingest_sources_notifies_on_failed_sources(monkeypatch, settings):
     assert metrics_calls and metrics_calls[0]["result"]["rid"] == "rid-1"
     assert notify_calls and notify_calls[0]["failed_sources"] == ["health-news"]
     assert notify_calls[0]["rid"] == "rid-1"
+
+
+@pytest.mark.django_db
+def test_ingest_sources_parses_rss_feed(settings):
+    settings.FEED_INGESTION_SOURCES = [
+        {
+            "name": "rss-feed",
+            "url": "https://news.example/rss",
+            "categories": ["nutrition"],
+            "timeout": 2,
+        }
+    ]
+
+    rss_payload = """<?xml version='1.0' encoding='UTF-8'?>
+        <rss version="2.0">
+          <channel>
+            <title>Nutrition Insights</title>
+            <item>
+              <title>Daily fruit intake reduces risk</title>
+              <link>https://publisher.example/articles/fruit-intake</link>
+              <guid isPermaLink="false">fruit-intake-001</guid>
+              <description>Comprehensive study covering 10k participants.</description>
+              <pubDate>Mon, 01 Jul 2024 09:00:00 GMT</pubDate>
+              <category>health</category>
+              <category>nutrition</category>
+            </item>
+          </channel>
+        </rss>
+        """
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            method=responses.GET,
+            url="https://news.example/rss",
+            body=rss_payload,
+            status=200,
+            content_type="application/rss+xml",
+        )
+
+        client = _ResponsesHttpxClient()
+        result = ingest_sources(rid="rss-rid", http_client=client)
+
+    assert result["processed"] == 1
+    assert result["created"] == 1
+
+    article = NewsArticle.objects.get(source_id="rss-feed:fruit-intake-001")
+    assert article.title == "Daily fruit intake reduces risk"
+    assert article.lead.startswith("Comprehensive study")
+    assert article.source_name == "Nutrition Insights"
+    assert set(article.source_categories) == {"health", "nutrition"}
+
+
+@pytest.mark.django_db
+def test_ingest_sources_uses_json_blueprint(settings):
+    settings.FEED_INGESTION_SOURCES = [
+        {
+            "name": "who-stream",
+            "url": "https://news.example/who",
+            "categories": ["global"],
+            "parser": {"blueprint": "who-news"},
+        }
+    ]
+
+    payload = {
+        "value": [
+            {
+                "id": 101,
+                "title": "WHO issues new nutrition guidance",
+                "summary": "Comprehensive policy update",
+                "slug": "news-room/articles/new-guidance",
+                "date": "2024-07-02T12:00:00Z",
+                "topics": [{"title": "Nutrition"}],
+                "image": {"url": "https://cdn.who.int/media/guidance.jpg"},
+            }
+        ]
+    }
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            method=responses.GET,
+            url="https://news.example/who",
+            json=payload,
+            status=200,
+        )
+
+        client = _ResponsesHttpxClient()
+        result = ingest_sources(rid="who-rid", http_client=client)
+
+    assert result["processed"] == 1
+    assert result["created"] == 1
+
+    article = NewsArticle.objects.get(source_id="who-stream:101")
+    assert article.title == "WHO issues new nutrition guidance"
+    assert article.source_name == "WHO"
+    assert article.source_categories == ["global", "nutrition"]
+    assert article.preview_image_url == "https://cdn.who.int/media/guidance.jpg"
