@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone as dt_timezone
 from decimal import Decimal
 
+import httpx
 import pytest
 import responses
 import requests
@@ -114,3 +115,40 @@ def test_ingest_sources_creates_article(settings):
     assert article.ingestion_rid == "test-rid"
     assert article.source_categories == ["fitness", "wellness"]
     assert article.ingestion_metadata["payload_categories"] == ["wellness"]
+
+
+@pytest.mark.django_db
+def test_ingest_sources_notifies_on_failed_sources(monkeypatch, settings):
+    settings.FEED_INGESTION_SOURCES = [
+        {
+            "name": "health-news",
+            "url": "https://news.example/api",
+            "timeout": 1,
+        }
+    ]
+
+    metrics_calls: list[dict] = []
+    notify_calls: list[dict] = []
+
+    def _fake_record_metrics(*, result, duration_seconds):
+        metrics_calls.append({"result": result, "duration": duration_seconds})
+
+    def _fake_notify(**kwargs):
+        notify_calls.append(kwargs)
+
+    monkeypatch.setattr(ingestion_module, "record_ingestion_metrics", _fake_record_metrics)
+    monkeypatch.setattr(ingestion_module, "notify_ingestion_failure", _fake_notify)
+
+    class _FailingHttpxClient:
+        def get(self, *args, **kwargs):
+            raise httpx.HTTPError("boom")
+
+        def close(self):  # pragma: no cover - compatibility shim
+            return None
+
+    result = ingest_sources(rid="rid-1", http_client=_FailingHttpxClient())
+
+    assert result["failed_sources"] == ["health-news"]
+    assert metrics_calls and metrics_calls[0]["result"]["rid"] == "rid-1"
+    assert notify_calls and notify_calls[0]["failed_sources"] == ["health-news"]
+    assert notify_calls[0]["rid"] == "rid-1"

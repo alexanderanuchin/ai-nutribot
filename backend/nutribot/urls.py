@@ -5,6 +5,7 @@ from apps.users.views import BotStarsBalanceView, StarsBalanceView
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("metrics/", include("django_prometheus.urls")),
     path("api/auth/", include("apps.auth.urls")),
     path("api/users/", include("apps.users.urls")),
     path("api/catalog/", include("apps.catalog.urls")),

@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # 3rd party
+    "django_prometheus",
     "channels",
     "rest_framework",
     "corsheaders",
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -69,6 +71,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 
 ROOT_URLCONF = "nutribot.urls"
@@ -115,14 +118,14 @@ if USE_SQLITE_VALUE is None:
 if USE_SQLITE_VALUE == "1":
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
+            "ENGINE": "django_prometheus.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
+            "ENGINE": "django_prometheus.db.backends.postgresql",
             "NAME": os.getenv("POSTGRES_DB", "nutribot"),
             "USER": os.getenv("POSTGRES_USER", "postgres"),
             "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
@@ -130,6 +133,8 @@ else:
             "PORT": os.getenv("POSTGRES_PORT", "5432"),
         }
     }
+
+PROMETHEUS_EXPORT_MIGRATIONS = False
 
 LANGUAGE_CODE = "ru-ru"
 TIME_ZONE = os.getenv("TIME_ZONE", "Europe/Amsterdam")
@@ -198,9 +203,18 @@ def _load_feed_sources() -> list[dict]:
     return data
 
 
+def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw_value = os.getenv(env_name)
+    if not raw_value:
+        return default
+    return tuple(filter(None, (item.strip() for item in raw_value.split(",")))) or default
+
+
 FEED_INGESTION_SOURCES = _load_feed_sources()
 FEED_INGESTION_RETRY_ATTEMPTS = int(os.getenv("FEED_INGESTION_RETRY_ATTEMPTS", "3"))
 FEED_INGESTION_INTERVAL_MINUTES = int(os.getenv("FEED_INGESTION_INTERVAL_MINUTES", "30"))
+FEED_INGESTION_ALERT_EMAILS = _split_env_list("FEED_INGESTION_ALERT_EMAILS", ())
+FEED_INGESTION_ALERT_WEBHOOK = os.getenv("FEED_INGESTION_ALERT_WEBHOOK", "")
 
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_QUEUES = [
@@ -259,13 +273,6 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@example.com")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 CATALOG_MINIMUM_AVAILABLE_ITEMS = int(os.getenv("CATALOG_MINIMUM_AVAILABLE_ITEMS", "120"))
-
-
-def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
-    raw_value = os.getenv(env_name)
-    if not raw_value:
-        return default
-    return tuple(filter(None, (item.strip() for item in raw_value.split(",")))) or default
 
 
 LOG_ADMIN_LOGGER_NAMES = _split_env_list("LOG_ADMIN_LOGGER_NAMES", ())

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone as dt_timezone
@@ -15,6 +16,8 @@ from django.utils import timezone
 from nutribot.middleware import get_request_id
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
+from .alerts import notify_ingestion_failure
+from .metrics import record_ingestion_metrics
 from .models import NewsArticle
 
 logger = logging.getLogger("feed.ingestion")
@@ -159,10 +162,17 @@ def _normalise_payload(payload: FeedItemPayload, *, source: FeedSourceConfig, ri
 
 def ingest_sources(*, rid: str | None = None, http_client: httpx.Client | None = None) -> dict[str, Any]:
     rid = rid or get_request_id()
+    start_time = time.perf_counter()
+
     configs = _load_configurations()
     if not configs:
         logger.info("no feed sources configured", extra={"rid": rid})
-        return IngestionResult().as_dict(rid=rid)
+        empty_result = IngestionResult().as_dict(rid=rid)
+        record_ingestion_metrics(
+            result=empty_result,
+            duration_seconds=time.perf_counter() - start_time,
+        )
+        return empty_result
 
     result = IngestionResult(failed_sources=[])
     retry_attempts = int(getattr(settings, "FEED_INGESTION_RETRY_ATTEMPTS", 3))
@@ -258,9 +268,50 @@ def ingest_sources(*, rid: str | None = None, http_client: httpx.Client | None =
                             "source_id": source_id,
                         },
                     )
-
+    except Exception as exc:
+        logger.exception(
+            "feed ingestion execution failed",
+            extra={"rid": rid, "request_id": rid},
+        )
+        summary = result.as_dict(rid=rid)
+        duration = time.perf_counter() - start_time
+        record_ingestion_metrics(result=summary, duration_seconds=duration)
+        notify_ingestion_failure(
+            rid=rid,
+            failed_sources=summary["failed_sources"] or ["pipeline"],
+            error=str(exc),
+        )
+        raise
     finally:
         if close_client:
             client.close()
 
-    return result.as_dict(rid=rid)
+    duration = time.perf_counter() - start_time
+    summary = result.as_dict(rid=rid)
+    record_ingestion_metrics(result=summary, duration_seconds=duration)
+
+    base_extra = {
+        "rid": rid,
+        "request_id": rid,
+        "ingestion_processed": summary["processed"],
+        "ingestion_created": summary["created"],
+        "ingestion_updated": summary["updated"],
+        "ingestion_skipped": summary["skipped"],
+    }
+
+    if summary["failed_sources"]:
+        logger.error(
+            "feed ingestion finished with failed sources",
+            extra={
+                **base_extra,
+                "ingestion_failed_sources": summary["failed_sources"],
+            },
+        )
+        notify_ingestion_failure(rid=rid, failed_sources=summary["failed_sources"])
+    else:
+        logger.info(
+            "feed ingestion finished without failures",
+            extra={**base_extra, "ingestion_failed_sources": []},
+        )
+
+    return summary
