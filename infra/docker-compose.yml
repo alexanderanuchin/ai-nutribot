@@ -30,7 +30,15 @@ services:
   celery:
     build: ../backend
     env_file: .env
-    command: ["bash", "-lc", "celery -A nutribot worker -l info"]
+    command: ["bash", "-lc", "celery -A nutribot worker -l info -Q default,feed.ingestion"]
+    depends_on:
+      - backend
+      - redis
+
+  celery-beat:
+    build: ../backend
+    env_file: .env
+    command: ["bash", "-lc", "celery -A nutribot beat -l info"]
     depends_on:
       - backend
       - redis

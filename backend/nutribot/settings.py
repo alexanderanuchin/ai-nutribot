@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from datetime import timedelta
@@ -5,6 +6,7 @@ from pathlib import Path
 from typing import Tuple
 
 from corsheaders.defaults import default_headers
+from kombu import Exchange, Queue
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 LOG_JSON = os.getenv("LOG_JSON", "0") == "1"
@@ -181,6 +183,39 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+
+
+def _load_feed_sources() -> list[dict]:
+    raw_value = os.getenv("FEED_INGESTION_SOURCES", "[]")
+    if not raw_value:
+        return []
+    try:
+        data = json.loads(raw_value)
+    except json.JSONDecodeError as exc:  # pragma: no cover - configuration issue
+        raise RuntimeError("FEED_INGESTION_SOURCES must be a valid JSON array") from exc
+    if not isinstance(data, list):  # pragma: no cover - configuration issue
+        raise RuntimeError("FEED_INGESTION_SOURCES must be a JSON array")
+    return data
+
+
+FEED_INGESTION_SOURCES = _load_feed_sources()
+FEED_INGESTION_RETRY_ATTEMPTS = int(os.getenv("FEED_INGESTION_RETRY_ATTEMPTS", "3"))
+FEED_INGESTION_INTERVAL_MINUTES = int(os.getenv("FEED_INGESTION_INTERVAL_MINUTES", "30"))
+
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_QUEUES = [
+    Queue("default", Exchange("default"), routing_key="default"),
+    Queue("feed.ingestion", Exchange("feed"), routing_key="feed.ingestion"),
+]
+CELERY_TASK_ROUTES = {
+    "apps.feed.tasks.ingest_feed_sources_task": {"queue": "feed.ingestion"},
+}
+CELERY_BEAT_SCHEDULE = {
+    "feed-ingestion": {
+        "task": "apps.feed.tasks.ingest_feed_sources_task",
+        "schedule": timedelta(minutes=FEED_INGESTION_INTERVAL_MINUTES),
+    }
+}
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 BOT_INTERNAL_KEY = os.getenv("BOT_INTERNAL_KEY", "")
