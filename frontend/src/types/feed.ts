@@ -43,7 +43,6 @@ export interface RecipeFeedItem {
   allergens: string[]
   diet_tags: string[]
   base_content: string
-  premium_content: string
   is_premium: boolean
   price: string
   currency: string

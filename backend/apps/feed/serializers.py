@@ -66,7 +66,6 @@ class RecipeSerializer(serializers.ModelSerializer):
             "allergens",
             "diet_tags",
             "base_content",
-            "premium_content",
             "is_premium",
             "price",
             "currency",

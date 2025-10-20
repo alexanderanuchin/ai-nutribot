@@ -47,8 +47,10 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
 
     let ws: WebSocket | null = null
     let es: EventSource | null = null
+    let sseHandlers: Array<{ type: string; listener: EventListener }> = []
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
+    let lastKeepAliveAt = Date.now()
 
     const cleanup = () => {
       closed = true
@@ -66,8 +68,11 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       }
       if (es) {
         es.onopen = null
-        es.onmessage = null
         es.onerror = null
+        for (const { type, listener } of sseHandlers) {
+          es.removeEventListener(type, listener)
+        }
+        sseHandlers = []
         es.close()
         es = null
       }
@@ -85,13 +90,47 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       if (closed) return
       const url = `${httpBase}/v1/feed/events/?${params.toString()}`
       es = new EventSource(url)
-      es.onmessage = event => {
-        const data = event.data ? JSON.parse(event.data) : {}
-        handleEvent(event.type || 'feed.news', data)
+      const register = (type: string, listener: EventListener) => {
+        if (!es) return
+        es.addEventListener(type, listener)
+        sseHandlers.push({ type, listener })
       }
+
+      const createEventHandler = (group: FeedRealtimeEvent['group']): EventListener => event => {
+        const messageEvent = event as MessageEvent<string>
+        try {
+          const data = messageEvent.data ? JSON.parse(messageEvent.data) : {}
+          handleEvent(group, data)
+        } catch (error) {
+          console.warn('feed realtime: invalid sse message', error)
+        }
+      }
+
+      register('feed.news', createEventHandler('feed.news'))
+      register('feed.recipes', createEventHandler('feed.recipes'))
+      register('feed.deals', createEventHandler('feed.deals'))
+      register('feed.keepalive', event => {
+        const previousKeepAliveAt = lastKeepAliveAt
+        lastKeepAliveAt = Date.now()
+        if (import.meta.env.DEV) {
+          const keepAliveEvent = event as MessageEvent<string>
+          try {
+            const data = keepAliveEvent.data ? JSON.parse(keepAliveEvent.data) : {}
+            console.debug('feed realtime: keepalive', { ...data, sinceLast: lastKeepAliveAt - previousKeepAliveAt })
+          } catch (_error) {
+            console.debug('feed realtime: keepalive', { sinceLast: lastKeepAliveAt - previousKeepAliveAt })
+          }
+        }
+      })
       es.onerror = () => {
-        es?.close()
+        if (es) {
+          for (const { type, listener } of sseHandlers) {
+            es.removeEventListener(type, listener)
+          }
+          es.close()
+        }
         es = null
+        sseHandlers = []
         if (!closed) {
           reconnectTimer = setTimeout(connectSse, 5000)
         }
