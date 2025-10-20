@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+from decimal import Decimal
+from typing import Any, List
 
 from django.db import models
 from django.db.models import Q
@@ -17,12 +18,13 @@ from rest_framework.views import APIView
 from nutribot.middleware import get_request_id
 
 from .authentication import authenticate_access_token, authenticate_integration_key, extract_token_from_request
-from .events import format_sse, get_event_broker
+from .events import format_sse, get_event_broker, publish_news_article_event
 from .filters import filter_deals, filter_news, filter_recipes
 from .models import DealOffer, FeedTag, NewsArticle, Recipe, RecipePurchase, RecipeReaction
 from .pagination import FeedCursorPagination
 from .serializers import (
     DealOfferSerializer,
+    NewsArticleIngestSerializer,
     NewsArticleSerializer,
     RecipePurchaseSerializer,
     RecipeSerializer,
@@ -203,34 +205,121 @@ class FeedEventStreamView(APIView):
 
 class NewsIngestView(APIView):
     permission_classes = [permissions.AllowAny]
+    serializer_class = NewsArticleIngestSerializer
 
     def post(self, request, *args, **kwargs):
         authenticate_integration_key(request)
-        data = request.data
-        required = ["source_id", "title", "lead", "source_name", "source_url"]
-        for field in required:
-            if field not in data:
-                raise ValidationError({field: "Обязательное поле"})
-        published_at_value = data.get("published_at")
-        parsed_published = parse_datetime(published_at_value) if published_at_value else None
-        article, created = NewsArticle.objects.update_or_create(
-            source_id=data["source_id"],
-            defaults={
-                "title": data["title"],
-                "lead": data["lead"],
-                "source_name": data["source_name"],
-                "source_url": data["source_url"],
-                "published_at": parsed_published or timezone.now(),
-                "preview_image_url": data.get("preview_image_url", ""),
-                "is_flagged": data.get("is_flagged", False),
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        payload = serializer.validated_data
+        rid = getattr(request, "request_id", get_request_id())
+        now = timezone.now()
+        tags_payload = payload.pop("tags", [])
+        published_at = payload.pop("published_at", None)
+        ingested_at = payload.pop("ingested_at", None) or now
+        ingestion_metadata = payload.pop("ingestion_metadata", None)
+        ingestion_source = payload.pop("ingestion_source", "") or "api"
+
+        create_defaults = {
+            "title": payload.get("title"),
+            "lead": payload.get("lead"),
+            "source_name": payload.get("source_name"),
+            "source_url": payload.get("source_url"),
+            "published_at": published_at or now,
+            "preview_image_url": payload.get("preview_image_url", ""),
+            "tonality": payload.get("tonality", NewsArticle.Tonality.NEUTRAL),
+            "source_categories": payload.get("source_categories", []),
+            "toxicity_score": payload.get("toxicity_score", Decimal("0")),
+            "clickbait_score": payload.get("clickbait_score", Decimal("0")),
+            "is_flagged": payload.get("is_flagged", False),
+            "ingested_at": ingested_at,
+            "ingestion_source": ingestion_source,
+            "ingestion_rid": rid,
+            "ingestion_metadata": ingestion_metadata or {},
+        }
+
+        article, created = NewsArticle.objects.get_or_create(
+            source_id=payload["source_id"], defaults=create_defaults
+        )
+
+        update_fields = set()
+        if not created:
+            field_map = {
+                "title": payload.get("title"),
+                "lead": payload.get("lead"),
+                "source_name": payload.get("source_name"),
+                "source_url": payload.get("source_url"),
+                "preview_image_url": payload.get("preview_image_url"),
+                "tonality": payload.get("tonality"),
+                "toxicity_score": payload.get("toxicity_score"),
+                "clickbait_score": payload.get("clickbait_score"),
+                "is_flagged": payload.get("is_flagged"),
+            }
+            for field, value in field_map.items():
+                if value is not None:
+                    setattr(article, field, value)
+                    update_fields.add(field)
+            if published_at:
+                article.published_at = published_at
+                update_fields.add("published_at")
+            if "source_categories" in payload:
+                article.source_categories = payload.get("source_categories", [])
+                update_fields.add("source_categories")
+            article.ingested_at = ingested_at
+            article.ingestion_source = ingestion_source
+            article.ingestion_rid = rid
+            update_fields.update({"ingested_at", "ingestion_source", "ingestion_rid"})
+            if ingestion_metadata is not None:
+                existing_meta = article.ingestion_metadata or {}
+                if isinstance(existing_meta, dict) and isinstance(ingestion_metadata, dict):
+                    merged_meta = {**existing_meta, **ingestion_metadata}
+                else:
+                    merged_meta = ingestion_metadata
+                article.ingestion_metadata = merged_meta
+                update_fields.add("ingestion_metadata")
+            article.save(update_fields=list(update_fields))
+
+        if tags_payload:
+            tag_instances = self._upsert_tags(tags_payload)
+            article.tags.set(tag_instances)
+        elif created:
+            article.tags.clear()
+
+        action = "created" if created else "updated"
+        logger.info(
+            "news article ingested",
+            extra={
+                "rid": rid,
+                "source_id": article.source_id,
+                "article_id": article.id,
+                "action": action,
             },
         )
-        tags = data.get("tags", [])
-        if tags:
-            tag_objects = FeedTag.objects.filter(slug__in=tags)
-            article.tags.set(tag_objects)
+        publish_news_article_event(article, action=action, rid=rid)
         status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
         return Response({"id": article.id}, status=status_code)
+
+    def _upsert_tags(self, tags_payload: list[dict[str, Any]]):
+        tag_instances = []
+        for tag in tags_payload:
+            slug = tag["slug"].lower()
+            defaults = {
+                "name": tag.get("name") or tag.get("slug"),
+                "kind": tag.get("kind") or FeedTag.Kind.NEWS,
+            }
+            obj, created = FeedTag.objects.get_or_create(slug=slug, defaults=defaults)
+            if not created:
+                updates = {}
+                if tag.get("name") and obj.name != tag["name"]:
+                    updates["name"] = tag["name"]
+                if tag.get("kind") and obj.kind != tag["kind"]:
+                    updates["kind"] = tag["kind"]
+                if updates:
+                    for field, value in updates.items():
+                        setattr(obj, field, value)
+                    obj.save(update_fields=list(updates.keys()))
+            tag_instances.append(obj)
+        return tag_instances
 
 
 class DealIngestView(APIView):

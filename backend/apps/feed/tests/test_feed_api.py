@@ -19,6 +19,11 @@ def _configure_bot_token(settings):
     settings.TELEGRAM_BOT_TOKEN = "test-token"
 
 
+@pytest.fixture(autouse=True)
+def _disable_db_logging(monkeypatch):
+    monkeypatch.setattr('apps.monitoring.handlers.DatabaseLogHandler.emit', lambda self, record: None)
+
+
 @pytest.fixture
 def api_client() -> APIClient:
     return APIClient()
@@ -45,6 +50,8 @@ def test_feed_returns_news(auth_client: APIClient):
         source_name='Health News',
         source_url='https://example.com/health',
         published_at=timezone.now(),
+        tonality=NewsArticle.Tonality.POSITIVE,
+        source_categories=['wellness'],
     )
     article.tags.add(tag)
 
@@ -53,6 +60,8 @@ def test_feed_returns_news(auth_client: APIClient):
     payload = response.json()
     assert payload['results'][0]['title'] == 'Суперфуды в 2025'
     assert payload['results'][0]['tags'][0]['slug'] == 'wellness'
+    assert payload['results'][0]['tonality'] == NewsArticle.Tonality.POSITIVE
+    assert 'published_at_localized' in payload['results'][0]
 
 
 @pytest.mark.django_db
@@ -176,7 +185,7 @@ def test_recipe_purchase_flow(auth_client: APIClient, user: User):
 
 
 @pytest.mark.django_db
-def test_ingest_requires_integration_key(api_client: APIClient, settings):
+def test_ingest_requires_integration_key(api_client: APIClient, settings, db):
     settings.BOT_INTERNAL_KEY = 'secret-key'
     response = api_client.post(
         '/api/v1/feed/news/ingest/',
@@ -209,7 +218,120 @@ def test_ingest_requires_integration_key(api_client: APIClient, settings):
 
 
 @pytest.mark.django_db
-def test_deal_ingest_parses_dates(api_client: APIClient, settings):
+def test_news_ingest_creates_article_with_tags_and_metadata(api_client: APIClient, settings, monkeypatch, db):
+    settings.BOT_INTERNAL_KEY = 'secret-key'
+    captured: dict[str, object] = {}
+
+    def _capture_event(article, action, rid=None):
+        captured['action'] = action
+        captured['article_id'] = article.id
+        captured['rid'] = rid
+
+    monkeypatch.setattr('apps.feed.views.publish_news_article_event', _capture_event)
+    published_at = timezone.now()
+    response = api_client.post(
+        '/api/v1/feed/news/ingest/',
+        {
+            'source_id': 'ext-42',
+            'title': 'Питательные привычки',
+            'lead': 'Эксперты рассказали о новом подходе к питанию',
+            'source_name': 'NutriDaily',
+            'source_url': 'https://example.com/nutri',
+            'preview_image_url': 'https://cdn.example.com/image.jpg',
+            'published_at': published_at.isoformat(),
+            'tonality': NewsArticle.Tonality.POSITIVE,
+            'source_categories': ['health', 'nutrition'],
+            'toxicity_score': '0.0123',
+            'clickbait_score': '0.1000',
+            'ingestion_source': 'partner-api',
+            'ingestion_metadata': {'batch': 'b-1'},
+            'tags': [
+                'wellness',
+                {'slug': 'vitamins', 'name': 'Vitamins', 'children': [{'slug': 'vitamin-d'}]},
+            ],
+        },
+        format='json',
+        HTTP_X_INTEGRATION_KEY='secret-key',
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    article = NewsArticle.objects.get(source_id='ext-42')
+    assert article.tonality == NewsArticle.Tonality.POSITIVE
+    assert article.source_categories == ['health', 'nutrition']
+    assert article.ingestion_source == 'partner-api'
+    assert article.ingestion_metadata['batch'] == 'b-1'
+    assert article.ingestion_rid == captured['rid']
+    assert captured['action'] == 'created'
+    slugs = sorted(article.tags.values_list('slug', flat=True))
+    assert slugs == ['vitamin-d', 'vitamins', 'wellness']
+
+
+@pytest.mark.django_db
+def test_news_ingest_updates_existing_article(api_client: APIClient, settings, monkeypatch, db):
+    settings.BOT_INTERNAL_KEY = 'secret-key'
+    article = NewsArticle.objects.create(
+        source_id='ext-43',
+        title='Старый заголовок',
+        lead='Старый лид',
+        source_name='Old Source',
+        source_url='https://example.com/old',
+        published_at=timezone.now(),
+        tonality=NewsArticle.Tonality.NEUTRAL,
+        ingestion_metadata={'source': 'legacy'},
+    )
+
+    captured: dict[str, object] = {}
+
+    def _capture_event(article, action, rid=None):
+        captured['action'] = action
+        captured['article_id'] = article.id
+
+    monkeypatch.setattr('apps.feed.views.publish_news_article_event', _capture_event)
+    response = api_client.post(
+        '/api/v1/feed/news/ingest/',
+        {
+            'source_id': 'ext-43',
+            'title': 'Обновлённый заголовок',
+            'lead': 'Обновлённый лид',
+            'source_name': 'Nutri Update',
+            'source_url': 'https://example.com/new',
+            'tonality': NewsArticle.Tonality.NEGATIVE,
+            'ingestion_metadata': {'batch': 'b-2'},
+            'tags': [{'slug': 'analysis', 'name': 'Analysis'}],
+        },
+        format='json',
+        HTTP_X_INTEGRATION_KEY='secret-key',
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    article.refresh_from_db()
+    assert article.title == 'Обновлённый заголовок'
+    assert article.tonality == NewsArticle.Tonality.NEGATIVE
+    assert article.ingestion_metadata == {'source': 'legacy', 'batch': 'b-2'}
+    assert captured['action'] == 'updated'
+    assert list(article.tags.values_list('slug', flat=True)) == ['analysis']
+
+
+@pytest.mark.django_db
+def test_news_ingest_returns_validation_errors(api_client: APIClient, settings, db):
+    settings.BOT_INTERNAL_KEY = 'secret-key'
+    response = api_client.post(
+        '/api/v1/feed/news/ingest/',
+        {
+            'title': 'Нет идентификатора',
+            'lead': 'Пустой source_id',
+        },
+        format='json',
+        HTTP_X_INTEGRATION_KEY='secret-key',
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    errors = response.json()
+    assert 'source_id' in errors
+
+
+@pytest.mark.django_db
+def test_deal_ingest_parses_dates(api_client: APIClient, settings, db):
     settings.BOT_INTERNAL_KEY = 'integration-token'
     response = api_client.post(
         '/api/v1/feed/deals/ingest/',

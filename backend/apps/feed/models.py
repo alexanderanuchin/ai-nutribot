@@ -37,6 +37,11 @@ class FeedTag(TimeStampedModel):
 
 
 class NewsArticle(TimeStampedModel):
+    class Tonality(models.TextChoices):
+        POSITIVE = "positive", "Positive"
+        NEUTRAL = "neutral", "Neutral"
+        NEGATIVE = "negative", "Negative"
+
     source_id = models.CharField(max_length=255, unique=True)
     title = models.CharField(max_length=240)
     lead = models.TextField()
@@ -44,9 +49,20 @@ class NewsArticle(TimeStampedModel):
     source_url = models.URLField()
     published_at = models.DateTimeField(default=timezone.now, db_index=True)
     preview_image_url = models.URLField(blank=True)
+    tonality = models.CharField(
+        max_length=16,
+        choices=Tonality.choices,
+        default=Tonality.NEUTRAL,
+        db_index=True,
+    )
+    source_categories = models.JSONField(default=list, blank=True)
     toxicity_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     clickbait_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     is_flagged = models.BooleanField(default=False)
+    ingested_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    ingestion_source = models.CharField(max_length=64, blank=True)
+    ingestion_rid = models.CharField(max_length=128, blank=True)
+    ingestion_metadata = models.JSONField(default=dict, blank=True)
 
     tags = models.ManyToManyField(FeedTag, related_name="news_articles", blank=True)
 
@@ -90,7 +106,8 @@ class Recipe(TimeStampedModel):
     base_content = models.TextField()
     premium_content = models.TextField(blank=True)
     is_premium = models.BooleanField(default=False)
-    price = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal("0"))], default=Decimal("0"))
+    price = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal("0"))],
+                                default=Decimal("0"))
     currency = models.CharField(max_length=3, default="RUB")
     rating = models.DecimalField(max_digits=3, decimal_places=2, default=Decimal("0"))
     rating_count = models.PositiveIntegerField(default=0)

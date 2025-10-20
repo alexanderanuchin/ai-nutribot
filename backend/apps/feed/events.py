@@ -6,7 +6,10 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator
+from typing import Dict, Iterable, Iterator, Optional
+
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 
 
 @dataclass(frozen=True)
@@ -73,3 +76,35 @@ def format_sse(event: FeedEvent) -> Iterable[bytes]:
     data = json.dumps(event.payload, ensure_ascii=False)
     yield f"event: {event.group_name}\n".encode("utf-8")
     yield f"data: {data}\n\n".encode("utf-8")
+
+
+def publish_feed_event(event: FeedEvent) -> None:
+    broker = get_event_broker()
+    broker.publish(event)
+    channel_layer = get_channel_layer()
+    if channel_layer is None:
+        return
+    async_to_sync(channel_layer.group_send)(
+        event.group_name,
+        {
+            "type": "feed.event",
+            "event": event.payload,
+            "group": event.group_name,
+        },
+    )
+
+
+def publish_news_article_event(article, action: str, *, rid: Optional[str] = None) -> None:
+    from .serializers import NewsArticleEventSerializer
+
+    serializer = NewsArticleEventSerializer(article)
+    payload = {
+        "action": action,
+        "article": serializer.data,
+        "meta": {
+            "rid": rid,
+            "source_id": article.source_id,
+        },
+    }
+    event = FeedEvent(group_name="feed.news", payload=payload)
+    publish_feed_event(event)

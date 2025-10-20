@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from decimal import Decimal
+from typing import Any, Dict, Iterable
 
 from django.db.models import Count, F
+from django.utils import formats, timezone, translation
 from rest_framework import serializers
 
 from .models import DealOffer, FeedTag, NewsArticle, Recipe, RecipePurchase, RecipeReaction, RecipeStep
@@ -15,8 +17,59 @@ class FeedTagSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "slug", "kind"]
 
 
+class FeedTagIngestField(serializers.Field):
+    """Accepts flexible tag payloads (slug strings, dicts with children)."""
+
+    default_error_messages = {
+        "invalid": "Неверный формат тегов",
+        "missing_slug": "Для каждого тега требуется slug",
+    }
+
+    def to_internal_value(self, data: Any) -> list[dict[str, Any]]:
+        def _flatten(items: Iterable[Any]) -> Iterable[dict[str, Any]]:
+            for item in items:
+                if isinstance(item, str):
+                    yield {"slug": item}
+                    continue
+                if not isinstance(item, dict):
+                    self.fail("invalid")
+                slug = item.get("slug") or item.get("name")
+                if not slug:
+                    self.fail("missing_slug")
+                payload = {
+                    "slug": slug,
+                    "name": item.get("name"),
+                    "kind": item.get("kind"),
+                }
+                yield payload
+                nested = item.get("children") or item.get("tags")
+                if nested:
+                    yield from _flatten(nested)
+
+        if data in (None, ""):
+            return []
+        if not isinstance(data, list):
+            self.fail("invalid")
+        flattened = list(_flatten(data))
+        unique: dict[str, dict[str, Any]] = {}
+        for entry in flattened:
+            slug = entry["slug"].lower()
+            if slug not in unique:
+                unique[slug] = entry
+            else:
+                # merge optional fields while keeping first truthy values
+                for key in ("name", "kind"):
+                    if not unique[slug].get(key) and entry.get(key):
+                        unique[slug][key] = entry[key]
+        return list(unique.values())
+
+    def to_representation(self, value: Any) -> Any:  # pragma: no cover - not used
+        return value
+
+
 class NewsArticleSerializer(serializers.ModelSerializer):
     tags = FeedTagSerializer(many=True, read_only=True)
+    published_at_localized = serializers.SerializerMethodField()
 
     class Meta:
         model = NewsArticle
@@ -28,9 +81,63 @@ class NewsArticleSerializer(serializers.ModelSerializer):
             "source_name",
             "source_url",
             "published_at",
+            "published_at_localized",
             "preview_image_url",
+            "tonality",
+            "source_categories",
+            "toxicity_score",
+            "clickbait_score",
+            "is_flagged",
+            "ingested_at",
+            "ingestion_source",
+            "ingestion_rid",
+            "ingestion_metadata",
+            "created_at",
+            "updated_at",
             "tags",
         ]
+        read_only_fields = tuple(fields)
+
+    def get_published_at_localized(self, obj: NewsArticle) -> str | None:
+        if not obj.published_at:
+            return None
+        value = obj.published_at
+        if timezone.is_naive(value):
+            value = timezone.make_aware(value, timezone.get_current_timezone())
+        value = timezone.localtime(value)
+        language = None
+        request = self.context.get("request")
+        if request is not None:
+            language = getattr(request, "LANGUAGE_CODE", None)
+        if language:
+            with translation.override(language):
+                return formats.date_format(value, format="DATETIME_FORMAT")
+        return formats.date_format(value, format="DATETIME_FORMAT")
+
+
+class NewsArticleIngestSerializer(serializers.Serializer):
+    source_id = serializers.CharField(max_length=255)
+    title = serializers.CharField(max_length=240)
+    lead = serializers.CharField()
+    source_name = serializers.CharField(max_length=120)
+    source_url = serializers.URLField()
+    published_at = serializers.DateTimeField(required=False)
+    preview_image_url = serializers.URLField(required=False, allow_blank=True)
+    tonality = serializers.ChoiceField(choices=NewsArticle.Tonality.choices, required=False)
+    source_categories = serializers.ListField(
+        child=serializers.CharField(max_length=64), required=False, allow_empty=True
+    )
+    toxicity_score = serializers.DecimalField(
+        max_digits=5, decimal_places=4, required=False, min_value=Decimal("0")
+    )
+    clickbait_score = serializers.DecimalField(
+        max_digits=5, decimal_places=4, required=False, min_value=Decimal("0")
+    )
+    is_flagged = serializers.BooleanField(required=False)
+    ingested_at = serializers.DateTimeField(required=False)
+    ingestion_source = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    ingestion_metadata = serializers.JSONField(required=False)
+    tags = FeedTagIngestField(required=False)
 
 
 class RecipeStepSerializer(serializers.ModelSerializer):
@@ -206,7 +313,18 @@ class FeedEventSerializer(serializers.Serializer):
 class NewsArticleEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = NewsArticle
-        fields = ["id", "title", "lead", "source_name", "source_url", "published_at", "preview_image_url"]
+        fields = [
+            "id",
+            "title",
+            "lead",
+            "source_name",
+            "source_url",
+            "published_at",
+            "preview_image_url",
+            "tonality",
+            "source_categories",
+            "ingested_at",
+        ]
 
 
 class RecipeEventSerializer(serializers.ModelSerializer):
