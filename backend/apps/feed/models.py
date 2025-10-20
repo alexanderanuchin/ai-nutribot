@@ -60,8 +60,8 @@ class NewsArticle(TimeStampedModel):
     clickbait_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     is_flagged = models.BooleanField(default=False)
     ingested_at = models.DateTimeField(null=True, blank=True, db_index=True)
-    ingestion_source = models.CharField(max_length=64, blank=True)
-    ingestion_rid = models.CharField(max_length=128, blank=True)
+    ingestion_source = models.CharField(max_length=64, blank=True, default="")
+    ingestion_rid = models.CharField(max_length=128, blank=True, default="")
     ingestion_metadata = models.JSONField(default=dict, blank=True)
 
     tags = models.ManyToManyField(FeedTag, related_name="news_articles", blank=True)

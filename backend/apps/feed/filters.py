@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from decimal import Decimal, InvalidOperation
-
-from typing import Iterable
 
 from django.db import connection
 from django.db.models import Q, QuerySet

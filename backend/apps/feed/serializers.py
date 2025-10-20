@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Iterable
 
-from django.db.models import Count, F
+from django.db.models import Count
 from django.utils import formats, timezone, translation
 from rest_framework import serializers
 
