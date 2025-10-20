@@ -48,7 +48,7 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
           <Dialog.Trigger asChild>
             <motion.button
               type="button"
-              className="absolute top-[-3.5rem] left-1 inline-flex h-fit w-fit -translate-x-1/2 items-center justify-center rounded-full bg-transparent text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary p-0"
+              className="absolute top-[-3.5rem] left-[1rem] inline-flex h-fit w-fit -translate-x-1/2 items-center justify-center rounded-full bg-transparent text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary p-0"
               aria-label="AI быстрые действия"
               whileTap={{ scale: 0.94 }}
               whileHover={{ scale: 1.05 }}

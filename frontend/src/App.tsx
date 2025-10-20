@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import React, { useEffect, useState } from 'react'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -28,14 +28,24 @@ const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password
 
 export default function App(){
   const location = useLocation()
-  const { ready, authenticated } = useAuth()
+  const navigate = useNavigate()
+  const { ready, authenticated, authReady, bootstrapping } = useAuth()
   const { theme, resolvedTheme } = useTheme()
   const { openPalette } = useCommandPalette()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
-  const showAuthBackground = (!authenticated || !ready) && isAuthRoute
+  const hasTokens = authReady
   const showShell = ready && authenticated
+  const shouldShowAuthRoutes = (!authenticated && !hasTokens) || ((!authenticated || !ready) && isAuthRoute)
+  const showAuthBackground = shouldShowAuthRoutes && (isAuthRoute || !hasTokens)
+  const showLoadingState = !showShell && !shouldShowAuthRoutes
+
+  useEffect(() => {
+    if (showShell && isAuthRoute && location.pathname !== '/feed') {
+      navigate('/feed', { replace: true })
+    }
+  }, [showShell, isAuthRoute, location.pathname, navigate])
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -66,7 +76,7 @@ export default function App(){
         </>
       )}
 
-      {!showShell && (
+      {!showShell && shouldShowAuthRoutes && (
         <>
           {showAuthBackground && (
             <div className="auth-background">
@@ -81,6 +91,22 @@ export default function App(){
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
+          </div>
+          <CommandPanel />
+        </>
+      )}
+
+      {!showShell && showLoadingState && (
+        <>
+          <div className="flex min-h-screen items-center justify-center px-4 pb-12 pt-10 sm:px-6 lg:px-10">
+            <div className="card max-w-md text-center">
+              <div className="text-lg font-semibold">Загружаем личный кабинет…</div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                {bootstrapping
+                  ? 'Подготавливаем окружение и проверяем авторизацию'
+                  : 'Получаем актуальные данные профиля'}
+              </div>
+            </div>
           </div>
           <CommandPanel />
         </>
