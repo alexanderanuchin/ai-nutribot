@@ -65,6 +65,86 @@ def test_feed_returns_news(auth_client: APIClient):
 
 
 @pytest.mark.django_db
+def test_feed_filters_news_by_moderation(auth_client: APIClient):
+    clean = NewsArticle.objects.create(
+        source_id='ext-clean',
+        title='Чистая новость',
+        lead='Никаких флагов',
+        source_name='Health',
+        source_url='https://example.com/clean',
+        published_at=timezone.now(),
+        is_flagged=False,
+        toxicity_score=Decimal('0.1000'),
+        clickbait_score=Decimal('0.2000'),
+    )
+    flagged = NewsArticle.objects.create(
+        source_id='ext-flagged',
+        title='Фейковая сенсация',
+        lead='Содержит преувеличения',
+        source_name='Viral',
+        source_url='https://example.com/flagged',
+        published_at=timezone.now(),
+        is_flagged=True,
+        toxicity_score=Decimal('0.7500'),
+        clickbait_score=Decimal('0.8800'),
+    )
+
+    response = auth_client.get('/api/v1/feed/', {'type': 'news', 'is_flagged': '1'})
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert len(payload['results']) == 1
+    assert payload['results'][0]['id'] == flagged.id
+
+    response_any = auth_client.get('/api/v1/feed/', {'type': 'news', 'is_flagged': 'any'})
+    assert response_any.status_code == status.HTTP_200_OK
+    results = response_any.json()['results']
+    assert {item['id'] for item in results} == {clean.id, flagged.id}
+
+
+@pytest.mark.django_db
+def test_feed_filters_news_by_scores(auth_client: APIClient):
+    NewsArticle.objects.create(
+        source_id='ext-low',
+        title='Спокойная аналитика',
+        lead='Рассказ без кликов',
+        source_name='Wellness',
+        source_url='https://example.com/low',
+        published_at=timezone.now(),
+        toxicity_score=Decimal('0.1200'),
+        clickbait_score=Decimal('0.1500'),
+        tonality=NewsArticle.Tonality.NEUTRAL,
+        source_categories=['analysis'],
+    )
+    NewsArticle.objects.create(
+        source_id='ext-high',
+        title='Громкие заголовки',
+        lead='Очень кликбейтная новость',
+        source_name='Buzz',
+        source_url='https://example.com/high',
+        published_at=timezone.now(),
+        toxicity_score=Decimal('0.8200'),
+        clickbait_score=Decimal('0.9100'),
+        tonality=NewsArticle.Tonality.NEGATIVE,
+        source_categories=['buzz'],
+    )
+
+    response = auth_client.get(
+        '/api/v1/feed/',
+        {
+            'type': 'news',
+            'tonality': NewsArticle.Tonality.NEUTRAL,
+            'toxicity_max': '0.3',
+            'clickbait_max': '0.3',
+            'categories': 'analysis',
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert len(payload['results']) == 1
+    assert payload['results'][0]['source_id'] == 'ext-low'
+
+
+@pytest.mark.django_db
 def test_feed_filters_recipes(auth_client: APIClient, user: User):
     Recipe.objects.create(
         author=user,

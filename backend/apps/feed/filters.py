@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from decimal import Decimal, InvalidOperation
+
 from typing import Iterable
 
 from django.db import connection
@@ -15,6 +17,28 @@ def _parse_csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _parse_bool(value: str | None) -> bool | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "flagged", "moderated"}:
+        return True
+    if normalized in {"0", "false", "no", "clean"}:
+        return False
+    if normalized in {"any", "all", "*"}:
+        return None
+    return None
+
+
+def _parse_decimal(value: str | None) -> Decimal | None:
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(value)
+    except (InvalidOperation, ValueError):  # pragma: no cover - defensive
+        return None
+
+
 def filter_news(queryset: QuerySet[NewsArticle], params: dict[str, str]) -> QuerySet[NewsArticle]:
     tags = _parse_csv(params.get("tags"))
     if tags:
@@ -25,6 +49,33 @@ def filter_news(queryset: QuerySet[NewsArticle], params: dict[str, str]) -> Quer
     source = params.get("source")
     if source:
         queryset = queryset.filter(source_name__icontains=source)
+    tonality = params.get("tonality")
+    if tonality in {choice for choice, _ in NewsArticle.Tonality.choices}:
+        queryset = queryset.filter(tonality=tonality)
+    categories = _parse_csv(params.get("categories") or params.get("source_categories"))
+    if categories:
+        if connection.vendor == "postgresql":
+            queryset = queryset.filter(source_categories__overlap=categories)
+        else:
+            for category in categories:
+                queryset = queryset.filter(source_categories__icontains=category)
+    toxicity_min = _parse_decimal(params.get("toxicity_min"))
+    if toxicity_min is not None:
+        queryset = queryset.filter(toxicity_score__gte=toxicity_min)
+    toxicity_max = _parse_decimal(params.get("toxicity_max"))
+    if toxicity_max is not None:
+        queryset = queryset.filter(toxicity_score__lte=toxicity_max)
+    clickbait_min = _parse_decimal(params.get("clickbait_min"))
+    if clickbait_min is not None:
+        queryset = queryset.filter(clickbait_score__gte=clickbait_min)
+    clickbait_max = _parse_decimal(params.get("clickbait_max"))
+    if clickbait_max is not None:
+        queryset = queryset.filter(clickbait_score__lte=clickbait_max)
+    flagged = _parse_bool(params.get("is_flagged"))
+    if flagged is True:
+        queryset = queryset.filter(is_flagged=True)
+    elif flagged is False:
+        queryset = queryset.filter(is_flagged=False)
     return queryset.distinct()
 
 

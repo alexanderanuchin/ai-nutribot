@@ -311,10 +311,13 @@ class FeedEventSerializer(serializers.Serializer):
 
 
 class NewsArticleEventSerializer(serializers.ModelSerializer):
+    tags = FeedTagSerializer(many=True, read_only=True)
+
     class Meta:
         model = NewsArticle
         fields = [
             "id",
+            "source_id",
             "title",
             "lead",
             "source_name",
@@ -323,7 +326,16 @@ class NewsArticleEventSerializer(serializers.ModelSerializer):
             "preview_image_url",
             "tonality",
             "source_categories",
+            "toxicity_score",
+            "clickbait_score",
+            "is_flagged",
             "ingested_at",
+            "ingestion_source",
+            "ingestion_rid",
+            "ingestion_metadata",
+            "created_at",
+            "updated_at",
+            "tags",
         ]
 
 

@@ -39,13 +39,31 @@ class FeedView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = FeedCursorPagination
 
+    @staticmethod
+    def _parse_flag_filter(value: str | None) -> bool | None:
+        if value is None:
+            return False
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "flagged", "moderated"}:
+            return True
+        if normalized in {"0", "false", "no", "clean"}:
+            return False
+        if normalized in {"any", "all", "*"}:
+            return None
+        return False
+
     def get(self, request, *args, **kwargs):
         feed_type = request.query_params.get("type", "news")
         paginator = self.pagination_class()
         paginator.ordering = "-published_at" if feed_type == "news" else "-created_at"
 
         if feed_type == "news":
-            queryset = NewsArticle.objects.filter(is_flagged=False).prefetch_related("tags")
+            flag_filter = self._parse_flag_filter(request.query_params.get("is_flagged"))
+            queryset = NewsArticle.objects.all().prefetch_related("tags")
+            if flag_filter is True:
+                queryset = queryset.filter(is_flagged=True)
+            elif flag_filter is False:
+                queryset = queryset.filter(is_flagged=False)
             queryset = filter_news(queryset, request.query_params)
             serializer_class = NewsArticleSerializer
         elif feed_type == "recipes":

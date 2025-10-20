@@ -21,7 +21,19 @@ export interface NewsFeedItem {
   source_name: string
   source_url: string
   published_at: string
+  published_at_localized?: string | null
   preview_image_url: string
+  tonality: 'positive' | 'neutral' | 'negative'
+  source_categories: string[]
+  toxicity_score: string
+  clickbait_score: string
+  is_flagged: boolean
+  ingested_at: string | null
+  ingestion_source: string
+  ingestion_rid: string
+  ingestion_metadata: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
   tags: FeedTag[]
 }
 
@@ -75,8 +87,17 @@ export interface DealFeedItem {
 
 export type FeedItem = NewsFeedItem | RecipeFeedItem | DealFeedItem
 
-export interface FeedRealtimeEvent {
-  group: 'feed.news' | 'feed.recipes' | 'feed.deals'
-  tab: FeedTab
-  payload: Record<string, unknown>
+export interface NewsRealtimeEventPayload {
+  action: 'created' | 'updated' | 'moderated'
+  article: NewsFeedItem
+  meta?: {
+    rid?: string | null
+    source_id?: string | null
+    article_id?: number | null
+  }
 }
+
+export type FeedRealtimeEvent =
+  | { group: 'feed.news'; tab: 'news'; payload: NewsRealtimeEventPayload }
+  | { group: 'feed.recipes'; tab: 'recipes'; payload: Record<string, unknown> }
+  | { group: 'feed.deals'; tab: 'deals'; payload: Record<string, unknown> }

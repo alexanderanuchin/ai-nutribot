@@ -64,6 +64,27 @@ const FILTER_PRESETS = {
   ],
 } as const
 
+const NEWS_SEO = {
+  title: 'Лента новостей — NutriBot',
+  description: 'Свежие новости о питании, исследованиях и ЗОЖ с проверенными источниками и модерацией.',
+}
+
+const RECIPES_SEO = {
+  title: 'Рецепты и план питания — NutriBot',
+  description: 'Подборки рецептов, готовые планы питания и рекомендации от NutriBot для вашего стола.',
+}
+
+const DEALS_SEO = {
+  title: 'Скидки и акции — NutriBot',
+  description: 'Лучшие акции и скидки на продукты рядом с вами — следите за выгодными предложениями каждый день.',
+}
+
+const SEO_BY_TAB: Record<FeedTab, typeof NEWS_SEO> = {
+  news: NEWS_SEO,
+  recipes: RECIPES_SEO,
+  deals: DEALS_SEO,
+}
+
 function sanitizeFilters(filters: Record<string, string | boolean | undefined>): Record<string, string | boolean> {
   const result: Record<string, string | boolean> = {}
   Object.entries(filters).forEach(([key, value]) => {
@@ -109,7 +130,16 @@ export default function Feed() {
   const activeFilters = tabFilters[activeTab] || {}
   const filterKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters])
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } = useInfiniteQuery({
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useInfiniteQuery({
     queryKey: ['feed', activeTab, filterKey],
     queryFn: ({ pageParam }) => fetchFeed({ type: activeTab, cursor: pageParam ?? null, filters: activeFilters }),
     getNextPageParam: lastPage => lastPage.nextCursor,
@@ -131,6 +161,24 @@ export default function Feed() {
       setNewsSearch(String(tabFilters.news?.search ?? ''))
     }
   }, [activeTab, tabFilters.news])
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const meta = SEO_BY_TAB[activeTab]
+    document.title = meta.title
+    const descriptionTag = document.querySelector('meta[name="description"]')
+    if (descriptionTag) {
+      descriptionTag.setAttribute('content', meta.description)
+    }
+    const ogTitleTag = document.querySelector('meta[property="og:title"]')
+    if (ogTitleTag) {
+      ogTitleTag.setAttribute('content', meta.title)
+    }
+    const ogDescriptionTag = document.querySelector('meta[property="og:description"]')
+    if (ogDescriptionTag) {
+      ogDescriptionTag.setAttribute('content', meta.description)
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (activeTab !== 'news') return
@@ -198,7 +246,7 @@ export default function Feed() {
   }, [activeTab, queryClient])
 
   const handleManualRefresh = useCallback(() => {
-    void refetch()
+    void refetch({ throwOnError: false })
     setPendingCounts(prev => ({ ...prev, [activeTab]: 0 }))
   }, [activeTab, refetch])
 
@@ -220,6 +268,66 @@ export default function Feed() {
         <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
         {activeTab === 'news' ? (
           <SearchBox value={newsSearch} onChange={setNewsSearch} placeholder="Поиск новостей" />
+        ) : null}
+        {activeTab === 'news' ? (
+          <div className="flex flex-wrap gap-2">
+            <FilterChip
+              active={tabFilters.news?.tonality === 'positive'}
+              onClick={() =>
+                updateFilters('news', current => ({
+                  ...current,
+                  tonality: current.tonality === 'positive' ? undefined : 'positive',
+                }))
+              }
+            >
+              Позитивные
+            </FilterChip>
+            <FilterChip
+              active={tabFilters.news?.tonality === 'negative'}
+              onClick={() =>
+                updateFilters('news', current => ({
+                  ...current,
+                  tonality: current.tonality === 'negative' ? undefined : 'negative',
+                }))
+              }
+            >
+              Негативные
+            </FilterChip>
+            <FilterChip
+              active={tabFilters.news?.clickbait_max === '0.35'}
+              onClick={() =>
+                updateFilters('news', current => ({
+                  ...current,
+                  clickbait_max: current.clickbait_max === '0.35' ? undefined : '0.35',
+                  toxicity_max: current.toxicity_max === '0.4' ? undefined : '0.4',
+                }))
+              }
+            >
+              Без кликбейта
+            </FilterChip>
+            <FilterChip
+              active={tabFilters.news?.is_flagged === '1'}
+              onClick={() =>
+                updateFilters('news', current => ({
+                  ...current,
+                  is_flagged: current.is_flagged === '1' ? undefined : '1',
+                }))
+              }
+            >
+              Только на проверке
+            </FilterChip>
+            <FilterChip
+              active={tabFilters.news?.is_flagged === 'any'}
+              onClick={() =>
+                updateFilters('news', current => ({
+                  ...current,
+                  is_flagged: current.is_flagged === 'any' ? undefined : 'any',
+                }))
+              }
+            >
+              Включая проверку
+            </FilterChip>
+          </div>
         ) : null}
         {activeTab === 'recipes' ? (
           <div className="flex flex-wrap gap-2">
@@ -329,6 +437,23 @@ export default function Feed() {
       </div>
 
       <div className="flex flex-col gap-4">
+        {isError ? (
+          <div className="flex flex-col gap-2 rounded-3xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/20">
+            <span>
+              Не удалось загрузить данные.{' '}
+              {error instanceof Error ? error.message : 'Попробуйте обновить страницу.'}
+            </span>
+            <div>
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                className="inline-flex items-center gap-2 rounded-full border border-destructive/60 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:border-destructive hover:bg-destructive/10 hover:text-destructive/90"
+              >
+                Повторить попытку
+              </button>
+            </div>
+          </div>
+        ) : null}
         {isLoading && items.length === 0
           ? Array.from({ length: 3 }).map((_, index) => <FeedSkeleton key={index} variant={activeTab} />)
           : null}

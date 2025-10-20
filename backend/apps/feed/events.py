@@ -95,15 +95,19 @@ def publish_feed_event(event: FeedEvent) -> None:
 
 
 def publish_news_article_event(article, action: str, *, rid: Optional[str] = None) -> None:
+    from nutribot.middleware import get_request_id
+
     from .serializers import NewsArticleEventSerializer
 
     serializer = NewsArticleEventSerializer(article)
+    resolved_rid = rid or getattr(article, "ingestion_rid", None) or get_request_id()
     payload = {
         "action": action,
         "article": serializer.data,
         "meta": {
-            "rid": rid,
+            "rid": resolved_rid,
             "source_id": article.source_id,
+            "article_id": article.id,
         },
     }
     event = FeedEvent(group_name="feed.news", payload=payload)

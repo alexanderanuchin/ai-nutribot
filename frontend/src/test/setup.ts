@@ -1,4 +1,10 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
+
+vi.mock('lottie-react', () => ({
+  __esModule: true,
+  default: () => null,
+}))
 
 if (!window.matchMedia) {
   window.matchMedia = function matchMedia(query: string) {

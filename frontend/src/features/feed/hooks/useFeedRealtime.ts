@@ -43,7 +43,9 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
 
     const httpBase = resolveHttpBase()
     const wsBase = resolveWsBase()
-    const params = new URLSearchParams({ token, type: 'all' })
+    const groups: FeedRealtimeEvent['group'][] =
+      feed === 'news' ? ['feed.news'] : feed === 'recipes' ? ['feed.recipes'] : ['feed.deals']
+    const params = new URLSearchParams({ token, type: feed })
 
     let ws: WebSocket | null = null
     let es: EventSource | null = null
@@ -51,6 +53,12 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
     let lastKeepAliveAt = Date.now()
+    let wsFailures = 0
+    let sseFailures = 0
+
+    type NewsEvent = Extract<FeedRealtimeEvent, { group: 'feed.news' }>
+    type RecipeEvent = Extract<FeedRealtimeEvent, { group: 'feed.recipes' }>
+    type DealEvent = Extract<FeedRealtimeEvent, { group: 'feed.deals' }>
 
     const cleanup = () => {
       closed = true
@@ -78,18 +86,56 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       }
     }
 
-    const handleEvent = (group: string | undefined, payload: any) => {
-      if (!group) return
-      const normalizedGroup = group as FeedRealtimeEvent['group']
-      const tab = GROUP_TO_TAB[normalizedGroup]
+    const scheduleReconnect = (transport: 'ws' | 'sse') => {
+      if (closed) return
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+      }
+      const attempt = transport === 'ws' ? wsFailures : sseFailures
+      const delay = Math.min(1000 * 2 ** attempt, 30000)
+      reconnectTimer = window.setTimeout(() => {
+        if (transport === 'ws') {
+          connectWebSocket()
+        } else {
+          connectSse()
+        }
+      }, delay)
+    }
+
+    const handleEvent = (group: FeedRealtimeEvent['group'], payload: unknown) => {
+      const tab = GROUP_TO_TAB[group]
       if (!tab) return
-      handlerRef.current({ group: normalizedGroup, tab, payload })
+      if (group === 'feed.news') {
+        handlerRef.current({
+          group,
+          tab,
+          payload: (payload ?? {}) as NewsEvent['payload'],
+        })
+        return
+      }
+      if (group === 'feed.recipes') {
+        handlerRef.current({
+          group,
+          tab,
+          payload: (payload ?? {}) as RecipeEvent['payload'],
+        })
+        return
+      }
+      handlerRef.current({
+        group,
+        tab,
+        payload: (payload ?? {}) as DealEvent['payload'],
+      })
     }
 
     const connectSse = () => {
       if (closed) return
       const url = `${httpBase}/v1/feed/events/?${params.toString()}`
       es = new EventSource(url)
+      es.onopen = () => {
+        sseFailures = 0
+      }
       const register = (type: string, listener: EventListener) => {
         if (!es) return
         es.addEventListener(type, listener)
@@ -106,9 +152,9 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         }
       }
 
-      register('feed.news', createEventHandler('feed.news'))
-      register('feed.recipes', createEventHandler('feed.recipes'))
-      register('feed.deals', createEventHandler('feed.deals'))
+      for (const group of groups) {
+        register(group, createEventHandler(group))
+      }
       register('feed.keepalive', event => {
         const previousKeepAliveAt = lastKeepAliveAt
         lastKeepAliveAt = Date.now()
@@ -132,7 +178,13 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         es = null
         sseHandlers = []
         if (!closed) {
-          reconnectTimer = setTimeout(connectSse, 5000)
+          sseFailures += 1
+          if (sseFailures >= 4) {
+            wsFailures = 0
+            scheduleReconnect('ws')
+          } else {
+            scheduleReconnect('sse')
+          }
         }
       }
     }
@@ -143,14 +195,22 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       try {
         ws = new WebSocket(url)
       } catch (_error) {
+        wsFailures += 1
+        sseFailures = 0
         connectSse()
         return
+      }
+      ws.onopen = () => {
+        wsFailures = 0
       }
       ws.onmessage = event => {
         try {
           const data = JSON.parse(event.data) as { type?: string; payload?: unknown; group?: string }
-          if (data.type === 'event' && data.payload) {
-            handleEvent(data.group, data.payload)
+          if (data.type === 'event' && data.payload && data.group) {
+            const group = data.group as FeedRealtimeEvent['group']
+            if (groups.includes(group)) {
+              handleEvent(group, data.payload)
+            }
           }
         } catch (error) {
           console.warn('feed realtime: invalid message', error)
@@ -159,7 +219,13 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       ws.onclose = () => {
         ws = null
         if (!closed) {
-          reconnectTimer = setTimeout(connectSse, 1500)
+          wsFailures += 1
+          if (wsFailures >= 3) {
+            sseFailures = 0
+            connectSse()
+          } else {
+            scheduleReconnect('ws')
+          }
         }
       }
       ws.onerror = () => {

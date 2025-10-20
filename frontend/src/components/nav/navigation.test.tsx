@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act, type RenderResult } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import AppNavbar from './AppNavbar'
@@ -8,8 +8,34 @@ import MobileTabBar from './MobileTabBar'
 import NavDrawer from './NavDrawer'
 import CommandPanel from './CommandPanel'
 import { ThemeProvider } from '../../hooks/useTheme'
-import { AuthProvider } from '../../providers/AuthProvider'
 import { CommandPaletteProvider } from '../../hooks/useCommandPalette'
+import { tokenStore } from '../../utils/storage'
+import { createMockAuthContextValue } from '../../test/mocks/auth'
+
+vi.mock('../../providers/AuthProvider', async () => {
+  const { createContext, useContext } = await import('react')
+  const { createMockAuthContextValue } = await import('../../test/mocks/auth')
+  const state = { current: createMockAuthContextValue() }
+  const AuthContext = createContext(state.current)
+  const AuthProvider = ({ children }: { children: any }) => (
+    <AuthContext.Provider value={state.current}>{children}</AuthContext.Provider>
+  )
+
+  return {
+    AuthProvider,
+    useAuthContext: () => useContext(AuthContext),
+    __setMockAuthValue: (value: unknown) => {
+      state.current = value
+    },
+  }
+})
+
+import * as AuthModule from '../../providers/AuthProvider'
+
+const AuthProvider = (AuthModule as any).AuthProvider as typeof import('../../providers/AuthProvider').AuthProvider
+const setMockAuthValue = (AuthModule as any).__setMockAuthValue as (
+  value: ReturnType<typeof createMockAuthContextValue>,
+) => void
 
 vi.mock('../../api/api', () => ({
   fetchCurrentUser: vi.fn(async () => ({
@@ -69,7 +95,10 @@ vi.mock('../../api/api', () => ({
   })),
 }))
 
-function renderWithProviders(ui: ReactNode, { route = '/plan' }: { route?: string } = {}) {
+async function renderWithProviders(
+  ui: ReactNode,
+  { route = '/plan' }: { route?: string } = {},
+): Promise<RenderResult> {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -79,7 +108,10 @@ function renderWithProviders(ui: ReactNode, { route = '/plan' }: { route?: strin
     },
   })
 
-  return render(
+  tokenStore.access = 'test-access-token'
+  tokenStore.refresh = 'test-refresh-token'
+
+  const result = render(
     <MemoryRouter initialEntries={[route]}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
@@ -90,35 +122,50 @@ function renderWithProviders(ui: ReactNode, { route = '/plan' }: { route?: strin
       </QueryClientProvider>
     </MemoryRouter>,
   )
+
+  await act(async () => {
+    await Promise.resolve()
+  })
+
+  return result
 }
 
 describe('navigation system', () => {
   beforeEach(() => {
+    setMockAuthValue(createMockAuthContextValue())
     vi.clearAllMocks()
   })
 
+  afterEach(() => {
+    tokenStore.clear()
+  })
+
   it('renders AppNavbar with wallet badge', async () => {
-    renderWithProviders(<AppNavbar onMenuClick={() => {}} onOpenCommand={() => {}} />)
+    await renderWithProviders(<AppNavbar onMenuClick={() => {}} onOpenCommand={() => {}} />)
 
     expect(await screen.findByLabelText(/открыть кошелёк/i)).toBeInTheDocument()
     expect(await screen.findByLabelText(/баланс бота/i)).toBeInTheDocument()
   })
 
   it('highlights active tab in MobileTabBar', async () => {
-    renderWithProviders(<MobileTabBar onOpenCommand={() => {}} />, { route: '/profile' })
+    await renderWithProviders(<MobileTabBar onOpenCommand={() => {}} />, { route: '/profile' })
     const profileLink = await screen.findByRole('link', { name: /профиль/i })
     expect(profileLink).toHaveAttribute('aria-current', 'page')
   })
 
   it('shows sections inside NavDrawer', async () => {
-    renderWithProviders(<NavDrawer open onOpenChange={() => {}} />)
+    await renderWithProviders(<NavDrawer open onOpenChange={() => {}} />)
     expect(await screen.findByRole('button', { name: /выйти/i })).toBeInTheDocument()
     expect(screen.getByText(/Питание и калории/i)).toBeInTheDocument()
   })
 
   it('opens command palette on Cmd+K', async () => {
-    renderWithProviders(<CommandPanel />)
-    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    await renderWithProviders(<CommandPanel />)
+
+    const isMac = navigator.platform?.toLowerCase().includes('mac') ?? false
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'k', ctrlKey: !isMac, metaKey: isMac })
+    })
     expect(await screen.findByRole('dialog', { name: /командная палитра/i })).toBeInTheDocument()
   })
 })
