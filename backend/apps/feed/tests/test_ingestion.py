@@ -128,6 +128,60 @@ def test_ingest_sources_creates_article(settings):
 
 
 @pytest.mark.django_db
+def test_ingest_sources_honours_limit_per_source(settings):
+    settings.FEED_INGESTION_SOURCES = [
+        {
+            "name": "limited-feed",
+            "url": "https://news.example/api",
+            "timeout": 2,
+        }
+    ]
+
+    items = [
+        {
+            "external_id": f"story-{index}",
+            "title": f"Story {index}",
+            "description": "Summary",
+            "url": f"https://publisher.example/story-{index}",
+            "publishedAt": f"2024-07-{index:02d}T0{index%10}:00:00Z",
+            "sourceName": "Limited Feed",
+            "categories": [],
+            "sentiment": "neutral",
+            "imageUrl": None,
+        }
+        for index in range(1, 9)
+    ]
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(
+            method=responses.GET,
+            url="https://news.example/api",
+            json={"items": items},
+            status=200,
+        )
+
+        client = _ResponsesHttpxClient()
+        result = ingest_sources(
+            rid="limit-rid",
+            http_client=client,
+            items_limit_per_source=5,
+        )
+
+    assert result["processed"] == 5
+    assert NewsArticle.objects.count() == 5
+    stored_ids = set(
+        NewsArticle.objects.values_list("source_id", flat=True)
+    )
+    assert stored_ids == {
+        "limited-feed:story-8",
+        "limited-feed:story-7",
+        "limited-feed:story-6",
+        "limited-feed:story-5",
+        "limited-feed:story-4",
+    }
+
+
+@pytest.mark.django_db
 def test_ingest_sources_notifies_on_failed_sources(monkeypatch, settings):
     settings.FEED_INGESTION_SOURCES = [
         {

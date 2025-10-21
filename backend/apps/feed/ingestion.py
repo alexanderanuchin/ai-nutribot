@@ -13,6 +13,7 @@ import httpx
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from nutribot.middleware import get_request_id
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
@@ -169,7 +170,29 @@ def _normalise_payload(payload: FeedItemPayload, *, source: FeedSourceConfig, ri
     return defaults
 
 
-def ingest_sources(*, rid: str | None = None, http_client: httpx.Client | None = None) -> dict[str, Any]:
+def _coerce_published_at(value: Any) -> datetime:
+    """Return a comparable datetime for sorting purposes."""
+
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=dt_timezone.utc)
+        return value.astimezone(dt_timezone.utc)
+    if isinstance(value, str):
+        parsed = parse_datetime(value)
+        if parsed:
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=dt_timezone.utc)
+            return parsed.astimezone(dt_timezone.utc)
+    # Fallback to the minimum possible timestamp to avoid dropping items
+    return datetime.min.replace(tzinfo=dt_timezone.utc)
+
+
+def ingest_sources(
+    *,
+    rid: str | None = None,
+    http_client: httpx.Client | None = None,
+    items_limit_per_source: int | None = None,
+) -> dict[str, Any]:
     rid = rid or get_request_id()
     start_time = time.perf_counter()
 
@@ -230,6 +253,19 @@ def ingest_sources(*, rid: str | None = None, http_client: httpx.Client | None =
                     extra={"rid": rid, "source": config.name},
                 )
                 continue
+
+            if items_limit_per_source:
+                try:
+                    sorted_items = sorted(
+                        items,
+                        key=lambda item: _coerce_published_at(
+                            (item or {}).get("publishedAt")
+                        ),
+                        reverse=True,
+                    )
+                except Exception:  # pragma: no cover - defensive fallback
+                    sorted_items = list(items)
+                items = sorted_items[:items_limit_per_source]
 
             for raw_item in items:
                 result.processed += 1
