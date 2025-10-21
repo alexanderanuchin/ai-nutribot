@@ -623,14 +623,44 @@ class PaymentService:
 
     def __init__(self) -> None:
         self._providers: Dict[str, BasePaymentProvider] = {}
-        self.register_provider(TelegramStarsProvider(self))
+        self._disabled_providers: Dict[str, Dict[str, Any]] = {}
+        self._register_optional_providers()
         self.register_provider(CaloCoinProvider(self))
         self.register_provider(CardProvider(self))
+
+    def _register_optional_providers(self) -> None:
+        try:
+            self.register_provider(TelegramStarsProvider(self))
+        except TelegramStarsInvoiceError as exc:
+            rid = get_request_id("-")
+            reason_code = exc.code or "configuration_error"
+            details = {
+                "provider": PaymentAttempt.Provider.TELEGRAM_STARS,
+                "error": str(exc),
+                "error_code": reason_code,
+            }
+            self._disabled_providers[PaymentAttempt.Provider.TELEGRAM_STARS] = details
+            logger.warning(
+                "payment provider unavailable",
+                extra={
+                    "rid": rid,
+                    "request_id": rid,
+                    "provider": PaymentAttempt.Provider.TELEGRAM_STARS,
+                    **details,
+                },
+            )
 
     def register_provider(self, provider: BasePaymentProvider) -> None:
         self._providers[provider.code] = provider
 
     def get_provider(self, code: str) -> BasePaymentProvider:
+        if code in self._disabled_providers:
+            details = self._disabled_providers[code]
+            raise PaymentProviderError(
+                "Провайдер Telegram Stars недоступен: проверьте конфигурацию TELEGRAM_BOT_TOKEN.",
+                code="provider_unavailable",
+                details=details,
+            )
         if code not in self._providers:
             raise PaymentProviderError(f"Provider {code} is not registered")
         return self._providers[code]
