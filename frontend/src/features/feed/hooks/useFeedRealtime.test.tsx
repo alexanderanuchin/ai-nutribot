@@ -164,4 +164,79 @@ describe('useFeedRealtime', () => {
 
     expect(MockEventSource.instances).toHaveLength(1)
   })
+
+  it('handles SSE named events and message fallback payloads', () => {
+    vi.useFakeTimers()
+    const handler = vi.fn()
+
+    render(<TestComponent onEvent={handler} />)
+
+    act(() => {
+      MockWebSocket.instances[0].onclose?.({} as CloseEvent)
+    })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    act(() => {
+      MockWebSocket.instances[1].onclose?.({} as CloseEvent)
+    })
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
+    act(() => {
+      MockWebSocket.instances[2].onclose?.({} as CloseEvent)
+    })
+
+    const eventSource = MockEventSource.instances[0]
+    expect(eventSource).toBeDefined()
+
+    const newsPayload = {
+      action: 'created' as const,
+      article: {
+        id: 1,
+        source_id: 'ext-1',
+        title: 'Новость',
+        lead: 'Лид',
+        source_name: 'Источник',
+        source_url: 'https://example.com',
+        published_at: '2024-12-02T08:00:00Z',
+        preview_image_url: '',
+        tonality: 'neutral' as const,
+        source_categories: [],
+        toxicity_score: '0.1',
+        clickbait_score: '0.2',
+        is_flagged: false,
+        ingested_at: null,
+        ingestion_source: '',
+        ingestion_rid: '',
+        ingestion_metadata: null,
+        created_at: '2024-12-02T08:00:00Z',
+        updated_at: '2024-12-02T08:00:00Z',
+        tags: [],
+      },
+      meta: { rid: 'rid-test' },
+    }
+
+    act(() => {
+      eventSource.dispatch('feed.news', newsPayload)
+    })
+
+    expect(handler).toHaveBeenCalledWith({
+      group: 'feed.news',
+      tab: 'news',
+      payload: expect.objectContaining({ action: 'created' }),
+    })
+
+    handler.mockClear()
+
+    act(() => {
+      eventSource.dispatch('message', { group: 'feed.recipes', payload: newsPayload })
+    })
+
+    expect(handler).toHaveBeenCalledWith({
+      group: 'feed.recipes',
+      tab: 'recipes',
+      payload: expect.objectContaining({ action: 'created' }),
+    })
+  })
 })

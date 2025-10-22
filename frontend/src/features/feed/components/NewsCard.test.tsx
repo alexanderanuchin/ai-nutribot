@@ -1,7 +1,7 @@
 +49
 -0
 
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 
 import type { NewsFeedItem } from '../../../types/feed'
 import { NewsCard } from './NewsCard'
@@ -48,5 +48,18 @@ describe('NewsCard', () => {
     render(<NewsCard item={baseItem} />)
 
     expect(screen.getByText('RID-1234567890ab…')).toBeInTheDocument()
+  })
+
+  it('shows placeholder when preview is missing or fails to load', () => {
+    const { rerender } = render(<NewsCard item={{ ...baseItem, preview_image_url: '' }} />)
+
+    expect(screen.getByText('Нет превью')).toBeInTheDocument()
+
+    rerender(<NewsCard item={baseItem} />)
+    const image = screen.getByRole('img', { name: baseItem.title })
+
+    fireEvent.error(image)
+
+    expect(screen.getByText('Нет превью')).toBeInTheDocument()
   })
 })

@@ -1,5 +1,7 @@
+import { useState } from 'react'
+
 import clsx from 'clsx'
-import { AlertTriangle, ExternalLinkIcon } from 'lucide-react'
+import { AlertTriangle, ExternalLinkIcon, ImageOff } from 'lucide-react'
 
 import type { NewsFeedItem } from '../../../types/feed'
 
@@ -51,10 +53,13 @@ function truncateRid(rid: string | null | undefined): string {
 }
 
 export function NewsCard({ item }: NewsCardProps) {
+  const [previewFailed, setPreviewFailed] = useState(false)
   const publishedLabel = item.published_at_localized ?? formatDate(item.published_at)
   const tonalityMeta = TONALITY_META[item.tonality] ?? TONALITY_META.neutral
   const updatedLabel = formatDate(item.ingested_at ?? item.updated_at ?? item.published_at)
   const categories = Array.isArray(item.source_categories) ? item.source_categories.filter(Boolean) : []
+  const shouldShowPreview = Boolean(item.preview_image_url) && !previewFailed
+  const shouldShowFallback = !shouldShowPreview
 
   return (
     <article
@@ -65,14 +70,23 @@ export function NewsCard({ item }: NewsCardProps) {
           : 'border-border/60'
       )}
     >
-      {item.preview_image_url ? (
+      {shouldShowPreview ? (
         <div className="hidden h-28 w-28 shrink-0 overflow-hidden rounded-2xl sm:block">
           <img
             src={item.preview_image_url}
             alt={item.title}
             className="h-full w-full object-cover"
             loading="lazy"
+            onError={() => setPreviewFailed(true)}
           />
+        </div>
+      ) : null}
+      {shouldShowFallback ? (
+        <div className="hidden h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-muted/70 text-muted-foreground sm:flex">
+          <div className="flex flex-col items-center gap-2 text-xs font-medium">
+            <ImageOff className="h-6 w-6" aria-hidden="true" />
+            <span>Нет превью</span>
+          </div>
         </div>
       ) : null}
       <div className="flex flex-1 flex-col gap-3">

@@ -10,6 +10,11 @@ const FEED_GROUPS: ReadonlyArray<FeedRealtimeEvent['group']> = [
   'feed.deals',
 ]
 
+function isFeedGroup(value: string | null | undefined): value is FeedRealtimeEvent['group'] {
+  if (typeof value !== 'string') return false
+  return FEED_GROUPS.includes(value as FeedRealtimeEvent['group'])
+}
+
 export interface UseFeedRealtimeOptions {
   feed: FeedTab
   onEvent: (event: FeedRealtimeEvent) => void
@@ -159,6 +164,18 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       for (const group of FEED_GROUPS) {
         register(group, createEventHandler(group))
       }
+      register('message', event => {
+        const messageEvent = event as MessageEvent<string>
+        try {
+          const data = messageEvent.data ? JSON.parse(messageEvent.data) : {}
+          const group = (data as { group?: string }).group
+          if (isFeedGroup(group ?? null)) {
+            handleEvent(group, (data as { payload?: unknown }).payload ?? {})
+          }
+        } catch (error) {
+          console.warn('feed realtime: invalid sse message', error)
+        }
+      })
       register('feed.keepalive', event => {
         const previousKeepAliveAt = lastKeepAliveAt
         lastKeepAliveAt = Date.now()
