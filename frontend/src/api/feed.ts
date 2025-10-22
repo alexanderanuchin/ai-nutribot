@@ -58,11 +58,11 @@ export async function fetchFeed<T extends FeedTab>({
 }
 
 export async function purchaseRecipe(recipeId: number) {
-  const { data } = await api.post(`/recipes/${recipeId}/purchase/`)
+  const { data } = await api.post(`/v1/recipes/${recipeId}/purchase/`)
   return data
 }
 
 export async function fetchPremiumContent(recipeId: number) {
-  const { data } = await api.get<{ id: number; premium_content: string }>(`/recipes/${recipeId}/premium/`)
+  const { data } = await api.get<{ id: number; premium_content: string }>(`/v1/recipes/${recipeId}/premium/`)
   return data
 }

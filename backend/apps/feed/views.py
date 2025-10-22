@@ -55,7 +55,11 @@ class FeedView(APIView):
     def get(self, request, *args, **kwargs):
         feed_type = request.query_params.get("type", "news")
         paginator = self.pagination_class()
-        paginator.ordering = "-published_at" if feed_type == "news" else "-created_at"
+        paginator.ordering = (
+            ("-published_at", "-id")
+            if feed_type == "news"
+            else ("-created_at", "-id")
+        )
 
         if feed_type == "news":
             flag_filter = self._parse_flag_filter(request.query_params.get("is_flagged"))

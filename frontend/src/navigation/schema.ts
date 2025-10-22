@@ -1,7 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  Wallet2Icon,
-  BellIcon,
   FlameKindlingIcon,
   ChefHatIcon,
   ShoppingBagIcon,
@@ -14,8 +12,8 @@ import {
   FileTextIcon,
   NewspaperIcon,
   PlusCircleIcon,
-  SearchIcon,
   UserRoundIcon,
+  CalendarCheckIcon,
   Wallet2Icon,
 } from 'lucide-react'
 
@@ -64,6 +62,13 @@ export const PRIMARY_NAVIGATION: NavItem[] = [
     description: 'Новости, рецепты и акции',
   },
   {
+    id: 'plan',
+    label: 'План',
+    path: '/plan',
+    icon: CalendarCheckIcon,
+    description: 'Персональный план питания и активности',
+  },
+  {
     id: 'billing',
     label: 'Кошелёк',
     path: '/billing',
@@ -76,13 +81,6 @@ export const PRIMARY_NAVIGATION: NavItem[] = [
     path: '/compose',
     icon: PlusCircleIcon,
     description: 'Создать рецепт или предложение',
-  },
-  {
-    id: 'notifications',
-    label: 'Уведомления',
-    path: '/notifications',
-    icon: BellIcon,
-    description: 'Лента уведомлений и событий',
   },
   {
     id: 'profile',

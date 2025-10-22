@@ -33,8 +33,7 @@ export default function Login(){
         await loginWithEmail(email, password)
       }
       await queryClient.invalidateQueries({ queryKey: ['current-user'] })
-      const nextPath = redirectTo?.pathname ? `${redirectTo.pathname}${redirectTo.search ?? ''}` : '/feed'
-      nav(nextPath, { replace: true })
+      nav(redirectTo?.pathname || '/feed', { replace: true })
     }catch(err: any){
       setError(err?.response?.data?.detail || 'Неверные учётные данные')
     }finally{

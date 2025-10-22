@@ -4,6 +4,12 @@ import { tokenStore } from '../../../utils/storage'
 import type { FeedRealtimeEvent, FeedTab } from '../../../types/feed'
 import { GROUP_TO_TAB } from '../constants'
 
+const FEED_GROUPS: ReadonlyArray<FeedRealtimeEvent['group']> = [
+  'feed.news',
+  'feed.recipes',
+  'feed.deals',
+]
+
 export interface UseFeedRealtimeOptions {
   feed: FeedTab
   onEvent: (event: FeedRealtimeEvent) => void
@@ -43,8 +49,6 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
 
     const httpBase = resolveHttpBase()
     const wsBase = resolveWsBase()
-    const groups: FeedRealtimeEvent['group'][] =
-      feed === 'news' ? ['feed.news'] : feed === 'recipes' ? ['feed.recipes'] : ['feed.deals']
     const params = new URLSearchParams({ token, type: feed })
 
     let ws: WebSocket | null = null
@@ -152,7 +156,7 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         }
       }
 
-      for (const group of groups) {
+      for (const group of FEED_GROUPS) {
         register(group, createEventHandler(group))
       }
       register('feed.keepalive', event => {
@@ -208,7 +212,7 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
           const data = JSON.parse(event.data) as { type?: string; payload?: unknown; group?: string }
           if (data.type === 'event' && data.payload && data.group) {
             const group = data.group as FeedRealtimeEvent['group']
-            if (groups.includes(group)) {
+            if (FEED_GROUPS.includes(group)) {
               handleEvent(group, data.payload)
             }
           }

@@ -25,14 +25,19 @@ def authenticate_access_token(token: str) -> User:
         validated = AccessToken(token)
     except Exception as exc:  # pragma: no cover - JWT library handles specifics
         raise AuthenticationFailed("Invalid token") from exc
+    token_type = validated.get("token_type")
+    if token_type != "access":
+        raise AuthenticationFailed("Invalid token")
     user_id = validated.get("user_id")
     if not user_id:
         raise AuthenticationFailed("Invalid token payload")
     try:
-        return User.objects.get(pk=user_id)
+        user = User.objects.get(pk=user_id)
     except User.DoesNotExist as exc:  # pragma: no cover - defensive
         raise AuthenticationFailed("User not found") from exc
-
+    if not user.is_active:
+        raise AuthenticationFailed("User inactive")
+    return user
 
 def extract_token_from_request(request: HttpRequest) -> Optional[str]:
     auth_header = request.headers.get("Authorization", "")

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -28,7 +28,6 @@ const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password
 
 export default function App(){
   const location = useLocation()
-  const navigate = useNavigate()
   const { ready, authenticated, authReady, bootstrapping } = useAuth()
   const { theme, resolvedTheme } = useTheme()
   const { openPalette } = useCommandPalette()
@@ -40,12 +39,6 @@ export default function App(){
   const shouldShowAuthRoutes = (!authenticated && !hasTokens) || ((!authenticated || !ready) && isAuthRoute)
   const showAuthBackground = shouldShowAuthRoutes && (isAuthRoute || !hasTokens)
   const showLoadingState = !showShell && !shouldShowAuthRoutes
-
-  useEffect(() => {
-    if (showShell && isAuthRoute && location.pathname !== '/feed') {
-      navigate('/feed', { replace: true })
-    }
-  }, [showShell, isAuthRoute, location.pathname, navigate])
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
