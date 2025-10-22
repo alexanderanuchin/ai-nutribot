@@ -163,6 +163,8 @@ body {
     color: var(--text);
     font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu;
     transition: background .35s ease, color .35s ease;
+    overflow-x: hidden;
+    width: 100%;
 }
 
 a {

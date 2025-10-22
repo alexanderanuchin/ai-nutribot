@@ -105,11 +105,11 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
       type="button"
       onClick={onClick}
       className={clsx(
-        'rounded-full px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+        'inline-flex min-h-[2.75rem] min-w-0 items-center justify-center rounded-full px-3 text-xs font-semibold leading-snug transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
         active ? 'bg-primary text-primary-foreground' : 'bg-muted/50 text-muted-foreground hover:bg-muted'
       )}
     >
-      {children}
+      <span className="max-w-full break-words text-center">{children}</span>
     </button>
   )
 }
@@ -263,14 +263,14 @@ export default function Feed() {
   const badgeCounts = pendingCounts
 
   return (
-    <section className="flex min-h-full flex-col gap-6">
-      <div className="flex flex-col gap-4">
+    <section className="flex min-h-full w-full flex-col gap-6">
+      <div className="flex w-full flex-col gap-4">
         <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
         {activeTab === 'news' ? (
           <SearchBox value={newsSearch} onChange={setNewsSearch} placeholder="Поиск новостей" />
         ) : null}
         {activeTab === 'news' ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <FilterChip
               active={tabFilters.news?.tonality === 'positive'}
               onClick={() =>
@@ -330,7 +330,7 @@ export default function Feed() {
           </div>
         ) : null}
         {activeTab === 'recipes' ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {FILTER_PRESETS.recipes.map(preset => {
               const currentFilters = tabFilters.recipes ?? {}
               const active = preset.isActive(currentFilters)
@@ -371,7 +371,7 @@ export default function Feed() {
           </div>
         ) : null}
         {activeTab === 'deals' ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             {FILTER_PRESETS.deals.map(preset => {
               const currentFilters = tabFilters.deals ?? {}
               const active = preset.isActive(currentFilters)
@@ -419,24 +419,24 @@ export default function Feed() {
         <button
           type="button"
           onClick={handleApplyUpdates}
-          className="flex items-center justify-center gap-2 rounded-2xl bg-primary/15 px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/20"
+          className="flex min-h-[2.75rem] items-center justify-center gap-2 rounded-2xl bg-primary/15 px-4 text-center text-sm font-semibold text-primary transition hover:bg-primary/20"
         >
           Новых публикаций: {pendingCounts[activeTab]} — нажми, чтобы обновить
         </button>
       ) : null}
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Лента</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground">Лента</h2>
         <button
           type="button"
           onClick={handleManualRefresh}
-          className="rounded-full border border-border/60 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-foreground"
+          className="inline-flex min-h-[2.75rem] w-full justify-center rounded-full border border-border/60 px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-foreground sm:w-auto"
         >
           Обновить
         </button>
       </div>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         {isError ? (
           <div className="flex flex-col gap-2 rounded-3xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/20">
             <span>
