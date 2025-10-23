@@ -186,13 +186,21 @@ export default function Feed() {
   const showProgressBar = pullState === 'dragging' || pullState === 'armed'
   const progressPercent = Math.min(100, Math.round(pullProgress * 100))
   const indicatorMessage = useMemo(() => {
+    const isNewsTab = activeTab === 'news'
     if (pullFeedback === 'offline') return 'Офлайн, повторить при подключении'
     if (pullFeedback === 'error') return 'Ошибка, повторить'
-    if (pullState === 'refreshing' || pullState === 'settling') return 'Обновление…'
-    if (pullState === 'armed') return 'Отпустите, чтобы обновить'
-    if (pullState === 'dragging') return `Потяните вниз, чтобы обновить — ${progressPercent}%`
-    return 'Потяните вниз, чтобы обновить'
-  }, [progressPercent, pullFeedback, pullState])
+    if (pullState === 'refreshing' || pullState === 'settling') {
+      return isNewsTab ? 'Обновляем ленту новостей…' : 'Обновление…'
+    }
+    if (pullState === 'armed') {
+      return isNewsTab ? 'Обновляем ленту новостей' : 'Отпустите, чтобы обновить'
+    }
+    if (pullState === 'dragging') {
+      if (isNewsTab) return `Обновим новости на ${progressPercent}%`
+      return `Потяните вниз, чтобы обновить — ${progressPercent}%`
+    }
+    return isNewsTab ? 'Потяните вниз, чтобы обновить новости' : 'Потяните вниз, чтобы обновить'
+  }, [activeTab, progressPercent, pullFeedback, pullState])
 
   const pullSpacerStyle = useMemo<CSSProperties>(
     () => ({
@@ -360,7 +368,7 @@ export default function Feed() {
       if (!container) return
       if (pullState === 'refreshing') return
       const delta = event.clientY - startYRef.current
-      if (delta <= 0 || container.scrollTop > 0) {
+      if (container.scrollTop > 0) {
         pointerTrackingRef.current = false
         releasePointerCapture()
         schedulePullMetrics(0)
@@ -369,6 +377,11 @@ export default function Feed() {
       }
       event.preventDefault()
       setPullAnimating(false)
+      if (delta <= 0) {
+        if (pullState !== 'dragging') setPullState('dragging')
+        schedulePullMetrics(0)
+        return
+      }
       const nextState = delta >= PULL_THRESHOLD ? 'armed' : 'dragging'
       if (pullState !== nextState) setPullState(nextState)
       schedulePullMetrics(delta)
@@ -442,7 +455,7 @@ export default function Feed() {
       setPendingCounts(prev => ({ ...prev, [event.tab]: (prev[event.tab] ?? 0) + 1 }))
       if (event.tab !== activeTab) return
       if (!isOnline) return
-      if (pullState === 'refreshing') return
+      if (pullState !== 'idle') return
       if (!isAtTopRef.current) return
       if (autoRefreshRef.current) return
       autoRefreshRef.current = true
