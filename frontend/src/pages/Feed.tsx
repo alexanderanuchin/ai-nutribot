@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { useSearchParams } from 'react-router-dom'
 
@@ -32,6 +33,13 @@ const EMPTY_FILTERS: Record<FeedTab, Record<string, string | boolean>> = {
   recipes: {},
   deals: {},
 }
+
+const PULL_THRESHOLD = 64
+const MAX_PULL_DISTANCE = 136
+const SETTLING_DURATION_MS = 280
+const FEEDBACK_DURATION_MS = 2000
+const BANNER_AUTO_HIDE_MS = 10_000
+const SAFE_AREA_TOP = 'calc(env(safe-area-inset-top, 0px) + 0.75rem)'
 
 const FILTER_PRESETS = {
   recipes: [
@@ -88,7 +96,7 @@ const SEO_BY_TAB: Record<FeedTab, typeof NEWS_SEO> = {
 function sanitizeFilters(filters: Record<string, string | boolean | undefined>): Record<string, string | boolean> {
   const result: Record<string, string | boolean> = {}
   Object.entries(filters).forEach(([key, value]) => {
-    if (value === undefined || value === null) return
+    if (value == null) return
     if (typeof value === 'string' && value.trim() === '') return
     result[key] = value
   })
@@ -125,10 +133,31 @@ export default function Feed() {
   const [newsSearch, setNewsSearch] = useState('')
   const [pendingCounts, setPendingCounts] = useState<Record<FeedTab, number>>(ZERO_COUNTS)
   const [scrollPositions, setScrollPositions] = useState<Record<FeedTab, number>>(DEFAULT_SCROLL)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const isAtTopRef = useRef(true)
+  const [isAtTop, setIsAtTop] = useState(true)
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true))
+  const [pullState, setPullState] = useState<'idle' | 'dragging' | 'armed' | 'refreshing' | 'settling'>('idle')
+  const [pullDistance, setPullDistance] = useState(0)
+  const [pullProgress, setPullProgress] = useState(0)
+  const [pullAnimating, setPullAnimating] = useState(false)
+  const [pullFeedback, setPullFeedback] = useState<'none' | 'error' | 'offline'>('none')
+  const pointerTrackingRef = useRef(false)
+  const pointerIdRef = useRef<number | null>(null)
+  const startYRef = useRef(0)
+  const pullAnimationFrameRef = useRef<number | null>(null)
+  const settleTimerRef = useRef<number | null>(null)
+  const feedbackTimerRef = useRef<number | null>(null)
+  const prevPullStateRef = useRef<typeof pullState>('idle')
+  const bannerAutoHideTimerRef = useRef<number | null>(null)
+  const lastBannerCountRef = useRef(0)
+  const [bannerHidden, setBannerHidden] = useState(false)
+  const autoRefreshRef = useRef(false)
 
   const activeFilters = tabFilters[activeTab] || {}
   const filterKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters])
+  const queryKey = useMemo(() => ['feed', activeTab, filterKey] as const, [activeTab, filterKey])
 
   const {
     data,
@@ -140,7 +169,7 @@ export default function Feed() {
     error,
     refetch,
   } = useInfiniteQuery({
-    queryKey: ['feed', activeTab, filterKey],
+    queryKey,
     queryFn: ({ pageParam }) => fetchFeed({ type: activeTab, cursor: pageParam ?? null, filters: activeFilters }),
     getNextPageParam: lastPage => lastPage.nextCursor,
     staleTime: 5_000,
@@ -150,11 +179,297 @@ export default function Feed() {
   const pages = data?.pages ?? []
   const items = useMemo(() => pages.flatMap(page => page.items), [pages])
 
-  const handleRealtime = useCallback((event: FeedRealtimeEvent) => {
-    setPendingCounts(prev => ({ ...prev, [event.tab]: (prev[event.tab] ?? 0) + 1 }))
+  // ===== вычисления, используемые в эффектах (объявлены ДО эффектов)
+  const badgeCounts = pendingCounts
+  const activePendingCount = badgeCounts[activeTab] ?? 0
+  const indicatorVisible = pullFeedback !== 'none' || pullState !== 'idle'
+  const showProgressBar = pullState === 'dragging' || pullState === 'armed'
+  const progressPercent = Math.min(100, Math.round(pullProgress * 100))
+  const indicatorMessage = useMemo(() => {
+    if (pullFeedback === 'offline') return 'Офлайн, повторить при подключении'
+    if (pullFeedback === 'error') return 'Ошибка, повторить'
+    if (pullState === 'refreshing' || pullState === 'settling') return 'Обновление…'
+    if (pullState === 'armed') return 'Отпустите, чтобы обновить'
+    if (pullState === 'dragging') return `Потяните вниз, чтобы обновить — ${progressPercent}%`
+    return 'Потяните вниз, чтобы обновить'
+  }, [progressPercent, pullFeedback, pullState])
+
+  const pullSpacerStyle = useMemo<CSSProperties>(
+    () => ({
+      height: pullDistance,
+      transition: pullAnimating ? 'height 0.28s ease' : 'height 0s linear',
+    }),
+    [pullAnimating, pullDistance]
+  )
+
+  const shouldShowBanner =
+    activePendingCount > 0 && !bannerHidden && isOnline && !isAtTop && pullState !== 'refreshing'
+  // ===== /вычисления
+
+  // --- стили скролл-контейнера: запрещаем «пробой» скролла к WebView
+  const scrollContainerStyles = useMemo<CSSProperties>(
+    () => ({
+      overscrollBehaviorY: 'none',
+      overscrollBehavior: 'none',
+      WebkitOverflowScrolling: 'touch',
+      touchAction: 'pan-y',
+    }),
+    []
+  )
+
+  // На время страницы блокируем вертикальные свайпы Telegram WebApp и «пробой» у body
+  useEffect(() => {
+    const tg = (window as any)?.Telegram?.WebApp
+    try {
+      tg?.expand?.()
+      tg?.disableVerticalSwipes?.()
+    } catch {}
+    let prevBodyOverscroll = ''
+    if (typeof document !== 'undefined') {
+      prevBodyOverscroll = document.body.style.overscrollBehaviorY
+      document.body.style.overscrollBehaviorY = 'none'
+    }
+    return () => {
+      try {
+        tg?.enableVerticalSwipes?.()
+      } catch {}
+      if (typeof document !== 'undefined') {
+        document.body.style.overscrollBehaviorY = prevBodyOverscroll
+      }
+    }
   }, [])
 
+  const clearPullAnimation = useCallback(() => {
+    if (pullAnimationFrameRef.current) {
+      cancelAnimationFrame(pullAnimationFrameRef.current)
+      pullAnimationFrameRef.current = null
+    }
+  }, [])
+
+  const schedulePullMetrics = useCallback(
+    (distance: number) => {
+      const clamped = Math.max(0, Math.min(distance, MAX_PULL_DISTANCE))
+      const progress = Math.min(clamped / PULL_THRESHOLD, 1)
+      clearPullAnimation()
+      if (typeof window === 'undefined') {
+        setPullDistance(clamped)
+        setPullProgress(progress)
+        return
+      }
+      pullAnimationFrameRef.current = window.requestAnimationFrame(() => {
+        setPullDistance(clamped)
+        setPullProgress(progress)
+      })
+    },
+    [clearPullAnimation]
+  )
+
+  const clearFeedbackTimer = useCallback(() => {
+    if (feedbackTimerRef.current) {
+      window.clearTimeout(feedbackTimerRef.current)
+      feedbackTimerRef.current = null
+    }
+  }, [])
+
+  const showFeedback = useCallback(
+    (type: 'error' | 'offline') => {
+      setPullFeedback(type)
+      clearFeedbackTimer()
+      feedbackTimerRef.current = window.setTimeout(() => {
+        setPullFeedback('none')
+        feedbackTimerRef.current = null
+      }, FEEDBACK_DURATION_MS)
+    },
+    [clearFeedbackTimer]
+  )
+
+  const triggerHaptic = useCallback((duration: number) => {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return
+    try {
+      navigator.vibrate(duration)
+    } catch {}
+  }, [])
+
+  const refetchCurrentTab = useCallback(
+    async (options?: { bust?: boolean }) => {
+      const bust = options?.bust ?? false
+      if (bust) {
+        queryClient.setQueryData<InfiniteData<unknown> | undefined>(queryKey, undefined)
+      }
+      try {
+        await refetch({ throwOnError: true })
+        setPendingCounts(prev => ({ ...prev, [activeTab]: 0 }))
+        return { ok: true as const }
+      } catch (error) {
+        return { ok: false as const, error }
+      }
+    },
+    [activeTab, queryClient, queryKey, refetch]
+  )
+
+  const releasePointerCapture = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (container && pointerIdRef.current !== null) {
+      try {
+        container.releasePointerCapture(pointerIdRef.current)
+      } catch {}
+    }
+    pointerIdRef.current = null
+  }, [])
+
+  const settleToIdle = useCallback(() => {
+    setPullAnimating(true)
+    setPullState('settling')
+    schedulePullMetrics(0)
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current)
+    }
+    settleTimerRef.current = window.setTimeout(() => {
+      setPullAnimating(false)
+      setPullState('idle')
+      settleTimerRef.current = null
+    }, SETTLING_DURATION_MS)
+  }, [schedulePullMetrics])
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!event.isPrimary) return
+      if (pullState === 'refreshing') return
+      const container = scrollContainerRef.current
+      if (!container) return
+      if (container.scrollTop > 0) return
+      pointerTrackingRef.current = true
+      pointerIdRef.current = event.pointerId
+      startYRef.current = event.clientY
+      setPullAnimating(false)
+      if (pullFeedback !== 'none') {
+        setPullFeedback('none')
+        clearFeedbackTimer()
+      }
+      try {
+        container.setPointerCapture(event.pointerId)
+      } catch {}
+    },
+    [pullState, pullFeedback, clearFeedbackTimer]
+  )
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pointerTrackingRef.current || !event.isPrimary) return
+      const container = scrollContainerRef.current
+      if (!container) return
+      if (pullState === 'refreshing') return
+      const delta = event.clientY - startYRef.current
+      if (delta <= 0 || container.scrollTop > 0) {
+        pointerTrackingRef.current = false
+        releasePointerCapture()
+        schedulePullMetrics(0)
+        setPullState('idle')
+        return
+      }
+      event.preventDefault()
+      setPullAnimating(false)
+      const nextState = delta >= PULL_THRESHOLD ? 'armed' : 'dragging'
+      if (pullState !== nextState) setPullState(nextState)
+      schedulePullMetrics(delta)
+      container.scrollTop = 0
+    },
+    [pullState, releasePointerCapture, schedulePullMetrics]
+  )
+
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!event.isPrimary) return
+      if (!pointerTrackingRef.current) {
+        releasePointerCapture()
+        return
+      }
+      pointerTrackingRef.current = false
+      releasePointerCapture()
+      if (pullState === 'armed') {
+        if (!isOnline) {
+          showFeedback('offline')
+          settleToIdle()
+          return
+        }
+        setPullAnimating(true)
+        setPullState('refreshing')
+        schedulePullMetrics(Math.max(pullDistance, PULL_THRESHOLD))
+        clearFeedbackTimer()
+        setPullFeedback('none')
+        void (async () => {
+          const result = await refetchCurrentTab()
+          if (!result.ok) showFeedback('error')
+          settleToIdle()
+        })()
+        return
+      }
+      if (pullState !== 'idle') settleToIdle()
+    },
+    [
+      clearFeedbackTimer,
+      isOnline,
+      pullDistance,
+      pullState,
+      refetchCurrentTab,
+      releasePointerCapture,
+      schedulePullMetrics,
+      settleToIdle,
+      showFeedback,
+    ]
+  )
+
+  const handlePointerCancel = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!event.isPrimary) return
+      if (!pointerTrackingRef.current) return
+      pointerTrackingRef.current = false
+      releasePointerCapture()
+      settleToIdle()
+    },
+    [releasePointerCapture, settleToIdle]
+  )
+
+  useEffect(() => {
+    const previous = prevPullStateRef.current
+    if (pullState === 'armed' && previous !== 'armed') triggerHaptic(15)
+    if (previous === 'refreshing' && pullState === 'settling' && pullFeedback === 'none') triggerHaptic(15)
+    prevPullStateRef.current = pullState
+  }, [pullFeedback, pullState, triggerHaptic])
+
+  const handleRealtime = useCallback(
+    (event: FeedRealtimeEvent) => {
+      setPendingCounts(prev => ({ ...prev, [event.tab]: (prev[event.tab] ?? 0) + 1 }))
+      if (event.tab !== activeTab) return
+      if (!isOnline) return
+      if (pullState === 'refreshing') return
+      if (!isAtTopRef.current) return
+      if (autoRefreshRef.current) return
+      autoRefreshRef.current = true
+      void (async () => {
+        const result = await refetchCurrentTab({ bust: true })
+        if (!result.ok) {
+          setPendingCounts(prev => ({ ...prev, [event.tab]: (prev[event.tab] ?? 0) }))
+        }
+        autoRefreshRef.current = false
+      })()
+    },
+    [activeTab, isOnline, pullState, refetchCurrentTab]
+  )
+
   useFeedRealtime({ feed: activeTab, onEvent: handleRealtime })
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     if (activeTab === 'news') {
@@ -163,21 +478,98 @@ export default function Feed() {
   }, [activeTab, tabFilters.news])
 
   useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const updatePosition = () => {
+      const atTop = container.scrollTop <= 2
+      isAtTopRef.current = atTop
+      setIsAtTop(atTop)
+    }
+    updatePosition()
+    container.addEventListener('scroll', updatePosition, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', updatePosition)
+    }
+  }, [activeTab])
+
+  useEffect(() => {
+    const count = pendingCounts[activeTab] ?? 0
+    if (count <= 0) {
+      lastBannerCountRef.current = 0
+      setBannerHidden(false)
+      return
+    }
+    if (count > lastBannerCountRef.current) setBannerHidden(false)
+    lastBannerCountRef.current = count
+  }, [activeTab, pendingCounts])
+
+  useEffect(() => {
+    if (!shouldShowBanner) {
+      if (bannerAutoHideTimerRef.current) {
+        window.clearTimeout(bannerAutoHideTimerRef.current)
+        bannerAutoHideTimerRef.current = null
+      }
+      return
+    }
+    if (bannerAutoHideTimerRef.current) {
+      window.clearTimeout(bannerAutoHideTimerRef.current)
+      bannerAutoHideTimerRef.current = null
+    }
+    bannerAutoHideTimerRef.current = window.setTimeout(() => {
+      setBannerHidden(true)
+      bannerAutoHideTimerRef.current = null
+    }, BANNER_AUTO_HIDE_MS)
+    return () => {
+      if (bannerAutoHideTimerRef.current) {
+        window.clearTimeout(bannerAutoHideTimerRef.current)
+        bannerAutoHideTimerRef.current = null
+      }
+    }
+  }, [shouldShowBanner, activePendingCount])
+
+  useEffect(() => {
+    if (!isOnline) setBannerHidden(true)
+  }, [isOnline])
+
+  useEffect(() => () => {
+    clearPullAnimation()
+    if (settleTimerRef.current) {
+      window.clearTimeout(settleTimerRef.current)
+      settleTimerRef.current = null
+    }
+    if (feedbackTimerRef.current) {
+      window.clearTimeout(feedbackTimerRef.current)
+      feedbackTimerRef.current = null
+    }
+    if (bannerAutoHideTimerRef.current) {
+      window.clearTimeout(bannerAutoHideTimerRef.current)
+      bannerAutoHideTimerRef.current = null
+    }
+  }, [clearPullAnimation])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handler = () => {
+      void refetchCurrentTab({ bust: true })
+    }
+    ;(window as any).__debugFeedRefresh = handler
+    return () => {
+      if ((window as any).__debugFeedRefresh === handler) {
+        delete (window as any).__debugFeedRefresh
+      }
+    }
+  }, [refetchCurrentTab])
+
+  useEffect(() => {
     if (typeof document === 'undefined') return
     const meta = SEO_BY_TAB[activeTab]
     document.title = meta.title
     const descriptionTag = document.querySelector('meta[name="description"]')
-    if (descriptionTag) {
-      descriptionTag.setAttribute('content', meta.description)
-    }
+    if (descriptionTag) descriptionTag.setAttribute('content', meta.description)
     const ogTitleTag = document.querySelector('meta[property="og:title"]')
-    if (ogTitleTag) {
-      ogTitleTag.setAttribute('content', meta.title)
-    }
+    if (ogTitleTag) ogTitleTag.setAttribute('content', meta.title)
     const ogDescriptionTag = document.querySelector('meta[property="og:description"]')
-    if (ogDescriptionTag) {
-      ogDescriptionTag.setAttribute('content', meta.description)
-    }
+    if (ogDescriptionTag) ogDescriptionTag.setAttribute('content', meta.description)
   }, [activeTab])
 
   useEffect(() => {
@@ -210,8 +602,9 @@ export default function Feed() {
 
   const handleChangeTab = useCallback((tab: FeedTab) => {
     if (tab === activeTab) return
-    if (typeof window !== 'undefined') {
-      setScrollPositions(prev => ({ ...prev, [activeTab]: window.scrollY }))
+    const container = scrollContainerRef.current
+    if (container) {
+      setScrollPositions(prev => ({ ...prev, [activeTab]: container.scrollTop }))
     }
     setActiveTab(tab)
     setSearchParams(prev => {
@@ -222,249 +615,322 @@ export default function Feed() {
   }, [activeTab, setSearchParams])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    const container = scrollContainerRef.current
+    if (!container) return
     const nextPosition = scrollPositions[activeTab] ?? 0
-    window.scrollTo({ top: nextPosition, behavior: 'auto' })
+    container.scrollTo({ top: nextPosition, behavior: 'auto' })
   }, [activeTab, scrollPositions])
 
   useEffect(() => {
     const node = sentinelRef.current
-    if (!node || !hasNextPage) return
-    const observer = new IntersectionObserver(entries => {
-      const entry = entries[0]
-      if (entry?.isIntersecting && !isFetchingNextPage) {
-        fetchNextPage()
-      }
-    }, { root: null, threshold: 0.5 })
+    const container = scrollContainerRef.current
+    if (!node || !container || !hasNextPage) return
+    const observer = new IntersectionObserver(
+      entries => {
+        const entry = entries[0]
+        if (entry?.isIntersecting && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { root: container, rootMargin: '0px 0px 320px 0px', threshold: 0.01 }
+    )
     observer.observe(node)
     return () => observer.disconnect()
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, items.length])
-
-  const handleApplyUpdates = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ['feed', activeTab] })
-    setPendingCounts(prev => ({ ...prev, [activeTab]: 0 }))
-  }, [activeTab, queryClient])
-
-  const handleManualRefresh = useCallback(() => {
-    void refetch({ throwOnError: false })
-    setPendingCounts(prev => ({ ...prev, [activeTab]: 0 }))
-  }, [activeTab, refetch])
+  }, [activeTab, fetchNextPage, hasNextPage, isFetchingNextPage, items.length])
 
   const renderItem = useCallback((item: any) => {
-    if (activeTab === 'news') {
-      return <NewsCard key={`news-${item.id}`} item={item} />
-    }
-    if (activeTab === 'recipes') {
-      return <RecipeCard key={`recipe-${item.id}`} item={item} />
-    }
+    if (activeTab === 'news') return <NewsCard key={`news-${item.id}`} item={item} />
+    if (activeTab === 'recipes') return <RecipeCard key={`recipe-${item.id}`} item={item} />
     return <DealCard key={`deal-${item.id}`} item={item} />
   }, [activeTab])
 
-  const badgeCounts = pendingCounts
+  const handleBannerClick = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (container) container.scrollTo({ top: 0, behavior: 'smooth' })
+    if (bannerAutoHideTimerRef.current) {
+      window.clearTimeout(bannerAutoHideTimerRef.current)
+      bannerAutoHideTimerRef.current = null
+    }
+    void (async () => {
+      const result = await refetchCurrentTab({ bust: true })
+      if (!result.ok) setBannerHidden(false)
+    })()
+  }, [refetchCurrentTab])
+
+  const handleBannerClose = useCallback(() => {
+    if (bannerAutoHideTimerRef.current) {
+      window.clearTimeout(bannerAutoHideTimerRef.current)
+      bannerAutoHideTimerRef.current = null
+    }
+    setBannerHidden(true)
+  }, [])
+
+  const handleRetryFetch = useCallback(() => {
+    void refetchCurrentTab({ bust: true })
+  }, [refetchCurrentTab])
 
   return (
-    <section className="flex min-h-full w-full flex-col gap-6">
-      <div className="flex w-full flex-col gap-4">
-        <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
-        {activeTab === 'news' ? (
-          <SearchBox value={newsSearch} onChange={setNewsSearch} placeholder="Поиск новостей" />
-        ) : null}
-        {activeTab === 'news' ? (
-          <div className="flex min-w-0 flex-wrap gap-2">
-            <FilterChip
-              active={tabFilters.news?.tonality === 'positive'}
-              onClick={() =>
-                updateFilters('news', current => ({
-                  ...current,
-                  tonality: current.tonality === 'positive' ? undefined : 'positive',
-                }))
-              }
-            >
-              Позитивные
-            </FilterChip>
-            <FilterChip
-              active={tabFilters.news?.tonality === 'negative'}
-              onClick={() =>
-                updateFilters('news', current => ({
-                  ...current,
-                  tonality: current.tonality === 'negative' ? undefined : 'negative',
-                }))
-              }
-            >
-              Негативные
-            </FilterChip>
-            <FilterChip
-              active={tabFilters.news?.clickbait_max === '0.35'}
-              onClick={() =>
-                updateFilters('news', current => ({
-                  ...current,
-                  clickbait_max: current.clickbait_max === '0.35' ? undefined : '0.35',
-                  toxicity_max: current.toxicity_max === '0.4' ? undefined : '0.4',
-                }))
-              }
-            >
-              Без кликбейта
-            </FilterChip>
-            <FilterChip
-              active={tabFilters.news?.is_flagged === '1'}
-              onClick={() =>
-                updateFilters('news', current => ({
-                  ...current,
-                  is_flagged: current.is_flagged === '1' ? undefined : '1',
-                }))
-              }
-            >
-              Только на проверке
-            </FilterChip>
-            <FilterChip
-              active={tabFilters.news?.is_flagged === 'any'}
-              onClick={() =>
-                updateFilters('news', current => ({
-                  ...current,
-                  is_flagged: current.is_flagged === 'any' ? undefined : 'any',
-                }))
-              }
-            >
-              Включая проверку
-            </FilterChip>
-          </div>
-        ) : null}
-        {activeTab === 'recipes' ? (
-          <div className="flex min-w-0 flex-wrap gap-2">
-            {FILTER_PRESETS.recipes.map(preset => {
-              const currentFilters = tabFilters.recipes ?? {}
-              const active = preset.isActive(currentFilters)
-              return (
-                <FilterChip
-                  key={preset.key}
-                  active={active}
-                  onClick={() =>
-                    updateFilters('recipes', current => ({ ...current, ...preset.apply(!active) }))
-                  }
-                >
-                  {preset.label}
-                </FilterChip>
-              )
-            })}
-            <FilterChip
-              active={tabFilters.recipes?.sort === 'popular'}
-              onClick={() =>
-                updateFilters('recipes', current => ({
-                  ...current,
-                  sort: current.sort === 'popular' ? undefined : 'popular',
-                }))
-              }
-            >
-              Популярные
-            </FilterChip>
-            <FilterChip
-              active={tabFilters.recipes?.sort === 'rating'}
-              onClick={() =>
-                updateFilters('recipes', current => ({
-                  ...current,
-                  sort: current.sort === 'rating' ? undefined : 'rating',
-                }))
-              }
-            >
-              Высокий рейтинг
-            </FilterChip>
-          </div>
-        ) : null}
-        {activeTab === 'deals' ? (
-          <div className="flex min-w-0 flex-wrap gap-2">
-            {FILTER_PRESETS.deals.map(preset => {
-              const currentFilters = tabFilters.deals ?? {}
-              const active = preset.isActive(currentFilters)
-              return (
-                <FilterChip
-                  key={preset.key}
-                  active={active}
-                  onClick={() =>
-                    updateFilters('deals', current => ({ ...current, ...preset.apply(!active) }))
-                  }
-                >
-                  {preset.label}
-                </FilterChip>
-              )
-            })}
-            {userCity ? (
-              <FilterChip
-                active={tabFilters.deals?.city === userCity}
-                onClick={() =>
-                  updateFilters('deals', current => ({
-                    ...current,
-                    city: current.city === userCity ? undefined : userCity,
-                  }))
-                }
-              >
-                Только мой город
-              </FilterChip>
-            ) : null}
-            <FilterChip
-              active={tabFilters.deals?.sort === 'discount'}
-              onClick={() =>
-                updateFilters('deals', current => ({
-                  ...current,
-                  sort: current.sort === 'discount' ? undefined : 'discount',
-                }))
-              }
-            >
-              По скидке
-            </FilterChip>
-          </div>
-        ) : null}
-      </div>
-
-      {pendingCounts[activeTab] > 0 ? (
-        <button
-          type="button"
-          onClick={handleApplyUpdates}
-          className="flex min-h-[2.75rem] items-center justify-center gap-2 rounded-2xl bg-primary/15 px-4 text-center text-sm font-semibold text-primary transition hover:bg-primary/20"
-        >
-          Новых публикаций: {pendingCounts[activeTab]} — нажми, чтобы обновить
-        </button>
-      ) : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground">Лента</h2>
-        <button
-          type="button"
-          onClick={handleManualRefresh}
-          className="inline-flex min-h-[2.75rem] w-full justify-center rounded-full border border-border/60 px-3 text-xs font-semibold text-muted-foreground transition hover:border-primary/60 hover:text-foreground sm:w-auto"
-        >
-          Обновить
-        </button>
-      </div>
-
-      <div className="flex w-full flex-col gap-4">
-        {isError ? (
-          <div className="flex flex-col gap-2 rounded-3xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/20">
-            <span>
-              Не удалось загрузить данные.{' '}
-              {error instanceof Error ? error.message : 'Попробуйте обновить страницу.'}
-            </span>
-            <div>
+    <section className="relative flex h-full min-h-0 w-full flex-1 flex-col">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center px-4"
+        style={{ paddingTop: SAFE_AREA_TOP }}
+      >
+        {shouldShowBanner ? (
+          <div className="pointer-events-auto flex w-full max-w-lg items-center justify-center">
+            <div className="flex min-w-0 items-center gap-2 rounded-full bg-primary/95 px-3 py-2 text-sm font-semibold text-primary-foreground shadow-sm shadow-black/25">
               <button
                 type="button"
-                onClick={handleManualRefresh}
-                className="inline-flex items-center gap-2 rounded-full border border-destructive/60 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:border-destructive hover:bg-destructive/10 hover:text-destructive/90"
+                onClick={handleBannerClick}
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-full px-1 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary focus-visible:ring-offset-primary/40"
+                aria-label="Показать свежие новости"
               >
-                Повторить попытку
+                <span className="inline-flex h-2 w-2 flex-none rounded-full bg-primary-foreground/80" aria-hidden="true" />
+                <span className="min-w-0 truncate" aria-live="polite">
+                  Свежие новости: +{activePendingCount}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBannerClose}
+                className="inline-flex h-6 w-6 flex-none items-center justify-center rounded-full bg-primary-foreground/10 text-primary-foreground transition hover:bg-primary-foreground/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary focus-visible:ring-offset-primary/40"
+                aria-label="Скрыть баннер свежих новостей"
+              >
+                <span aria-hidden="true">&times;</span>
               </button>
             </div>
           </div>
         ) : null}
-        {isLoading && items.length === 0
-          ? Array.from({ length: 3 }).map((_, index) => <FeedSkeleton key={index} variant={activeTab} />)
-          : null}
-        {items.length > 0 ? items.map(renderItem) : null}
-        {!isLoading && items.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-border/60 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-            Пока нет публикаций. Попробуйте изменить фильтры или загляните позже.
+      </div>
+
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={scrollContainerRef}
+          className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+          style={scrollContainerStyles}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+        >
+          <div className="relative flex min-h-full w-full flex-col gap-6 pb-12">
+            <div aria-hidden="true" style={pullSpacerStyle} />
+            {indicatorVisible ? (
+              <div
+                className="pointer-events-none absolute inset-x-0 top-0 flex justify-center px-4"
+                style={{ paddingTop: SAFE_AREA_TOP }}
+              >
+                <div className="pointer-events-none flex w-full max-w-sm justify-center">
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="flex min-w-0 items-center gap-3 rounded-full bg-background/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm shadow-black/15 ring-1 ring-border/40"
+                  >
+                    {showProgressBar ? (
+                      <div className="h-2 w-16 flex-none overflow-hidden rounded-full bg-muted/60" aria-hidden="true">
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width]"
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-2 w-2 flex-none rounded-full bg-primary/70" aria-hidden="true" />
+                    )}
+                    <span className="min-w-0 truncate">{indicatorMessage}</span>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* было pt-4 — стало pt-2, чтобы «меню от верха» было ближе */}
+            <div className="flex w-full flex-col gap-6 px-4">
+              <div className="flex w-full flex-col gap-4">
+                <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
+                {activeTab === 'news' ? (
+                  <SearchBox value={newsSearch} onChange={setNewsSearch} placeholder="Поиск новостей" />
+                ) : null}
+                {activeTab === 'news' ? (
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    <FilterChip
+                      active={tabFilters.news?.tonality === 'positive'}
+                      onClick={() =>
+                        updateFilters('news', current => ({
+                          ...current,
+                          tonality: current.tonality === 'positive' ? undefined : 'positive',
+                        }))
+                      }
+                    >
+                      Позитивные
+                    </FilterChip>
+                    <FilterChip
+                      active={tabFilters.news?.tonality === 'negative'}
+                      onClick={() =>
+                        updateFilters('news', current => ({
+                          ...current,
+                          tonality: current.tonality === 'negative' ? undefined : 'negative',
+                        }))
+                      }
+                    >
+                      Негативные
+                    </FilterChip>
+                    <FilterChip
+                      active={tabFilters.news?.clickbait_max === '0.35'}
+                      onClick={() =>
+                        updateFilters('news', current => ({
+                          ...current,
+                          clickbait_max: current.clickbait_max === '0.35' ? undefined : '0.35',
+                          toxicity_max: current.toxicity_max === '0.4' ? undefined : '0.4',
+                        }))
+                      }
+                    >
+                      Без кликбейта
+                    </FilterChip>
+                    <FilterChip
+                      active={tabFilters.news?.is_flagged === '1'}
+                      onClick={() =>
+                        updateFilters('news', current => ({
+                          ...current,
+                          is_flagged: current.is_flagged === '1' ? undefined : '1',
+                        }))
+                      }
+                    >
+                      Только на проверке
+                    </FilterChip>
+                    <FilterChip
+                      active={tabFilters.news?.is_flagged === 'any'}
+                      onClick={() =>
+                        updateFilters('news', current => ({
+                          ...current,
+                          is_flagged: current.is_flagged === 'any' ? undefined : 'any',
+                        }))
+                      }
+                    >
+                      Включая проверку
+                    </FilterChip>
+                  </div>
+                ) : null}
+                {activeTab === 'recipes' ? (
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    {FILTER_PRESETS.recipes.map(preset => {
+                      const currentFilters = tabFilters.recipes ?? {}
+                      const active = preset.isActive(currentFilters)
+                      return (
+                        <FilterChip
+                          key={preset.key}
+                          active={active}
+                          onClick={() =>
+                            updateFilters('recipes', current => ({ ...current, ...preset.apply(!active) }))
+                          }
+                        >
+                          {preset.label}
+                        </FilterChip>
+                      )
+                    })}
+                    <FilterChip
+                      active={tabFilters.recipes?.sort === 'popular'}
+                      onClick={() =>
+                        updateFilters('recipes', current => ({
+                          ...current,
+                          sort: current.sort === 'popular' ? undefined : 'popular',
+                        }))
+                      }
+                    >
+                      Популярные
+                    </FilterChip>
+                    <FilterChip
+                      active={tabFilters.recipes?.sort === 'rating'}
+                      onClick={() =>
+                        updateFilters('recipes', current => ({
+                          ...current,
+                          sort: current.sort === 'rating' ? undefined : 'rating',
+                        }))
+                      }
+                    >
+                      Высокий рейтинг
+                    </FilterChip>
+                  </div>
+                ) : null}
+                {activeTab === 'deals' ? (
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    {FILTER_PRESETS.deals.map(preset => {
+                      const currentFilters = tabFilters.deals ?? {}
+                      const active = preset.isActive(currentFilters)
+                      return (
+                        <FilterChip
+                          key={preset.key}
+                          active={active}
+                          onClick={() =>
+                            updateFilters('deals', current => ({ ...current, ...preset.apply(!active) }))
+                          }
+                        >
+                          {preset.label}
+                        </FilterChip>
+                      )
+                    })}
+                    {userCity ? (
+                      <FilterChip
+                        active={tabFilters.deals?.city === userCity}
+                        onClick={() =>
+                          updateFilters('deals', current => ({
+                            ...current,
+                            city: current.city === userCity ? undefined : userCity,
+                          }))
+                        }
+                      >
+                        Только мой город
+                      </FilterChip>
+                    ) : null}
+                    <FilterChip
+                      active={tabFilters.deals?.sort === 'discount'}
+                      onClick={() =>
+                        updateFilters('deals', current => ({
+                          ...current,
+                          sort: current.sort === 'discount' ? undefined : 'discount',
+                        }))
+                      }
+                    >
+                      По скидке
+                    </FilterChip>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="min-w-0 flex-1 text-lg font-semibold text-foreground">Лента</h2>
+              </div>
+
+              <div className="flex w-full flex-col gap-4 pb-6">
+                {isError ? (
+                  <div className="flex flex-col gap-2 rounded-3xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive dark:border-destructive/30 dark:bg-destructive/20">
+                    <span>
+                      Не удалось загрузить данные.{' '}
+                      {error instanceof Error ? error.message : 'Попробуйте обновить страницу.'}
+                    </span>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={handleRetryFetch}
+                        className="inline-flex items-center gap-2 rounded-full border border-destructive/60 px-3 py-1.5 text-xs font-semibold text-destructive transition hover:border-destructive hover:bg-destructive/10 hover:text-destructive/90"
+                      >
+                        Повторить попытку
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {isLoading && items.length === 0
+                  ? Array.from({ length: 3 }).map((_, index) => <FeedSkeleton key={index} variant={activeTab} />)
+                  : null}
+                {items.length > 0 ? items.map(renderItem) : null}
+                {!isLoading && items.length === 0 ? (
+                  <div className="rounded-3xl border border-dashed border-border/60 bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                    Пока нет публикаций. Попробуйте изменить фильтры или загляните позже.
+                  </div>
+                ) : null}
+                <div ref={sentinelRef} aria-hidden="true" />
+                {isFetchingNextPage ? <FeedSkeleton variant={activeTab} /> : null}
+              </div>
+            </div>
           </div>
-        ) : null}
-        <div ref={sentinelRef} aria-hidden="true" />
-        {isFetchingNextPage ? <FeedSkeleton variant={activeTab} /> : null}
+        </div>
       </div>
     </section>
   )
