@@ -31,6 +31,7 @@ from .serializers import (
     RecipeWriteSerializer,
 )
 from .services import create_purchase, publish_recipe
+from .services.ingest_pipeline import normalize_and_translate_article
 
 logger = logging.getLogger("feed.api")
 
@@ -241,10 +242,28 @@ class NewsIngestView(APIView):
         ingested_at = payload.pop("ingested_at", None) or now
         ingestion_metadata = payload.pop("ingestion_metadata", None)
         ingestion_source = payload.pop("ingestion_source", "") or "api"
+        normalized_article = normalize_and_translate_article(
+            {
+                "title": payload.get("title"),
+                "lead": payload.get("lead"),
+                "body": payload.get("body"),
+            },
+            rid=rid,
+        )
+        normalized_title = normalized_article.get("title") or payload.get("title")
+        normalized_lead = normalized_article.get("lead") or payload.get("lead")
+        normalized_body = normalized_article.get("body")
 
         create_defaults = {
-            "title": payload.get("title"),
-            "lead": payload.get("lead"),
+            "title": normalized_title,
+            "lead": normalized_lead,
+            "body": normalized_body or None,
+            "title_orig": normalized_article.get("title_orig"),
+            "lead_orig": normalized_article.get("lead_orig"),
+            "body_orig": normalized_article.get("body_orig"),
+            "lang": normalized_article.get("lang", "und"),
+            "translated": normalized_article.get("translated", False),
+            "translation_provider": normalized_article.get("translation_provider", ""),
             "source_name": payload.get("source_name"),
             "source_url": payload.get("source_url"),
             "published_at": published_at or now,
@@ -267,8 +286,8 @@ class NewsIngestView(APIView):
         update_fields = set()
         if not created:
             field_map = {
-                "title": payload.get("title"),
-                "lead": payload.get("lead"),
+                "title": normalized_title,
+                "lead": normalized_lead,
                 "source_name": payload.get("source_name"),
                 "source_url": payload.get("source_url"),
                 "preview_image_url": payload.get("preview_image_url"),
@@ -277,10 +296,23 @@ class NewsIngestView(APIView):
                 "clickbait_score": payload.get("clickbait_score"),
                 "is_flagged": payload.get("is_flagged"),
             }
+            if "body" in payload:
+                field_map["body"] = normalized_body or None
             for field, value in field_map.items():
                 if value is not None:
                     setattr(article, field, value)
                     update_fields.add(field)
+            translation_map = {
+                "title_orig": normalized_article.get("title_orig"),
+                "lead_orig": normalized_article.get("lead_orig"),
+                "body_orig": normalized_article.get("body_orig"),
+                "lang": normalized_article.get("lang", article.lang or "und"),
+                "translated": normalized_article.get("translated", False),
+                "translation_provider": normalized_article.get("translation_provider", ""),
+            }
+            for field, value in translation_map.items():
+                setattr(article, field, value)
+                update_fields.add(field)
             if published_at:
                 article.published_at = published_at
                 update_fields.add("published_at")

@@ -18,10 +18,19 @@ export interface NewsFeedItem {
   source_id: string
   title: string
   lead: string
+  body?: string | null
+  title_orig?: string | null
+  lead_orig?: string | null
+  body_orig?: string | null
+  lang?: string | null
+  translated?: boolean
+  translation_provider?: string | null
   source_name: string
   source_url: string
   published_at: string
+  published_at_msk?: string | null
   published_at_localized?: string | null
+  timezone_label?: string | null
   preview_image_url: string
   tonality: 'positive' | 'neutral' | 'negative'
   source_categories: string[]

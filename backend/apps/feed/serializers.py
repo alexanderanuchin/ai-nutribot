@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any, Dict, Iterable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from django.conf import settings
 from django.db.models import Count
 from django.utils import formats, timezone, translation
 from rest_framework import serializers
@@ -69,6 +71,8 @@ class FeedTagIngestField(serializers.Field):
 class NewsArticleSerializer(serializers.ModelSerializer):
     tags = FeedTagSerializer(many=True, read_only=True)
     published_at_localized = serializers.SerializerMethodField()
+    published_at_msk = serializers.SerializerMethodField()
+    timezone_label = serializers.SerializerMethodField()
 
     class Meta:
         model = NewsArticle
@@ -77,10 +81,19 @@ class NewsArticleSerializer(serializers.ModelSerializer):
             "source_id",
             "title",
             "lead",
+            "body",
+            "title_orig",
+            "lead_orig",
+            "body_orig",
+            "lang",
+            "translated",
+            "translation_provider",
             "source_name",
             "source_url",
             "published_at",
             "published_at_localized",
+            "published_at_msk",
+            "timezone_label",
             "preview_image_url",
             "tonality",
             "source_categories",
@@ -113,11 +126,18 @@ class NewsArticleSerializer(serializers.ModelSerializer):
                 return formats.date_format(value, format="DATETIME_FORMAT")
         return formats.date_format(value, format="DATETIME_FORMAT")
 
+    def get_published_at_msk(self, obj: NewsArticle) -> str | None:
+        return _format_msk_iso(obj.published_at)
+
+    def get_timezone_label(self, obj: NewsArticle) -> str:
+        return "MSK"
+
 
 class NewsArticleIngestSerializer(serializers.Serializer):
     source_id = serializers.CharField(max_length=255)
     title = serializers.CharField(max_length=240)
     lead = serializers.CharField()
+    body = serializers.CharField(required=False, allow_blank=True)
     source_name = serializers.CharField(max_length=120)
     source_url = serializers.URLField()
     published_at = serializers.DateTimeField(required=False)
@@ -311,6 +331,8 @@ class FeedEventSerializer(serializers.Serializer):
 
 class NewsArticleEventSerializer(serializers.ModelSerializer):
     tags = FeedTagSerializer(many=True, read_only=True)
+    published_at_msk = serializers.SerializerMethodField()
+    timezone_label = serializers.SerializerMethodField()
 
     class Meta:
         model = NewsArticle
@@ -319,9 +341,18 @@ class NewsArticleEventSerializer(serializers.ModelSerializer):
             "source_id",
             "title",
             "lead",
+            "body",
+            "title_orig",
+            "lead_orig",
+            "body_orig",
+            "lang",
+            "translated",
+            "translation_provider",
             "source_name",
             "source_url",
             "published_at",
+            "published_at_msk",
+            "timezone_label",
             "preview_image_url",
             "tonality",
             "source_categories",
@@ -336,6 +367,12 @@ class NewsArticleEventSerializer(serializers.ModelSerializer):
             "updated_at",
             "tags",
         ]
+
+    def get_published_at_msk(self, obj: NewsArticle) -> str | None:
+        return _format_msk_iso(obj.published_at)
+
+    def get_timezone_label(self, obj: NewsArticle) -> str:
+        return "MSK"
 
 
 class RecipeEventSerializer(serializers.ModelSerializer):
@@ -369,3 +406,17 @@ class DealOfferEventSerializer(serializers.ModelSerializer):
             "discount_percent",
             "valid_until",
         ]
+
+
+def _format_msk_iso(value):
+    if not value:
+        return None
+    tz_name = getattr(settings, "TIME_DEFAULT_TZ", "Europe/Moscow")
+    try:
+        zone = ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        zone = ZoneInfo("Europe/Moscow")
+    dt = value
+    if timezone.is_naive(dt):
+        dt = timezone.make_aware(dt, timezone.utc)
+    return dt.astimezone(zone).isoformat()

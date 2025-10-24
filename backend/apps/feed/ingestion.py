@@ -15,12 +15,13 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from nutribot.middleware import get_request_id
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, HttpUrl, ValidationError
 
 from .adapters import FeedAdapterError, parse_feed_response
 from .alerts import notify_ingestion_failure
 from .metrics import record_ingestion_metrics
 from .models import NewsArticle
+from .services.ingest_pipeline import normalize_and_translate_article
 
 logger = logging.getLogger("feed.ingestion")
 
@@ -72,6 +73,10 @@ class FeedItemPayload(BaseModel):
     preview_image_url: HttpUrl | None = Field(default=None, alias="imageUrl")
     toxicity_score: float | None = None
     clickbait_score: float | None = None
+    body: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("content", "body", "fullText", "articleBody"),
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -139,6 +144,15 @@ def _normalise_payload(payload: FeedItemPayload, *, source: FeedSourceConfig, ri
     else:
         published_at = published_at.astimezone(dt_timezone.utc)
 
+    normalized_article = normalize_and_translate_article(
+        {
+            "title": payload.title,
+            "lead": payload.summary,
+            "body": payload.body or "",
+        },
+        rid=rid,
+    )
+
     tonality = payload.tonality or NewsArticle.Tonality.NEUTRAL
     if tonality not in NewsArticle.Tonality.values:
         tonality = NewsArticle.Tonality.NEUTRAL
@@ -151,9 +165,20 @@ def _normalise_payload(payload: FeedItemPayload, *, source: FeedSourceConfig, ri
         "external_id": payload.id,
     }
 
+    title_value = (normalized_article.get("title") or "").strip() or (payload.title or "").strip()
+    lead_value = (normalized_article.get("lead") or "").strip() or (payload.summary or "").strip()
+    body_value = (normalized_article.get("body") or "").strip()
+
     defaults = {
-        "title": payload.title.strip(),
-        "lead": payload.summary.strip(),
+        "title": title_value,
+        "lead": lead_value,
+        "body": body_value or None,
+        "title_orig": (normalized_article.get("title_orig") or None),
+        "lead_orig": (normalized_article.get("lead_orig") or None),
+        "body_orig": (normalized_article.get("body_orig") or None),
+        "lang": normalized_article.get("lang", "und"),
+        "translated": normalized_article.get("translated", False),
+        "translation_provider": normalized_article.get("translation_provider", ""),
         "source_name": payload.source or source.name,
         "source_url": str(payload.link),
         "published_at": published_at,

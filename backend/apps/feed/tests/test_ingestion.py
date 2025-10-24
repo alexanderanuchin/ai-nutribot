@@ -11,6 +11,8 @@ import requests
 from apps.feed import ingestion as ingestion_module
 from apps.feed.ingestion import FeedItemPayload, FeedSourceConfig, ingest_sources
 from apps.feed.models import NewsArticle
+from apps.feed.services.ingest_pipeline import normalize_and_translate_article
+from apps.feed.services.translation import TranslationOutcome
 
 
 class _ResponsesHttpxResponse:
@@ -66,6 +68,7 @@ def test_normalise_payload_union_categories(settings):
 
     assert defaults["title"] == "Health benefits of avocado"
     assert defaults["lead"] == "Rich in nutrients"
+    assert defaults["body"] is None
     assert defaults["source_name"] == "Daily Health"
     assert defaults["source_categories"] == ["fitness", "wellness"]
     assert str(defaults["preview_image_url"]) == "https://publisher.example/avocado.jpg"
@@ -73,6 +76,51 @@ def test_normalise_payload_union_categories(settings):
     assert defaults["toxicity_score"] == Decimal("0.1356")
     assert defaults["ingestion_metadata"]["external_id"] == "abc123"
     assert defaults["ingestion_source"] == "health-news"
+    assert defaults["lang"] in {"en", "und"}
+    assert defaults["translated"] is False
+    assert defaults["translation_provider"] == ""
+    assert defaults["title_orig"] is None
+
+
+def test_normalize_and_translate_article_translates(monkeypatch, settings):
+    settings.FEED_TRANSLATE_RU_ENABLED = True
+    settings.TRANSLATE_TARGET_LANG = "ru"
+
+    class StubTranslationService:
+        def __init__(self):
+            self.providers = ["stub"]
+
+        def translate_texts(self, texts, *, source_lang, target_lang, rid=None):
+            return TranslationOutcome(
+                texts=[f"RU:{text}" if text else text for text in texts],
+                provider="stub",
+                source_lang=source_lang,
+            )
+
+    stub_service = StubTranslationService()
+    monkeypatch.setattr(
+        "apps.feed.services.ingest_pipeline.get_translation_service",
+        lambda: stub_service,
+    )
+    monkeypatch.setattr(
+        "apps.feed.services.ingest_pipeline.detect_language",
+        lambda parts: "en",
+    )
+
+    result = normalize_and_translate_article(
+        {"title": "Hello", "lead": "World", "body": "Body text"},
+        rid="rid-translate",
+    )
+
+    assert result["title"] == "RU:Hello"
+    assert result["lead"] == "RU:World"
+    assert result["body"] == "RU:Body text"
+    assert result["title_orig"] == "Hello"
+    assert result["lead_orig"] == "World"
+    assert result["body_orig"] == "Body text"
+    assert result["lang"] == "en"
+    assert result["translated"] is True
+    assert result["translation_provider"] == "stub"
 
 
 @pytest.mark.django_db
@@ -121,10 +169,14 @@ def test_ingest_sources_creates_article(settings):
     article = NewsArticle.objects.get(source_id="health-news:story-1")
     assert article.title == "Morning workout lowers stress"
     assert article.lead == "Researchers confirm reduced cortisol levels"
+    assert article.body is None
     assert article.source_name == "Wellness Wire"
     assert article.ingestion_rid == "test-rid"
     assert article.source_categories == ["fitness", "wellness"]
     assert article.ingestion_metadata["payload_categories"] == ["wellness"]
+    assert article.lang in {"en", "und"}
+    assert article.translated is False
+    assert article.translation_provider == ""
 
 
 @pytest.mark.django_db

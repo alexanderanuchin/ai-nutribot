@@ -11,10 +11,19 @@ const baseItem: NewsFeedItem = {
   source_id: 'ext-1',
   title: 'ЗОЖ тренды 2025',
   lead: 'Исследователи рассказали о новых подходах к питанию.',
+  body: 'Полный текст новости о трендах ЗОЖ.',
+  title_orig: null,
+  lead_orig: null,
+  body_orig: null,
+  lang: 'ru',
+  translated: false,
+  translation_provider: '',
   source_name: 'Health News',
   source_url: 'https://example.com/news',
   published_at: '2024-12-02T08:00:00Z',
+  published_at_msk: '2024-12-02T11:00:00+03:00',
   published_at_localized: '2 дек 2024, 11:00',
+  timezone_label: 'MSK',
   preview_image_url: 'https://cdn.example.com/image.jpg',
   tonality: 'positive',
   source_categories: ['wellness', 'analysis'],
@@ -41,6 +50,7 @@ describe('NewsCard', () => {
     expect(screen.getByText('Требует проверки')).toBeInTheDocument()
     expect(screen.getByText('0.12')).toBeInTheDocument()
     expect(screen.getByText('0.18')).toBeInTheDocument()
+    expect(screen.getByText('2 дек. 2024 г., 11:00 (МСК)')).toBeInTheDocument()
     expect(screen.getByText(/Обновлено/)).toBeInTheDocument()
   })
 

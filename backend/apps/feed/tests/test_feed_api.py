@@ -47,9 +47,11 @@ def test_feed_returns_news(auth_client: APIClient):
         source_id='ext-1',
         title='Суперфуды в 2025',
         lead='Эксперты рассказали о лучших суперфудах года',
+        body='Полный текст статьи',
         source_name='Health News',
         source_url='https://example.com/health',
         published_at=timezone.now(),
+        lang='ru',
         tonality=NewsArticle.Tonality.POSITIVE,
         source_categories=['wellness'],
     )
@@ -61,6 +63,9 @@ def test_feed_returns_news(auth_client: APIClient):
     assert payload['results'][0]['title'] == 'Суперфуды в 2025'
     assert payload['results'][0]['tags'][0]['slug'] == 'wellness'
     assert payload['results'][0]['tonality'] == NewsArticle.Tonality.POSITIVE
+    assert payload['results'][0]['published_at_msk']
+    assert payload['results'][0]['timezone_label'] == 'MSK'
+    assert payload['results'][0]['lang'] == 'ru'
     assert 'published_at_localized' in payload['results'][0]
 
 

@@ -24,17 +24,35 @@ const TONALITY_META: Record<NewsFeedItem['tonality'], { label: string; className
   },
 }
 
-function formatDate(value: string | null | undefined): string {
-  if (!value) return '—'
+const MOSCOW_TIMEZONE = 'Europe/Moscow'
+const MOSCOW_LABEL = 'МСК'
+
+function resolveTimezoneLabel(label: string | null | undefined): string {
+  if (!label) return MOSCOW_LABEL
+  if (label.toUpperCase() === 'MSK') return MOSCOW_LABEL
+  return label
+}
+
+function formatMoscowDate(
+  primary: string | null | undefined,
+  fallback: string | null | undefined,
+  label: string | null | undefined
+): string {
+  const timezoneLabel = resolveTimezoneLabel(label)
+  const isoValue = primary ?? fallback
+  if (!isoValue) return '—'
   try {
-    return new Intl.DateTimeFormat('ru-RU', {
+    const formatter = new Intl.DateTimeFormat('ru-RU', {
       day: 'numeric',
       month: 'short',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(new Date(value))
+      timeZone: MOSCOW_TIMEZONE,
+    })
+    return `${formatter.format(new Date(isoValue))} (${timezoneLabel})`
   } catch (_error) {
-    return value
+    return `${isoValue} (${timezoneLabel})`
   }
 }
 
@@ -54,9 +72,16 @@ function truncateRid(rid: string | null | undefined): string {
 
 export function NewsCard({ item }: NewsCardProps) {
   const [previewFailed, setPreviewFailed] = useState(false)
-  const publishedLabel = item.published_at_localized ?? formatDate(item.published_at)
+  const publishedLabel = useMemo(
+    () => formatMoscowDate(item.published_at_msk, item.published_at, item.timezone_label),
+    [item.published_at_msk, item.published_at, item.timezone_label]
+  )
   const tonalityMeta = TONALITY_META[item.tonality] ?? TONALITY_META.neutral
-  const updatedLabel = formatDate(item.ingested_at ?? item.updated_at ?? item.published_at)
+  const updatedLabel = formatMoscowDate(
+    item.ingested_at,
+    item.updated_at ?? item.published_at,
+    item.timezone_label
+  )
   const categories = Array.isArray(item.source_categories) ? item.source_categories.filter(Boolean) : []
   const shouldShowPreview = Boolean(item.preview_image_url) && !previewFailed
   const mediaNode = useMemo(() => {
