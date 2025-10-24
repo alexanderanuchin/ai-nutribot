@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import logging
+import re
 import threading
 import time
 import unicodedata
@@ -41,6 +42,7 @@ except ImportError:  # pragma: no cover - redis optional
 from nutribot.middleware import get_request_id
 
 logger = logging.getLogger("feed.translation")
+translate_logger = logging.getLogger("feed.translate.yandex")
 
 _LANGUAGE_IDENTIFIER = None
 if NNetLanguageIdentifier is not None:  # pragma: no cover - slow path
@@ -48,6 +50,18 @@ if NNetLanguageIdentifier is not None:  # pragma: no cover - slow path
 
 _MAX_TRANSLATABLE_LENGTH = 10_000
 _CACHE_TTL_SECONDS = 60 * 60 * 24 * 180  # 180 days
+
+_CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
+_ALPHA_RE = re.compile(r"[A-Za-zА-Яа-яЁё]")
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _is_mostly_cyrillic(value: str) -> bool:
+    letters = _ALPHA_RE.findall(value)
+    if not letters:
+        return False
+    cyrillic = _CYRILLIC_RE.findall("".join(letters))
+    return len(cyrillic) / len(letters) >= 0.5
 
 
 class TranslationProviderError(RuntimeError):
@@ -89,12 +103,29 @@ class YandexProvider(TranslationProvider):
         *,
         api_key: str | None,
         folder_id: str | None,
-        timeout: float = 10.0,
+        timeout: float = 8.0,
+        http_client: httpx.Client | None = None,
     ) -> None:
         self.api_key = (api_key or "").strip()
         self.folder_id = (folder_id or "").strip()
-        self.timeout = timeout
         self.base_url = "https://translate.api.cloud.yandex.net/translate/v2/translate"
+        self.max_chunk_chars = 3000
+        self.min_chunk_chars = 1500
+        self.max_batch_texts = 25
+        self.max_batch_chars = 15_000
+        self.max_retries = 3
+        self.backoff_intervals = [0.5, 1.0, 2.0]
+        self._timeout = httpx.Timeout(timeout, connect=3.0, read=5.0, write=5.0)
+        if http_client is None:
+            self._client = httpx.Client(timeout=self._timeout)
+            self._owns_client = True
+        else:
+            self._client = http_client
+            self._owns_client = False
+        self._headers = {
+            "Authorization": f"Api-Key {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     def translate(
         self,
@@ -106,28 +137,162 @@ class YandexProvider(TranslationProvider):
     ) -> list[str]:
         if not self.api_key or not self.folder_id:
             raise TranslationProviderConfigurationError("Yandex Translate credentials are incomplete")
-        headers = {"Authorization": f"Api-Key {self.api_key}"}
-        body: dict[str, object] = {
-            "folderId": self.folder_id,
-            "texts": list(texts),
-            "targetLanguageCode": target_lang,
-        }
-        if source_lang:
-            body["sourceLanguageCode"] = source_lang
-        try:
-            response = httpx.post(self.base_url, json=body, headers=headers, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-            translations = [str(item.get("text", "")) for item in data.get("translations", [])]
-            if len(translations) != len(texts):
-                raise TranslationProviderError("Yandex Translate returned unexpected results")
-            return translations
-        except (httpx.HTTPError, ValueError, KeyError) as exc:
-            logger.warning(
-                "yandex translation failed",
-                extra={"rid": rid, "error": str(exc)},
+        if not texts:
+            return []
+
+        normalized_texts = [text if text is not None else "" for text in texts]
+        format_hint = self._detect_format(normalized_texts)
+
+        segments, index_map = self._split_segments(normalized_texts)
+        if not segments:
+            return ["" for _ in normalized_texts]
+
+        translated_segments: list[str] = []
+        source_code = source_lang or "auto"
+        for batch in self._iter_batches(segments):
+            translated_segments.extend(
+                self._request_with_retries(
+                    batch,
+                    target_lang=target_lang,
+                    source_lang=source_code,
+                    rid=rid,
+                    format_hint=format_hint,
+                )
             )
-            raise TranslationProviderError("Yandex translation failed") from exc
+
+        if len(translated_segments) != len(segments):
+            raise TranslationProviderError("Yandex Translate returned unexpected results")
+
+        results: list[str] = []
+        for original_text, (start, count) in zip(normalized_texts, index_map):
+            if count == 0:
+                results.append(original_text)
+                continue
+            end = start + count
+            translated_value = "".join(translated_segments[start:end])
+            results.append(translated_value)
+        return results
+
+    def _detect_format(self, texts: Sequence[str]) -> str:
+        for text in texts:
+            if text and _HTML_TAG_RE.search(text):
+                return "HTML"
+        return "PLAIN_TEXT"
+
+    def _split_segments(self, texts: Sequence[str]) -> tuple[list[str], list[tuple[int, int]]]:
+        segments: list[str] = []
+        index_map: list[tuple[int, int]] = []
+        for text in texts:
+            if not text:
+                index_map.append((len(segments), 0))
+                continue
+            chunks = self._chunk_text(text)
+            index_map.append((len(segments), len(chunks)))
+            segments.extend(chunks)
+        return segments, index_map
+
+    def _chunk_text(self, text: str) -> list[str]:
+        if len(text) <= self.max_chunk_chars:
+            return [text]
+        parts: list[str] = []
+        start = 0
+        length = len(text)
+        while start < length:
+            end = min(length, start + self.max_chunk_chars)
+            if end < length:
+                split = text.rfind("\n", start + self.min_chunk_chars, end)
+                if split == -1:
+                    split = text.rfind(" ", start + self.min_chunk_chars, end)
+                if split == -1:
+                    split = end
+            else:
+                split = end
+            if split <= start:
+                split = min(length, start + self.max_chunk_chars)
+            parts.append(text[start:split])
+            start = split
+        return parts
+
+    def _iter_batches(self, segments: Sequence[str]) -> Iterable[list[str]]:
+        batch: list[str] = []
+        char_count = 0
+        for segment in segments:
+            segment_len = len(segment)
+            if batch and (
+                len(batch) >= self.max_batch_texts
+                or char_count + segment_len > self.max_batch_chars
+            ):
+                yield batch
+                batch = []
+                char_count = 0
+            batch.append(segment)
+            char_count += segment_len
+        if batch:
+            yield batch
+
+    def _request_with_retries(
+        self,
+        texts: Sequence[str],
+        *,
+        target_lang: str,
+        source_lang: str,
+        rid: str,
+        format_hint: str,
+    ) -> list[str]:
+        payload: dict[str, object] = {
+            "folderId": self.folder_id,
+            "targetLanguageCode": target_lang,
+            "texts": list(texts),
+            "sourceLanguageCode": source_lang,
+            "format": format_hint,
+        }
+        total_bytes = sum(len(text.encode("utf-8")) for text in texts)
+        attempts = self.max_retries
+        for attempt in range(attempts):
+            start_time = time.perf_counter()
+            status_code: int | None = None
+            try:
+                response = self._client.post(self.base_url, json=payload, headers=self._headers)
+                status_code = response.status_code
+                response.raise_for_status()
+                data = response.json()
+                translations = [str(item.get("text", "")) for item in data.get("translations", [])]
+                duration = time.perf_counter() - start_time
+                rps = 1.0 / duration if duration > 0 else 0.0
+                translate_logger.info(
+                    "translation request completed",
+                    extra={
+                        "rid": rid,
+                        "status": status_code,
+                        "provider": self.name,
+                        "bytes": total_bytes,
+                        "rps": round(rps, 4),
+                        "attempt": attempt + 1,
+                    },
+                )
+                if len(translations) != len(texts):
+                    raise TranslationProviderError("Yandex Translate returned unexpected results")
+                return translations
+            except (httpx.RequestError, httpx.HTTPStatusError, ValueError, KeyError) as exc:
+                duration = time.perf_counter() - start_time
+                if status_code is None and isinstance(exc, httpx.HTTPStatusError):
+                    status_code = exc.response.status_code if exc.response else None
+                translate_logger.warning(
+                    "translation request failed",
+                    extra={
+                        "rid": rid,
+                        "status": status_code,
+                        "provider": self.name,
+                        "bytes": total_bytes,
+                        "attempt": attempt + 1,
+                        "duration": round(duration, 4),
+                        "error": str(exc),
+                    },
+                )
+                if attempt >= attempts - 1:
+                    raise TranslationProviderError("Yandex translation failed") from exc
+                delay = self.backoff_intervals[min(attempt, len(self.backoff_intervals) - 1)]
+                time.sleep(delay)
 
 
 class TranslationCache:
@@ -237,9 +402,26 @@ class TranslationService:
     def from_settings(cls) -> "TranslationService":
         api_key = getattr(settings, "YANDEX_API_KEY", "").strip()
         folder_id = getattr(settings, "YANDEX_FOLDER_ID", "").strip()
+        providers = tuple(
+            provider.strip().lower()
+            for provider in getattr(settings, "TRANSLATE_PROVIDERS", ("yandex",))
+            if provider
+        )
         provider: TranslationProvider | None = None
-        if api_key and folder_id:
-            provider = YandexProvider(api_key=api_key, folder_id=folder_id)
+        rid = get_request_id()
+        if "yandex" in providers:
+            if not api_key or not folder_id:
+                logger.error(
+                    "yandex translation credentials missing",
+                    extra={"rid": rid},
+                )
+            else:
+                provider = YandexProvider(api_key=api_key, folder_id=folder_id)
+        elif providers:
+            logger.warning(
+                "unsupported translation provider configured",
+                extra={"rid": rid, "providers": providers},
+            )
         return cls(provider=provider)
 
     def translate_texts(
@@ -258,6 +440,11 @@ class TranslationService:
         if not target_lang:
             return TranslationOutcome(texts=list(sanitized), provider=None, source_lang=source_lang)
         pending_indices = [idx for idx, value in enumerate(sanitized) if value]
+        if not pending_indices:
+            return TranslationOutcome(texts=list(sanitized), provider=None, source_lang=source_lang)
+        for index in list(pending_indices):
+            if _is_mostly_cyrillic(sanitized[index]):
+                pending_indices.remove(index)
         if not pending_indices:
             return TranslationOutcome(texts=list(sanitized), provider=None, source_lang=source_lang)
         provider = self.provider

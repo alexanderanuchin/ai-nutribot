@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.feed.models import DealOffer, FeedTag, NewsArticle, Recipe, RecipeStep
+from apps.feed.services.translation import TranslationOutcome
 
 User = get_user_model()
 
@@ -403,16 +404,26 @@ def test_news_ingest_applies_server_translation(api_client: APIClient, settings,
     settings.BOT_INTERNAL_KEY = 'secret-key'
     settings.FEED_TRANSLATE_RU_ENABLED = True
     settings.TRANSLATE_TARGET_LANG = 'ru'
+    settings.TRANSLATE_PROVIDERS = ('yandex',)
 
     monkeypatch.setenv('FEED_TRANSLATE_RU_ENABLED', '1')
     monkeypatch.setenv('TRANSLATE_TARGET_LANG', 'ru')
     monkeypatch.setenv('YANDEX_API_KEY', 'dummy')
     monkeypatch.setenv('YANDEX_FOLDER_ID', 'folder')
+    monkeypatch.setattr('apps.feed.services.translation._translation_service', None, raising=False)
 
-    def _fake_translate(target_lang, texts):
-        return [f'ru::{text}' if text else text for text in texts]
+    class DummyTranslationService:
+        is_available = True
 
-    monkeypatch.setattr('apps.feed.services.translate._yandex_translate', _fake_translate)
+        def translate_texts(self, texts, *, source_lang, target_lang, rid=None):
+            return TranslationOutcome(
+                texts=[f'ru::{text}' if text else text for text in texts],
+                provider='yandex',
+                source_lang=source_lang or 'en',
+            )
+
+    dummy_service = DummyTranslationService()
+    monkeypatch.setattr('apps.feed.services.ingest_pipeline.get_translation_service', lambda: dummy_service)
 
     response = api_client.post(
         '/api/v1/feed/news/ingest/',

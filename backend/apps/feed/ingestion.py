@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -22,7 +21,6 @@ from .adapters import FeedAdapterError, parse_feed_response
 from .alerts import notify_ingestion_failure
 from .metrics import record_ingestion_metrics
 from .models import NewsArticle
-from .services.translate import translate_news_fields
 from .services.ingest_pipeline import normalize_and_translate_article
 
 logger = logging.getLogger("feed.ingestion")
@@ -146,50 +144,14 @@ def _normalise_payload(payload: FeedItemPayload, *, source: FeedSourceConfig, ri
     else:
         published_at = published_at.astimezone(dt_timezone.utc)
 
-    translate_enabled = os.environ.get("FEED_TRANSLATE_RU_ENABLED", "0") == "1"
-    target_lang = os.environ.get("TRANSLATE_TARGET_LANG", "ru")
-
-    original_title = payload.title
-    original_lead = payload.summary
-    original_body = payload.body or ""
-
-    translated_title, translated_lead, translated_body = translate_news_fields(
-        title=original_title,
-        lead=original_lead,
-        content=original_body,
-        target_lang=target_lang,
-        enabled=translate_enabled,
-    )
-
-    translated_payload = {
-        "title": translated_title if translated_title is not None else original_title,
-        "lead": translated_lead if translated_lead is not None else original_lead,
-        "body": translated_body if translated_body is not None else original_body,
-    }
-
     normalized_article = normalize_and_translate_article(
-        translated_payload,
+        {
+            "title": payload.title,
+            "lead": payload.summary,
+            "body": payload.body,
+        },
         rid=rid,
     )
-
-    translation_applied = any(
-        [
-            translated_payload["title"] != (original_title or ""),
-            translated_payload["lead"] != (original_lead or ""),
-            translated_payload["body"] != (original_body or ""),
-        ]
-    )
-
-    if translation_applied:
-        if original_title:
-            normalized_article.setdefault("title_orig", original_title)
-        if original_lead:
-            normalized_article.setdefault("lead_orig", original_lead)
-        if original_body:
-            normalized_article.setdefault("body_orig", original_body)
-        normalized_article["translated"] = True
-        normalized_article.setdefault("translation_provider", "yandex")
-        normalized_article.setdefault("lang", (target_lang or "ru").lower())
 
     tonality = payload.tonality or NewsArticle.Tonality.NEUTRAL
     if tonality not in NewsArticle.Tonality.values:

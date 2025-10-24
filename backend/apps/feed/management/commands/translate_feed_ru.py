@@ -1,9 +1,17 @@
 from __future__ import annotations
-from django.core.management.base import BaseCommand
-import os
 import re
+from django.core.management.base import BaseCommand
+
 from apps.feed.models import NewsArticle
-from apps.feed.services.translate import translate_news_fields
+from django.conf import settings
+
+from nutribot.middleware import get_request_id
+
+from apps.feed.services.ingest_pipeline import normalize_and_translate_article
+from apps.feed.services.translation import (
+    TranslationServiceError,
+    get_translation_service,
+)
 
 _CYR = re.compile(r"[А-Яа-яЁё]")
 
@@ -16,21 +24,42 @@ class Command(BaseCommand):
     help = "Translate missing RU titles/leads of news and normalize published_at to MSK (in serializer)."
 
     def handle(self, *args, **options):
-        translate_enabled = os.environ.get("FEED_TRANSLATE_RU_ENABLED", "0") == "1"
-        target_lang = os.environ.get("TRANSLATE_TARGET_LANG", "ru")
+        translate_enabled = bool(getattr(settings, "FEED_TRANSLATE_RU_ENABLED", False))
+        if not translate_enabled:
+            self.stdout.write(
+                self.style.WARNING("Translation disabled by configuration. Nothing to do."),
+            )
+            return
 
         queryset = NewsArticle.objects.all()
         updated = 0
+        translation_service = get_translation_service()
+        if translation_service is None or not translation_service.is_available:
+            self.stderr.write(
+                self.style.ERROR("Translation service is not configured. Aborting."),
+            )
+            return
+
         for article in queryset.iterator():
             title, lead, body = article.title, article.lead, article.body
             if any(map(_needs_ru, [title, lead])):
-                new_title, new_lead, new_body = translate_news_fields(
-                    title=title,
-                    lead=lead,
-                    content=body,
-                    target_lang=target_lang,
-                    enabled=translate_enabled,
-                )
+                rid = get_request_id()
+                try:
+                    result = normalize_and_translate_article(
+                        {"title": title, "lead": lead, "body": body},
+                        rid=rid,
+                        translation_service=translation_service,
+                    )
+                except TranslationServiceError as exc:
+                    self.stderr.write(
+                        self.style.WARNING(
+                            f"Failed to translate article {article.id}: {exc}"
+                        )
+                    )
+                    continue
+                new_title = result.get("title")
+                new_lead = result.get("lead")
+                new_body = result.get("body")
                 update_fields: list[str] = []
                 if new_title and new_title != title:
                     article.title = new_title

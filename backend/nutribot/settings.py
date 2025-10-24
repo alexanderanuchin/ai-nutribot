@@ -211,6 +211,15 @@ def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(filter(None, (item.strip() for item in raw_value.split(",")))) or default
 
 
+def _parse_translate_providers(raw_value: str | None) -> tuple[str, ...]:
+    if not raw_value:
+        return ("yandex",)
+    providers = tuple(
+        filter(None, (item.strip().lower() for item in raw_value.split(",")))
+    )
+    return providers or ("yandex",)
+
+
 FEED_INGESTION_SOURCES = _load_feed_sources()
 FEED_INGESTION_RETRY_ATTEMPTS = int(os.getenv("FEED_INGESTION_RETRY_ATTEMPTS", "3"))
 FEED_INGESTION_INTERVAL_MINUTES = int(os.getenv("FEED_INGESTION_INTERVAL_MINUTES", "30"))
@@ -219,6 +228,7 @@ FEED_INGESTION_ALERT_WEBHOOK = os.getenv("FEED_INGESTION_ALERT_WEBHOOK", "")
 
 TRANSLATE_TARGET_LANG = (os.getenv("TRANSLATE_TARGET_LANG", "ru") or "ru").lower()
 FEED_TRANSLATE_RU_ENABLED = os.getenv("FEED_TRANSLATE_RU_ENABLED", "0") == "1"
+TRANSLATE_PROVIDERS = _parse_translate_providers(os.getenv("TRANSLATE_PROVIDERS"))
 YANDEX_API_KEY = os.getenv("YANDEX_API_KEY", "")
 YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID", "")
 
