@@ -64,6 +64,7 @@ def test_feed_returns_news(auth_client: APIClient):
     assert payload['results'][0]['tags'][0]['slug'] == 'wellness'
     assert payload['results'][0]['tonality'] == NewsArticle.Tonality.POSITIVE
     assert payload['results'][0]['published_at_msk']
+    assert payload['results'][0]['published_at'].endswith('+03:00')
     assert payload['results'][0]['timezone_label'] == 'MSK'
     assert payload['results'][0]['lang'] == 'ru'
     assert 'published_at_localized' in payload['results'][0]
@@ -395,6 +396,49 @@ def test_news_ingest_updates_existing_article(api_client: APIClient, settings, m
     assert article.ingestion_metadata == {'source': 'legacy', 'batch': 'b-2'}
     assert captured['action'] == 'updated'
     assert list(article.tags.values_list('slug', flat=True)) == ['analysis']
+
+
+@pytest.mark.django_db
+def test_news_ingest_applies_server_translation(api_client: APIClient, settings, monkeypatch, db):
+    settings.BOT_INTERNAL_KEY = 'secret-key'
+    settings.FEED_TRANSLATE_RU_ENABLED = True
+    settings.TRANSLATE_TARGET_LANG = 'ru'
+
+    monkeypatch.setenv('FEED_TRANSLATE_RU_ENABLED', '1')
+    monkeypatch.setenv('TRANSLATE_TARGET_LANG', 'ru')
+    monkeypatch.setenv('YANDEX_API_KEY', 'dummy')
+    monkeypatch.setenv('YANDEX_FOLDER_ID', 'folder')
+
+    def _fake_translate(target_lang, texts):
+        return [f'ru::{text}' if text else text for text in texts]
+
+    monkeypatch.setattr('apps.feed.services.translate._yandex_translate', _fake_translate)
+
+    response = api_client.post(
+        '/api/v1/feed/news/ingest/',
+        {
+            'source_id': 'ext-ru-1',
+            'title': 'Protein improves recovery',
+            'lead': 'Experts share daily dosage insights',
+            'body': 'Full article content',
+            'source_name': 'Health Weekly',
+            'source_url': 'https://example.com/health',
+            'published_at': timezone.now().isoformat(),
+        },
+        format='json',
+        HTTP_X_INTEGRATION_KEY='secret-key',
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    article = NewsArticle.objects.get(source_id='ext-ru-1')
+    assert article.title == 'ru::Protein improves recovery'
+    assert article.lead == 'ru::Experts share daily dosage insights'
+    assert article.body == 'ru::Full article content'
+    assert article.title_orig == 'Protein improves recovery'
+    assert article.lead_orig == 'Experts share daily dosage insights'
+    assert article.body_orig == 'Full article content'
+    assert article.translated is True
+    assert article.translation_provider == 'yandex'
 
 
 @pytest.mark.django_db

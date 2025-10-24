@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from decimal import Decimal
 from typing import Any, List
 
@@ -31,6 +32,7 @@ from .serializers import (
     RecipeWriteSerializer,
 )
 from .services import create_purchase, publish_recipe
+from .services.translate import translate_news_fields
 from .services.ingest_pipeline import normalize_and_translate_article
 
 logger = logging.getLogger("feed.api")
@@ -237,6 +239,36 @@ class NewsIngestView(APIView):
         payload = serializer.validated_data
         rid = getattr(request, "request_id", get_request_id())
         now = timezone.now()
+
+        translate_enabled = os.environ.get("FEED_TRANSLATE_RU_ENABLED", "0") == "1"
+        target_lang = os.environ.get("TRANSLATE_TARGET_LANG", "ru")
+        original_title = payload.get("title")
+        original_lead = payload.get("lead")
+        original_body = payload.get("body")
+
+        translated_title, translated_lead, translated_body = translate_news_fields(
+            title=original_title,
+            lead=original_lead,
+            content=original_body,
+            target_lang=target_lang,
+            enabled=translate_enabled,
+        )
+
+        payload["title"] = translated_title if translated_title is not None else original_title
+        payload["lead"] = translated_lead if translated_lead is not None else original_lead
+        if "body" in payload or translated_body is not None:
+            payload["body"] = (
+                translated_body if translated_body is not None else original_body
+            )
+
+        translation_applied = any(
+            [
+                payload["title"] != original_title,
+                payload["lead"] != original_lead,
+                (payload.get("body") or "") != (original_body or ""),
+            ]
+        )
+
         tags_payload = payload.pop("tags", [])
         published_at = payload.pop("published_at", None)
         ingested_at = payload.pop("ingested_at", None) or now
@@ -250,6 +282,18 @@ class NewsIngestView(APIView):
             },
             rid=rid,
         )
+
+        if translation_applied:
+            if original_title:
+                normalized_article.setdefault("title_orig", original_title)
+            if original_lead:
+                normalized_article.setdefault("lead_orig", original_lead)
+            if original_body:
+                normalized_article.setdefault("body_orig", original_body)
+            normalized_article["translated"] = True
+            normalized_article.setdefault("translation_provider", "yandex")
+            normalized_article.setdefault("lang", (target_lang or "ru").lower())
+
         normalized_title = normalized_article.get("title") or payload.get("title")
         normalized_lead = normalized_article.get("lead") or payload.get("lead")
         normalized_body = normalized_article.get("body")

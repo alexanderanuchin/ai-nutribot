@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any, Dict, Iterable
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from django.conf import settings
 from django.db.models import Count
 from django.utils import formats, timezone, translation
 from rest_framework import serializers
 
 from .models import DealOffer, FeedTag, NewsArticle, Recipe, RecipePurchase, RecipeReaction, RecipeStep
+from .utils.datetime import to_moscow
 
 
 class FeedTagSerializer(serializers.ModelSerializer):
@@ -70,6 +69,7 @@ class FeedTagIngestField(serializers.Field):
 
 class NewsArticleSerializer(serializers.ModelSerializer):
     tags = FeedTagSerializer(many=True, read_only=True)
+    published_at = serializers.SerializerMethodField()
     published_at_localized = serializers.SerializerMethodField()
     published_at_msk = serializers.SerializerMethodField()
     timezone_label = serializers.SerializerMethodField()
@@ -109,6 +109,10 @@ class NewsArticleSerializer(serializers.ModelSerializer):
             "tags",
         ]
         read_only_fields = tuple(fields)
+
+    def get_published_at(self, obj: NewsArticle) -> str | None:
+        dt = to_moscow(obj.published_at)
+        return dt.isoformat() if dt else None
 
     def get_published_at_localized(self, obj: NewsArticle) -> str | None:
         if not obj.published_at:
@@ -409,14 +413,5 @@ class DealOfferEventSerializer(serializers.ModelSerializer):
 
 
 def _format_msk_iso(value):
-    if not value:
-        return None
-    tz_name = getattr(settings, "TIME_DEFAULT_TZ", "Europe/Moscow")
-    try:
-        zone = ZoneInfo(tz_name)
-    except ZoneInfoNotFoundError:
-        zone = ZoneInfo("Europe/Moscow")
-    dt = value
-    if timezone.is_naive(dt):
-        dt = timezone.make_aware(dt, timezone.utc)
-    return dt.astimezone(zone).isoformat()
+    dt = to_moscow(value)
+    return dt.isoformat() if dt else None

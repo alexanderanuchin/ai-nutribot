@@ -19,6 +19,13 @@ services:
   backend:
     build: ../backend
     env_file: .env
+    environment:
+      FEED_TRANSLATE_RU_ENABLED: ${FEED_TRANSLATE_RU_ENABLED:-1}
+      TRANSLATE_TARGET_LANG: ${TRANSLATE_TARGET_LANG:-ru}
+      TRANSLATE_PROVIDERS: ${TRANSLATE_PROVIDERS:-yandex}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
     depends_on:
       db:
         condition: service_healthy
@@ -30,6 +37,13 @@ services:
   celery:
     build: ../backend
     env_file: .env
+    environment:
+      FEED_TRANSLATE_RU_ENABLED: ${FEED_TRANSLATE_RU_ENABLED:-1}
+      TRANSLATE_TARGET_LANG: ${TRANSLATE_TARGET_LANG:-ru}
+      TRANSLATE_PROVIDERS: ${TRANSLATE_PROVIDERS:-yandex}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
     command: ["bash", "-lc", "celery -A nutribot worker -l info -Q default,feed.ingestion"]
     depends_on:
       - backend
@@ -38,6 +52,13 @@ services:
   celery-beat:
     build: ../backend
     env_file: .env
+    environment:
+      FEED_TRANSLATE_RU_ENABLED: ${FEED_TRANSLATE_RU_ENABLED:-1}
+      TRANSLATE_TARGET_LANG: ${TRANSLATE_TARGET_LANG:-ru}
+      TRANSLATE_PROVIDERS: ${TRANSLATE_PROVIDERS:-yandex}
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
     command: ["bash", "-lc", "celery -A nutribot beat -l info"]
     depends_on:
       - backend
