@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import html
-import json
 import logging
 import threading
 import time
@@ -83,141 +81,6 @@ class TranslationProvider:
         raise NotImplementedError
 
 
-class DeepLProvider(TranslationProvider):
-    name = "deepl"
-
-    def __init__(self, *, api_key: str | None, base_url: str | None = None, timeout: float = 10.0):
-        self.api_key = api_key or ""
-        self.base_url = base_url or "https://api-free.deepl.com/v2/translate"
-        self.timeout = timeout
-
-    def translate(
-        self,
-        texts: Sequence[str],
-        *,
-        source_lang: str | None,
-        target_lang: str,
-        rid: str,
-    ) -> list[str]:
-        if not self.api_key:
-            raise TranslationProviderConfigurationError("DeepL API key is not configured")
-        payload = [("auth_key", self.api_key), ("target_lang", target_lang.upper())]
-        if source_lang:
-            payload.append(("source_lang", source_lang.upper()))
-        for text in texts:
-            payload.append(("text", text))
-        try:
-            response = httpx.post(self.base_url, data=payload, timeout=self.timeout)
-            response.raise_for_status()
-            data = response.json()
-            translations = data.get("translations") or []
-            if len(translations) != len(texts):
-                raise TranslationProviderError("DeepL returned unexpected number of translations")
-            return [str(item.get("text", "")) for item in translations]
-        except (httpx.HTTPError, ValueError) as exc:
-            logger.warning(
-                "deepl translation failed",
-                extra={"rid": rid, "error": str(exc)},
-            )
-            raise TranslationProviderError("DeepL translation failed") from exc
-
-
-class GoogleProvider(TranslationProvider):
-    name = "google"
-
-    def __init__(
-        self,
-        *,
-        api_key: str | None = None,
-        project_id: str | None = None,
-        credentials_json_b64: str | None = None,
-        location: str = "global",
-        timeout: float = 10.0,
-    ) -> None:
-        self.api_key = (api_key or "").strip()
-        self.project_id = (project_id or "").strip()
-        self.credentials_json_b64 = (credentials_json_b64 or "").strip()
-        self.location = location
-        self.timeout = timeout
-
-    def _build_headers(self) -> dict[str, str]:
-        if self.credentials_json_b64:
-            try:
-                decoded = base64.b64decode(self.credentials_json_b64).decode("utf-8")
-            except (ValueError, UnicodeDecodeError) as exc:
-                raise TranslationProviderConfigurationError("Google credentials are invalid") from exc
-            credentials = json.loads(decoded)
-            token = credentials.get("access_token")
-            if not token:
-                raise TranslationProviderConfigurationError("Google credentials missing access token")
-            return {"Authorization": f"Bearer {token}"}
-        if self.api_key:
-            return {}
-        raise TranslationProviderConfigurationError("Google Translate credentials are not configured")
-
-    def _build_url(self) -> str:
-        if self.credentials_json_b64 and self.project_id:
-            return (
-                f"https://translation.googleapis.com/v3/projects/{self.project_id}/locations/{self.location}:"
-                "translateText"
-            )
-        if self.api_key:
-            return f"https://translation.googleapis.com/language/translate/v2?key={self.api_key}"
-        raise TranslationProviderConfigurationError("Google Translate configuration is incomplete")
-
-    def translate(
-        self,
-        texts: Sequence[str],
-        *,
-        source_lang: str | None,
-        target_lang: str,
-        rid: str,
-    ) -> list[str]:
-        if not texts:
-            return []
-        url = self._build_url()
-        headers = self._build_headers()
-        payload: dict[str, object]
-        if url.endswith("translateText"):
-            payload = {
-                "contents": list(texts),
-                "targetLanguageCode": target_lang,
-            }
-            if source_lang:
-                payload["sourceLanguageCode"] = source_lang
-        else:
-            payload = {
-                "q": list(texts),
-                "target": target_lang,
-            }
-            if source_lang:
-                payload["source"] = source_lang
-        try:
-            response = httpx.post(url, json=payload, timeout=self.timeout, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            translations = []
-            if "data" in data:
-                translations = [
-                    str(item.get("translatedText", ""))
-                    for item in data["data"].get("translations", [])
-                ]
-            else:
-                translations = [
-                    str(item.get("translatedText", ""))
-                    for item in data.get("translations", [])
-                ]
-            if len(translations) != len(texts):
-                raise TranslationProviderError("Google Translate returned unexpected results")
-            return translations
-        except (httpx.HTTPError, ValueError, KeyError) as exc:
-            logger.warning(
-                "google translation failed",
-                extra={"rid": rid, "error": str(exc)},
-            )
-            raise TranslationProviderError("Google translation failed") from exc
-
-
 class YandexProvider(TranslationProvider):
     name = "yandex"
 
@@ -265,65 +128,6 @@ class YandexProvider(TranslationProvider):
                 extra={"rid": rid, "error": str(exc)},
             )
             raise TranslationProviderError("Yandex translation failed") from exc
-
-
-class AzureProvider(TranslationProvider):
-    name = "azure"
-
-    def __init__(
-        self,
-        *,
-        api_key: str | None,
-        region: str | None,
-        endpoint: str | None = None,
-        timeout: float = 10.0,
-    ) -> None:
-        self.api_key = (api_key or "").strip()
-        self.region = (region or "").strip()
-        self.endpoint = endpoint or "https://api.cognitive.microsofttranslator.com"
-        self.timeout = timeout
-
-    def translate(
-        self,
-        texts: Sequence[str],
-        *,
-        source_lang: str | None,
-        target_lang: str,
-        rid: str,
-    ) -> list[str]:
-        if not self.api_key or not self.region:
-            raise TranslationProviderConfigurationError("Azure Translator credentials are incomplete")
-        params = {"api-version": "3.0", "to": target_lang}
-        if source_lang:
-            params["from"] = source_lang
-        headers = {
-            "Ocp-Apim-Subscription-Key": self.api_key,
-            "Ocp-Apim-Subscription-Region": self.region,
-            "Content-Type": "application/json",
-        }
-        body = [{"text": text} for text in texts]
-        try:
-            response = httpx.post(
-                f"{self.endpoint}/translate",
-                params=params,
-                headers=headers,
-                json=body,
-                timeout=self.timeout,
-            )
-            response.raise_for_status()
-            data = response.json()
-            translations: list[str] = []
-            for item in data:
-                translations.append(str(item.get("translations", [{}])[0].get("text", "")))
-            if len(translations) != len(texts):
-                raise TranslationProviderError("Azure Translator returned unexpected results")
-            return translations
-        except (httpx.HTTPError, ValueError, KeyError, IndexError) as exc:
-            logger.warning(
-                "azure translation failed",
-                extra={"rid": rid, "error": str(exc)},
-            )
-            raise TranslationProviderError("Azure translation failed") from exc
 
 
 class TranslationCache:
@@ -414,44 +218,29 @@ class TranslationServiceError(RuntimeError):
 
 
 class TranslationService:
-    """Service coordinating language detection, caching and provider fallback."""
+    """Service coordinating language detection, caching and translation."""
 
-    def __init__(self, providers: Sequence[TranslationProvider], cache: TranslationCache | None = None) -> None:
-        self.providers = list(providers)
+    def __init__(
+        self,
+        *,
+        provider: TranslationProvider | None,
+        cache: TranslationCache | None = None,
+    ) -> None:
+        self.provider = provider
         self.cache = cache or TranslationCache()
+
+    @property
+    def is_available(self) -> bool:
+        return self.provider is not None
 
     @classmethod
     def from_settings(cls) -> "TranslationService":
-        providers: list[TranslationProvider] = []
-        configured = getattr(settings, "TRANSLATE_PROVIDERS", ())
-        for provider_name in configured:
-            name = provider_name.strip().lower()
-            if not name:
-                continue
-            provider = None
-            if name == "deepl":
-                provider = DeepLProvider(api_key=getattr(settings, "DEEPL_API_KEY", ""))
-            elif name == "google":
-                provider = GoogleProvider(
-                    api_key=getattr(settings, "GOOGLE_TRANSLATE_API_KEY", ""),
-                    project_id=getattr(settings, "GOOGLE_PROJECT_ID", ""),
-                    credentials_json_b64=getattr(settings, "GOOGLE_CREDENTIALS_JSON_BASE64", ""),
-                    location=getattr(settings, "GOOGLE_TRANSLATE_LOCATION", "global"),
-                )
-            elif name == "yandex":
-                provider = YandexProvider(
-                    api_key=getattr(settings, "YANDEX_API_KEY", ""),
-                    folder_id=getattr(settings, "YANDEX_FOLDER_ID", ""),
-                )
-            elif name == "azure":
-                provider = AzureProvider(
-                    api_key=getattr(settings, "AZURE_TRANSLATOR_KEY", ""),
-                    region=getattr(settings, "AZURE_TRANSLATOR_REGION", ""),
-                    endpoint=getattr(settings, "AZURE_TRANSLATOR_ENDPOINT", None),
-                )
-            if provider is not None:
-                providers.append(provider)
-        return cls(providers=providers)
+        api_key = getattr(settings, "YANDEX_API_KEY", "").strip()
+        folder_id = getattr(settings, "YANDEX_FOLDER_ID", "").strip()
+        provider: TranslationProvider | None = None
+        if api_key and folder_id:
+            provider = YandexProvider(api_key=api_key, folder_id=folder_id)
+        return cls(provider=provider)
 
     def translate_texts(
         self,
@@ -471,74 +260,74 @@ class TranslationService:
         pending_indices = [idx for idx, value in enumerate(sanitized) if value]
         if not pending_indices:
             return TranslationOutcome(texts=list(sanitized), provider=None, source_lang=source_lang)
-        results = list(sanitized)
-        provider_used: str | None = None
-        effective_source = source_lang or None
-        for provider in self.providers:
-            if not pending_indices:
-                break
-            cached_hits: list[int] = []
-            for index in list(pending_indices):
-                cached = self.cache.get(
-                    provider=provider.name,
-                    source_lang=effective_source,
-                    target_lang=target_lang,
-                    text=sanitized[index],
-                    rid=rid_value,
-                )
-                if cached is not None:
-                    results[index] = cached
-                    cached_hits.append(index)
-            for index in cached_hits:
-                pending_indices.remove(index)
-            if not pending_indices:
-                provider_used = provider_used or provider.name
-                break
-            try:
-                translated_values = provider.translate(
-                    [sanitized[index] for index in pending_indices],
-                    source_lang=effective_source,
-                    target_lang=target_lang,
-                    rid=rid_value,
-                )
-            except TranslationProviderConfigurationError as exc:
-                logger.info(
-                    "translation provider skipped due to configuration",
-                    extra={"rid": rid_value, "provider": provider.name, "error": str(exc)},
-                )
-                continue
-            except TranslationProviderError as exc:
-                logger.warning(
-                    "translation provider failed",
-                    extra={"rid": rid_value, "provider": provider.name, "error": str(exc)},
-                )
-                continue
-            if len(translated_values) != len(pending_indices):
-                logger.warning(
-                    "translation provider returned mismatched results",
-                    extra={"rid": rid_value, "provider": provider.name},
-                )
-                continue
-            provider_used = provider.name
-            for index, value in zip(pending_indices, translated_values):
-                results[index] = value
-                self.cache.set(
-                    provider=provider.name,
-                    source_lang=effective_source,
-                    target_lang=target_lang,
-                    text=sanitized[index],
-                    value=value,
-                    rid=rid_value,
-                )
-            pending_indices = []
-            break
-        if pending_indices:
-            logger.error(
-                "translation failed for all providers",
-                extra={"rid": rid_value, "providers": [p.name for p in self.providers]},
+        provider = self.provider
+        if provider is None:
+            logger.info(
+                "translation provider is not configured",
+                extra={"rid": rid_value},
             )
-            raise TranslationServiceError("Translation failed for all providers")
-        return TranslationOutcome(texts=results, provider=provider_used, source_lang=effective_source)
+            raise TranslationServiceError("Translation provider is not configured")
+
+        results = list(sanitized)
+        effective_source = source_lang or None
+
+        cached_hits: list[int] = []
+        for index in list(pending_indices):
+            cached = self.cache.get(
+                provider=provider.name,
+                source_lang=effective_source,
+                target_lang=target_lang,
+                text=sanitized[index],
+                rid=rid_value,
+            )
+            if cached is not None:
+                results[index] = cached
+                cached_hits.append(index)
+        for index in cached_hits:
+            pending_indices.remove(index)
+
+        if not pending_indices:
+            return TranslationOutcome(texts=results, provider=provider.name, source_lang=effective_source)
+
+        try:
+            translated_values = provider.translate(
+                [sanitized[index] for index in pending_indices],
+                source_lang=effective_source,
+                target_lang=target_lang,
+                rid=rid_value,
+            )
+        except TranslationProviderConfigurationError as exc:
+            logger.info(
+                "translation provider configuration invalid",
+                extra={"rid": rid_value, "provider": provider.name, "error": str(exc)},
+            )
+            raise TranslationServiceError("Translation provider configuration invalid") from exc
+        except TranslationProviderError as exc:
+            logger.warning(
+                "translation provider failed",
+                extra={"rid": rid_value, "provider": provider.name, "error": str(exc)},
+            )
+            raise TranslationServiceError("Translation request failed") from exc
+
+        if len(translated_values) != len(pending_indices):
+            logger.warning(
+                "translation provider returned mismatched results",
+                extra={"rid": rid_value, "provider": provider.name},
+            )
+            raise TranslationServiceError("Translation provider returned mismatched results")
+
+        for index, value in zip(pending_indices, translated_values):
+            results[index] = value
+            self.cache.set(
+                provider=provider.name,
+                source_lang=effective_source,
+                target_lang=target_lang,
+                text=sanitized[index],
+                value=value,
+                rid=rid_value,
+            )
+
+        return TranslationOutcome(texts=results, provider=provider.name, source_lang=effective_source)
 
     @staticmethod
     def _prepare_text(text: str | None) -> str:

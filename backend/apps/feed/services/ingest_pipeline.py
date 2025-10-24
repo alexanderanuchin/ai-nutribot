@@ -68,7 +68,7 @@ def normalize_and_translate_article(
 
     if needs_translation:
         service = translation_service or get_translation_service()
-        if not service.providers:
+        if not service.is_available:
             logger.info(
                 "no translation providers configured",
                 extra={"rid": rid_value},

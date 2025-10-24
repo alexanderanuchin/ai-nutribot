@@ -88,7 +88,11 @@ def test_normalize_and_translate_article_translates(monkeypatch, settings):
 
     class StubTranslationService:
         def __init__(self):
-            self.providers = ["stub"]
+            class _Provider:
+                name = "stub"
+
+            self.provider = _Provider()
+            self.is_available = True
 
         def translate_texts(self, texts, *, source_lang, target_lang, rid=None):
             return TranslationOutcome(
