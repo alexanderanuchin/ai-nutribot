@@ -8,6 +8,8 @@ node_modules/
 dist/
 staticfiles/
 media/
+!docs/media/
+!docs/media/*
 .idea/
 .vscode/
 db-data/

@@ -73,6 +73,11 @@ def filter_news(queryset: QuerySet[NewsArticle], params: dict[str, str]) -> Quer
         queryset = queryset.filter(is_flagged=True)
     elif flagged is False:
         queryset = queryset.filter(is_flagged=False)
+    published = _parse_bool(params.get("is_published"))
+    if published is True:
+        queryset = queryset.filter(is_published=True)
+    elif published is False:
+        queryset = queryset.filter(is_published=False)
     return queryset.distinct()
 
 

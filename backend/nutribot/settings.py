@@ -8,6 +8,13 @@ from typing import Tuple
 from corsheaders.defaults import default_headers
 from kombu import Exchange, Queue
 
+try:  # pragma: no cover - optional dependency
+    import jazzmin  # noqa: F401
+except ImportError:  # pragma: no cover - optional skin
+    JAZZMIN_AVAILABLE = False
+else:
+    JAZZMIN_AVAILABLE = True
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 LOG_JSON = os.getenv("LOG_JSON", "0") == "1"
 LOG_REQUEST_BODY = os.getenv("LOG_REQUEST_BODY", "0") == "1"
@@ -59,6 +66,9 @@ INSTALLED_APPS = [
     "apps.monitoring",
     "apps.feed",
 ]
+
+if JAZZMIN_AVAILABLE:  # pragma: no cover - optional skin
+    INSTALLED_APPS.insert(0, "jazzmin")
 
 MIDDLEWARE = [
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
@@ -189,6 +199,58 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+
+
+if JAZZMIN_AVAILABLE:  # pragma: no cover - optional skin
+    JAZZMIN_SETTINGS = {
+        "site_title": "NutriBot Admin",
+        "site_header": "NutriBot Admin",
+        "site_brand": "NutriBot",
+        "welcome_sign": "Добро пожаловать в панель NutriBot",
+        "navigation_expanded": True,
+        "topmenu_links": [
+            {"name": "Новости", "url": "admin:feed_newsarticle_changelist"},
+            {"name": "Рецепты", "url": "admin:feed_recipe_changelist"},
+            {"name": "Акции", "url": "admin:feed_dealoffer_changelist"},
+            {"name": "Категории/Теги", "url": "admin:feed_feedtag_changelist"},
+            {
+                "name": "Источники",
+                "url": "admin:feed_newsarticle_changelist",
+                "params": {"ingestion_source__isnull": "0"},
+            },
+            {
+                "name": "Переводы",
+                "url": "admin:feed_newsarticle_changelist",
+                "params": {"translated__exact": "0"},
+            },
+        ],
+        "custom_links": {
+            "feed": [
+                {
+                    "name": "Новости",
+                    "url": "admin:feed_newsarticle_changelist",
+                },
+                {
+                    "name": "Рецепты",
+                    "url": "admin:feed_recipe_changelist",
+                },
+            ]
+        },
+        "icons": {
+            "feed.NewsArticle": "fas fa-newspaper",
+            "feed.Recipe": "fas fa-utensils",
+            "feed.DealOffer": "fas fa-tags",
+            "feed.FeedTag": "fas fa-hashtag",
+        },
+        "order_with_respect_to": ["feed"],
+        "show_ui_builder": False,
+    }
+    JAZZMIN_UI_TWEAKS = {
+        "theme": "flatly",
+        "navbar": "navbar-dark bg-primary",
+        "sidebar": "sidebar-dark-primary",
+        "actions_sticky_top": True,
+    }
 
 
 def _load_feed_sources() -> list[dict]:

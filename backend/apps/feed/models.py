@@ -66,6 +66,7 @@ class NewsArticle(TimeStampedModel):
     toxicity_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     clickbait_score = models.DecimalField(max_digits=5, decimal_places=4, default=Decimal("0"))
     is_flagged = models.BooleanField(default=False)
+    is_published = models.BooleanField(default=True, db_index=True)
     ingested_at = models.DateTimeField(null=True, blank=True, db_index=True)
     ingestion_source = models.CharField(max_length=64, blank=True, default="")
     ingestion_rid = models.CharField(max_length=128, blank=True, default="")
@@ -77,6 +78,10 @@ class NewsArticle(TimeStampedModel):
         verbose_name = "News article"
         verbose_name_plural = "News articles"
         ordering = ("-published_at", "-id")
+        permissions = (
+            ("can_moderate_news", "Can moderate news articles"),
+            ("can_translate_news", "Can translate news articles"),
+        )
 
     def __str__(self) -> str:  # pragma: no cover
         return self.title

@@ -4,6 +4,7 @@ django-cors-headers==4.4.*
 channels==4.1.*
 channels-redis==4.2.*
 django-prometheus==2.3.*
+django-jazzmin>=3.0.0,<3.1
 psycopg2-binary==2.9.*
 python-dotenv==1.0.*
 celery==5.4.*

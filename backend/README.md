@@ -50,3 +50,54 @@ Simple JWT is configured to sign access and refresh tokens with the value of the
 - Always provide a stable `JWT_SECRET` in your runtime environment (for example via `infra/.env`).
 - After rotating the signing key, clear the cached tokens in your browser (`nutribot_access` / `nutribot_refresh`) and sign in again so that the backend can issue new JWTs.
 - If you run the project with Docker Compose, make sure the backend container receives the same `JWT_SECRET` value across restarts to avoid unexpected 401 responses for active sessions.
+
+## Feed admin console
+
+### Как попасть в /admin
+
+1. Выполните миграции:
+
+   ```bash
+   USE_SQLITE=1 python manage.py migrate
+   ```
+
+2. Создайте суперпользователя (или временный staff-аккаунт):
+
+   ```bash
+   USE_SQLITE=1 python manage.py createsuperuser
+   ```
+
+3. Запустите сервер разработки и откройте `http://127.0.0.1:8000/admin`.
+
+   ```bash
+   USE_SQLITE=1 python manage.py runserver 0.0.0.0:8000
+   ```
+
+### Роли и права
+
+При первом запуске автоматически создаются группы:
+
+- **Feed editors** — могут просматривать и изменять новости.
+- **Feed moderators** — включают права редакторов + модерация (флаги, публикация, тональность) и запуск перевода.
+
+Назначить роль можно стандартной командой shell:
+
+```bash
+USE_SQLITE=1 python manage.py shell -c "from django.contrib.auth import get_user_model; from django.contrib.auth.models import Group; User = get_user_model(); user = User.objects.get(username='editor'); user.groups.add(Group.objects.get(name='Feed editors'))"
+```
+
+### Быстрые действия и перевод
+
+- В списке новостей доступны действия: публикация/снятие, пометка на проверку, изменение тональности, запуск перевода на русский.
+- Перевод использует сервис из `apps.feed.services.translation`. Включить его можно переменной окружения `FEED_TRANSLATE_RU_ENABLED=1` и настройками:
+  - `TRANSLATE_TARGET_LANG` — целевой язык (по умолчанию `ru`).
+  - `TRANSLATE_PROVIDERS` — список провайдеров (поддерживается `yandex`).
+  - `YANDEX_API_KEY`, `YANDEX_FOLDER_ID` — креды Yandex Cloud Translate.
+
+### Jazzmin
+
+Если пакет `jazzmin` установлен, админка автоматически получает современный UI с быстрыми ссылками на разделы «Новости», «Рецепты», «Акции» и т.д. Без Jazzmin всё продолжит работать на стандартной теме Django.
+
+### Часовой пояс
+
+Админка использует часовой пояс `Europe/Moscow` (см. `TIME_ZONE` в настройках), поэтому даты и фильтры отображаются по московскому времени.

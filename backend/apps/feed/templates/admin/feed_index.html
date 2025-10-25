@@ -1,0 +1,34 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+  {% if feed_dashboard %}
+    <section class="dashboard-module" style="margin-bottom: 24px;">
+      <h2 style="margin: 0 0 16px; font-size: 20px;">Сводка по ленте</h2>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+        <div style="flex: 1 1 200px; background: #f8f9fa; border-radius: 8px; padding: 16px;">
+          <h3 style="margin-top: 0; font-size: 16px;">Опубликовано</h3>
+          <p style="margin: 0; font-size: 14px;">Сегодня: <strong>{{ feed_dashboard.metrics.today }}</strong></p>
+          <p style="margin: 4px 0 0; font-size: 14px;">За 7 дней: <strong>{{ feed_dashboard.metrics.week }}</strong></p>
+        </div>
+        <div style="flex: 1 1 200px; background: #f8f9fa; border-radius: 8px; padding: 16px;">
+          <h3 style="margin-top: 0; font-size: 16px;">Модерация</h3>
+          <p style="margin: 0; font-size: 14px;">На проверке: <strong>{{ feed_dashboard.metrics.flagged }}</strong></p>
+          {% if feed_dashboard.metrics.translation_needed is not None %}
+            <p style="margin: 4px 0 0; font-size: 14px;">Без перевода RU: <strong>{{ feed_dashboard.metrics.translation_needed }}</strong></p>
+          {% endif %}
+        </div>
+      </div>
+      {% if feed_dashboard.links %}
+        <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
+          {% for link in feed_dashboard.links %}
+            <a href="{{ link.url }}" class="button" style="padding: 6px 12px; border-radius: 6px; background: #198754; color: #fff; text-decoration: none;">
+              {{ link.label }}
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

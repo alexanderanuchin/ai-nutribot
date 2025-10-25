@@ -64,7 +64,7 @@ class FeedView(APIView):
 
         if feed_type == "news":
             flag_filter = self._parse_flag_filter(request.query_params.get("is_flagged"))
-            queryset = NewsArticle.objects.all().prefetch_related("tags")
+            queryset = NewsArticle.objects.filter(is_published=True).prefetch_related("tags")
             if flag_filter is True:
                 queryset = queryset.filter(is_flagged=True)
             elif flag_filter is False:
