@@ -479,7 +479,7 @@ export default function Feed() {
         clearFeedbackTimer()
         setPullFeedback('none')
         void (async () => {
-          const result = await refetchCurrentTab()
+          const result = await refetchCurrentTab({ bust: true })
           if (!result.ok) showFeedback('error')
           settleToIdle()
         })()
