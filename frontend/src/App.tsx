@@ -85,7 +85,6 @@ export default function App(){
           </div>
           <MobileTabBar onOpenCommand={openPalette} />
           <NavDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
-          <CommandPanel />
         </>
       )}
 
@@ -105,7 +104,6 @@ export default function App(){
               <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
           </div>
-          <CommandPanel />
         </>
       )}
 
@@ -121,9 +119,9 @@ export default function App(){
               </div>
             </div>
           </div>
-          <CommandPanel />
         </>
       )}
+      <CommandPanel />
     </div>
   )
 }

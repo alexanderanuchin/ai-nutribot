@@ -13,8 +13,18 @@ import { useMarketCartStore, selectCartTotals } from '../../features/market/stor
 import { useMarketPlanStore, selectPlanTotals } from '../../features/market/stores/planStore'
 
 export function MarketHubPage() {
-  const cartTotals = useMarketCartStore(selectCartTotals)
-  const planTotals = useMarketPlanStore(selectPlanTotals)
+  const cartTotals = useMarketCartStore(
+    selectCartTotals,
+    (a, b) =>
+      a.count === b.count &&
+      a.quantity === b.quantity &&
+      a.amount === b.amount &&
+      a.currency === b.currency
+  )
+  const planTotals = useMarketPlanStore(
+    selectPlanTotals,
+    (a, b) => a.count === b.count && a.servings === b.servings && a.calories === b.calories
+  )
 
   const recipesQuery = useQuery({
     queryKey: ['market', 'hub', 'recipes'],

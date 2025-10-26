@@ -80,16 +80,18 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   const [filtersState, setFiltersState] = useState<Record<string, boolean>>({})
   const [searchValue, setSearchValue] = useState('')
   const debouncedSearch = useDebouncedValue(searchValue, 350)
-  const [freshCount, setFreshCount] = useState(0)
-  const [bannerVisible, setBannerVisible] = useState(false)
+  const [bannerState, setBannerState] = useState({ count: 0, visible: false })
   const hideBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     setFiltersState({})
     setSearchValue('')
-    setFreshCount(0)
-    setBannerVisible(false)
+    setBannerState({ count: 0, visible: false })
+    if (hideBannerTimerRef.current) {
+      clearTimeout(hideBannerTimerRef.current)
+      hideBannerTimerRef.current = null
+    }
   }, [resource])
 
   const filterParams = useMemo(() => {
@@ -172,14 +174,13 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     resource,
     onEvent: event => {
       const delta = event.payload.fresh_count && event.payload.fresh_count > 0 ? event.payload.fresh_count : 1
-      setFreshCount(prev => prev + delta)
-      setBannerVisible(true)
+      setBannerState(prev => ({ count: prev.count + delta, visible: true }))
       if (hideBannerTimerRef.current) {
         clearTimeout(hideBannerTimerRef.current)
       }
       hideBannerTimerRef.current = setTimeout(() => {
-        setBannerVisible(false)
-        setFreshCount(0)
+        setBannerState({ count: 0, visible: false })
+        hideBannerTimerRef.current = null
       }, BANNER_AUTO_HIDE_MS)
     },
   })
@@ -188,6 +189,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     () => () => {
       if (hideBannerTimerRef.current) {
         clearTimeout(hideBannerTimerRef.current)
+        hideBannerTimerRef.current = null
       }
     },
     []
@@ -207,12 +209,15 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     )
     observer.observe(node)
     return () => observer.disconnect()
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage, queryKey])
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, resource])
 
   const handleRefreshBanner = useCallback(async () => {
     await refetch({ throwOnError: false })
-    setFreshCount(0)
-    setBannerVisible(false)
+    if (hideBannerTimerRef.current) {
+      clearTimeout(hideBannerTimerRef.current)
+      hideBannerTimerRef.current = null
+    }
+    setBannerState({ count: 0, visible: false })
   }, [refetch])
 
   const listContent = useMemo(() => {
@@ -266,14 +271,17 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
       </MarketPageHeader>
 
       <FreshBanner
-        visible={bannerVisible}
-        count={freshCount}
+        visible={bannerState.visible}
+        count={bannerState.count}
         resource={resource}
         refreshing={isRefreshing}
         onRefresh={handleRefreshBanner}
         onDismiss={() => {
-          setBannerVisible(false)
-          setFreshCount(0)
+          if (hideBannerTimerRef.current) {
+            clearTimeout(hideBannerTimerRef.current)
+            hideBannerTimerRef.current = null
+          }
+          setBannerState({ count: 0, visible: false })
         }}
       />
 

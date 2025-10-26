@@ -67,7 +67,12 @@ export const useMarketPlanStore = create<MarketPlanState>()(
       storage: createJSONStorage(getStorage),
       partialize: state => ({ items: state.items }),
       onRehydrateStorage: () => state => {
-        state?.setHydrated()
+        const markHydrated = () => state?.setHydrated()
+        if (typeof queueMicrotask === 'function') {
+          queueMicrotask(markHydrated)
+          return
+        }
+        Promise.resolve().then(markHydrated)
       },
     }
   )
