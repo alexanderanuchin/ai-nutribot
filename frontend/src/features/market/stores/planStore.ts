@@ -80,11 +80,20 @@ export const useMarketPlanStore = create<MarketPlanState>()(
 
 export const selectPlanItem = (id: number) => (state: MarketPlanState) => state.items[id] ?? null
 
-export function selectPlanTotals(state: MarketPlanState): {
+export interface MarketPlanTotals {
   count: number
   servings: number
   calories: number
-} {
+}
+
+const planTotalsCache = new WeakMap<MarketPlanState['items'], MarketPlanTotals>()
+
+export function selectPlanTotals(state: MarketPlanState): MarketPlanTotals {
+  const cached = planTotalsCache.get(state.items)
+  if (cached) {
+    return cached
+  }
+
   let count = 0
   let servings = 0
   let calories = 0
@@ -93,5 +102,7 @@ export function selectPlanTotals(state: MarketPlanState): {
     servings += item.servings
     calories += item.servings * item.calories
   })
-  return { count, servings, calories }
+  const totals: MarketPlanTotals = { count, servings, calories }
+  planTotalsCache.set(state.items, totals)
+  return totals
 }

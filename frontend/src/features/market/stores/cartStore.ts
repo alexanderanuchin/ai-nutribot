@@ -165,12 +165,21 @@ export function selectCartQuantity(kind: MarketCartItemKind, id: number) {
   }
 }
 
-export function selectCartTotals(state: MarketCartState): {
+export interface MarketCartTotals {
   count: number
   quantity: number
   amount: number
   currency: string | null
-} {
+}
+
+const cartTotalsCache = new WeakMap<MarketCartState['items'], MarketCartTotals>()
+
+export function selectCartTotals(state: MarketCartState): MarketCartTotals {
+  const cached = cartTotalsCache.get(state.items)
+  if (cached) {
+    return cached
+  }
+
   let count = 0
   let quantity = 0
   let amount = 0
@@ -183,5 +192,7 @@ export function selectCartTotals(state: MarketCartState): {
       currency = item.currency
     }
   })
-  return { count, quantity, amount, currency }
+  const totals: MarketCartTotals = { count, quantity, amount, currency }
+  cartTotalsCache.set(state.items, totals)
+  return totals
 }
