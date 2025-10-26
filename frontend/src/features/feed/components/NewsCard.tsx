@@ -1,12 +1,18 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 
 import clsx from 'clsx'
 import { AlertTriangle, ExternalLinkIcon, ImageOff } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
 
 import type { NewsFeedItem } from '../../../types/feed'
 
 export interface NewsCardProps {
   item: NewsFeedItem
+  navigationState?: {
+    tab: 'news'
+    scrollY: number
+    filters: Record<string, string | boolean>
+  }
 }
 
 const TONALITY_META: Record<NewsFeedItem['tonality'], { label: string; className: string }> = {
@@ -70,7 +76,8 @@ function truncateRid(rid: string | null | undefined): string {
   return rid.length > 16 ? `${rid.slice(0, 16)}…` : rid
 }
 
-export function NewsCard({ item }: NewsCardProps) {
+export function NewsCard({ item, navigationState }: NewsCardProps) {
+  const location = useLocation()
   const [previewFailed, setPreviewFailed] = useState(false)
   const publishedLabel = useMemo(
     () => formatMoscowDate(item.published_at_msk, item.published_at, item.timezone_label),
@@ -104,15 +111,41 @@ export function NewsCard({ item }: NewsCardProps) {
     )
   }, [item.preview_image_url, item.title, shouldShowPreview])
 
+  const linkState = useMemo(
+    () => ({
+      from: location,
+      tab: navigationState?.tab ?? 'news',
+      scrollY: navigationState?.scrollY ?? 0,
+      filters: navigationState?.filters ?? {},
+    }),
+    [location, navigationState]
+  )
+
+  const handleSourceClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (item.source_url) {
+        window.open(item.source_url, '_blank', 'noopener,noreferrer')
+      }
+    },
+    [item.source_url]
+  )
+
   return (
-    <article
-      className={clsx(
-        'group flex flex-col gap-4 overflow-hidden rounded-3xl border bg-background/90 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row',
-        item.is_flagged
-          ? 'border-amber-400/70 ring-2 ring-amber-200/60 dark:border-amber-300/50 dark:ring-amber-500/40'
-          : 'border-border/60'
-      )}
+    <Link
+      to={`/feed/news/${item.id}`}
+      state={linkState}
+      className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
+      <article
+        className={clsx(
+          'group flex flex-col gap-4 overflow-hidden rounded-3xl border bg-background/90 p-4 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg sm:flex-row',
+          item.is_flagged
+            ? 'border-amber-400/70 ring-2 ring-amber-200/60 dark:border-amber-300/50 dark:ring-amber-500/40'
+            : 'border-border/60'
+        )}
+      >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <div className="overflow-hidden rounded-2xl bg-muted/60 sm:w-40 sm:flex-shrink-0">
           <div className="aspect-[4/3] w-full">{mediaNode}</div>
@@ -177,18 +210,18 @@ export function NewsCard({ item }: NewsCardProps) {
               </span>
             ))}
             <span className="text-[11px] text-muted-foreground">Обновлено {updatedLabel}</span>
-            <a
-              href={item.source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-[2.75rem] w-full items-center justify-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90 sm:w-auto sm:justify-center sm:ml-auto"
+            <button
+              type="button"
+              onClick={handleSourceClick}
+              className="ml-auto inline-flex min-h-[2.75rem] w-full items-center justify-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:w-auto"
             >
               Источник <ExternalLinkIcon className="h-3 w-3" aria-hidden="true" />
-            </a>
+            </button>
           </div>
         </div>
       </div>
-    </article>
+      </article>
+    </Link>
   )
 }
 

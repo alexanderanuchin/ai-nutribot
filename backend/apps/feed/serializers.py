@@ -100,6 +100,7 @@ class NewsArticleSerializer(serializers.ModelSerializer):
             "toxicity_score",
             "clickbait_score",
             "is_flagged",
+            "is_published",
             "ingested_at",
             "ingestion_source",
             "ingestion_rid",

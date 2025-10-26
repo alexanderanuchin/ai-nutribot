@@ -4,6 +4,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Feed from './pages/Feed'
+import NewsArticle from './pages/NewsArticle'
 import Profile from './pages/Profile'
 import Orders from './pages/Orders'
 import Search from './pages/Search'
@@ -52,6 +53,7 @@ export default function App(){
                 <Routes>
                   <Route path="/" element={<Navigate to="/feed" replace />} />
                   <Route path="/feed" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
+                  <Route path="/feed/news/:id" element={<ProtectedRoute><NewsArticle /></ProtectedRoute>} />
                   <Route path="/plan" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
                   <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />

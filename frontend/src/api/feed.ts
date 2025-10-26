@@ -1,5 +1,12 @@
 import api from './client'
-import type { DealFeedItem, FeedCursorResponse, FeedTab, NewsFeedItem, RecipeFeedItem } from '../types/feed'
+import type {
+  DealFeedItem,
+  FeedCursorResponse,
+  FeedTab,
+  NewsArticleDetail,
+  NewsFeedItem,
+  RecipeFeedItem,
+} from '../types/feed'
 
 const FEED_ENDPOINT = '/v1/feed/'
 
@@ -64,5 +71,10 @@ export async function purchaseRecipe(recipeId: number) {
 
 export async function fetchPremiumContent(recipeId: number) {
   const { data } = await api.get<{ id: number; premium_content: string }>(`/v1/recipes/${recipeId}/premium/`)
+  return data
+}
+
+export async function fetchNewsArticle(id: string): Promise<NewsArticleDetail> {
+  const { data } = await api.get<NewsArticleDetail>(`/v1/feed/news/${id}/`)
   return data
 }

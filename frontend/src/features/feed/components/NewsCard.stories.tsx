@@ -1,3 +1,5 @@
+import { MemoryRouter } from 'react-router-dom'
+
 import type { NewsFeedItem } from '../../../types/feed'
 import { NewsCard } from './NewsCard'
 
@@ -49,20 +51,27 @@ const meta: StoryMeta<typeof NewsCard> = {
 
 export default meta
 
-export const Default = () => <NewsCard item={baseItem} />
+export const Default = () => (
+  <MemoryRouter initialEntries={['/feed']}>
+    <NewsCard item={baseItem} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+  </MemoryRouter>
+)
 
 export const Flagged = () => (
-  <NewsCard
-    item={{
-      ...baseItem,
-      id: 2,
-      title: 'Фактчекинг сенсационных новостей',
-      lead: 'Команда модерации проверяет материалы с повышенным риском.',
-      is_flagged: true,
-      toxicity_score: '0.7200',
-      clickbait_score: '0.9100',
-      source_categories: ['fact-check', 'moderation'],
-      ingestion_rid: 'RID-FLAGGED',
-    }}
-  />
+  <MemoryRouter initialEntries={['/feed']}>
+    <NewsCard
+      item={{
+        ...baseItem,
+        id: 2,
+        title: 'Фактчекинг сенсационных новостей',
+        lead: 'Команда модерации проверяет материалы с повышенным риском.',
+        is_flagged: true,
+        toxicity_score: '0.7200',
+        clickbait_score: '0.9100',
+        source_categories: ['fact-check', 'moderation'],
+        ingestion_rid: 'RID-FLAGGED',
+      }}
+      navigationState={{ tab: 'news', scrollY: 0, filters: {} }}
+    />
+  </MemoryRouter>
 )

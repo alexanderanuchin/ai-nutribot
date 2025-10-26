@@ -19,6 +19,9 @@ export interface NewsFeedItem {
   title: string
   lead: string
   body?: string | null
+  title_ru?: string | null
+  lead_ru?: string | null
+  body_ru?: string | null
   title_orig?: string | null
   lead_orig?: string | null
   body_orig?: string | null
@@ -44,6 +47,11 @@ export interface NewsFeedItem {
   created_at: string
   updated_at: string
   tags: FeedTag[]
+  translated_at?: string | null
+}
+
+export interface NewsArticleDetail extends NewsFeedItem {
+  body: string | null
 }
 
 export interface RecipeFeedItem {

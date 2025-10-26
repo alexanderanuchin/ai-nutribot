@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.http import StreamingHttpResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from rest_framework import permissions, status, viewsets
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -117,6 +117,14 @@ class FeedView(APIView):
         for recipe in recipes:
             recipe.reaction_counts = reaction_map.get(recipe.id, {})
             recipe.prefetched_purchases = [p for p in purchases if p.recipe_id == recipe.id]
+
+
+class NewsArticleDetailView(generics.RetrieveAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = NewsArticleSerializer
+
+    def get_queryset(self):
+        return NewsArticle.objects.filter(is_published=True).prefetch_related("tags")
 
 
 class RecipeViewSet(viewsets.ModelViewSet):

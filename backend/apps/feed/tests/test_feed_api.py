@@ -492,3 +492,71 @@ def test_deal_ingest_parses_dates(api_client: APIClient, settings, db):
     assert response.status_code == status.HTTP_201_CREATED
     offer = DealOffer.objects.get(external_id='deal-2')
     assert offer.city == 'Санкт-Петербург'
+
+
+@pytest.mark.django_db
+def test_news_detail_returns_full_article(auth_client: APIClient):
+    article = NewsArticle.objects.create(
+        source_id='detail-1',
+        title='Полный обзор исследований',
+        lead='Ключевые выводы исследований питания',
+        body='<p>HTML content</p>',
+        title_orig='Full research overview',
+        lead_orig='Key findings',
+        body_orig='<p>Original HTML</p>',
+        lang='ru',
+        translated=True,
+        translation_provider='test-provider',
+        source_name='Nutri Journal',
+        source_url='https://example.com/journal',
+        published_at=timezone.now(),
+        tonality=NewsArticle.Tonality.NEUTRAL,
+        source_categories=['science'],
+        toxicity_score=Decimal('0.1000'),
+        clickbait_score=Decimal('0.2000'),
+        ingestion_rid='RID-DETAIL',
+    )
+
+    response = auth_client.get(f'/api/v1/feed/news/{article.id}/')
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload['id'] == article.id
+    assert payload['body'] == '<p>HTML content</p>'
+    assert payload['title_orig'] == 'Full research overview'
+    assert payload['is_published'] is True
+    assert payload['translation_provider'] == 'test-provider'
+    assert payload['tonality'] == NewsArticle.Tonality.NEUTRAL
+
+
+@pytest.mark.django_db
+def test_news_detail_requires_published_article(auth_client: APIClient):
+    article = NewsArticle.objects.create(
+        source_id='detail-2',
+        title='Черновик статьи',
+        lead='Недоступно читателям',
+        source_name='Draft Source',
+        source_url='https://example.com/draft',
+        published_at=timezone.now(),
+        is_published=False,
+    )
+
+    response = auth_client.get(f'/api/v1/feed/news/{article.id}/')
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_news_detail_requires_authentication(api_client: APIClient):
+    article = NewsArticle.objects.create(
+        source_id='detail-3',
+        title='Аутентификация обязательна',
+        lead='',
+        source_name='Nutri',
+        source_url='https://example.com/protected',
+        published_at=timezone.now(),
+    )
+
+    response = api_client.get(f'/api/v1/feed/news/{article.id}/')
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED

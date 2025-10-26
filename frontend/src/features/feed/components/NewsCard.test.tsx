@@ -2,6 +2,8 @@
 -0
 
 import { fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { vi } from 'vitest'
 
 import type { NewsFeedItem } from '../../../types/feed'
 import { NewsCard } from './NewsCard'
@@ -44,7 +46,11 @@ const baseItem: NewsFeedItem = {
 
 describe('NewsCard', () => {
   it('renders tonality, moderation badge and metrics', () => {
-    render(<NewsCard item={baseItem} />)
+    render(
+      <MemoryRouter initialEntries={['/feed']}>
+        <NewsCard item={baseItem} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+      </MemoryRouter>
+    )
 
     expect(screen.getByText('Позитив')).toBeInTheDocument()
     expect(screen.getByText('Требует проверки')).toBeInTheDocument()
@@ -55,21 +61,50 @@ describe('NewsCard', () => {
   })
 
   it('truncates long RID values for readability', () => {
-    render(<NewsCard item={baseItem} />)
+    render(
+      <MemoryRouter initialEntries={['/feed']}>
+        <NewsCard item={baseItem} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+      </MemoryRouter>
+    )
 
     expect(screen.getByText('RID-1234567890ab…')).toBeInTheDocument()
   })
 
   it('shows placeholder when preview is missing or fails to load', () => {
-    const { rerender } = render(<NewsCard item={{ ...baseItem, preview_image_url: '' }} />)
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/feed']}>
+        <NewsCard item={{ ...baseItem, preview_image_url: '' }} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+      </MemoryRouter>
+    )
 
     expect(screen.getByText('Нет превью')).toBeInTheDocument()
 
-    rerender(<NewsCard item={baseItem} />)
+    rerender(
+      <MemoryRouter initialEntries={['/feed']}>
+        <NewsCard item={baseItem} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+      </MemoryRouter>
+    )
     const image = screen.getByRole('img', { name: baseItem.title })
 
     fireEvent.error(image)
 
     expect(screen.getByText('Нет превью')).toBeInTheDocument()
+  })
+
+  it('opens source link without triggering navigation', () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+
+    render(
+      <MemoryRouter initialEntries={['/feed']}>
+        <NewsCard item={baseItem} navigationState={{ tab: 'news', scrollY: 0, filters: {} }} />
+      </MemoryRouter>
+    )
+
+    const sourceButton = screen.getByRole('button', { name: /Источник/i })
+    fireEvent.click(sourceButton)
+
+    expect(openSpy).toHaveBeenCalledWith(baseItem.source_url, '_blank', 'noopener,noreferrer')
+
+    openSpy.mockRestore()
   })
 })

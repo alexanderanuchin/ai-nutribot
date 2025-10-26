@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import clsx from 'clsx'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 
 import { fetchFeed } from '../api/feed'
 import FeedTabs from '../features/feed/components/FeedTabs'
@@ -16,22 +16,28 @@ import type { FeedRealtimeEvent, FeedTab } from '../types/feed'
 import SearchBox from '../components/nav/SearchBox'
 import { useAuth } from '../hooks/useAuth'
 
-const DEFAULT_SCROLL: Record<FeedTab, number> = {
-  news: 0,
-  recipes: 0,
-  deals: 0,
+function buildDefaultScroll(): Record<FeedTab, number> {
+  return {
+    news: 0,
+    recipes: 0,
+    deals: 0,
+  }
 }
 
-const ZERO_COUNTS: Record<FeedTab, number> = {
-  news: 0,
-  recipes: 0,
-  deals: 0,
+function buildZeroCounts(): Record<FeedTab, number> {
+  return {
+    news: 0,
+    recipes: 0,
+    deals: 0,
+  }
 }
 
-const EMPTY_FILTERS: Record<FeedTab, Record<string, string | boolean>> = {
-  news: {},
-  recipes: {},
-  deals: {},
+function buildEmptyFilters(): Record<FeedTab, Record<string, string | boolean>> {
+  return {
+    news: {},
+    recipes: {},
+    deals: {},
+  }
 }
 
 const PULL_THRESHOLD = 64
@@ -122,17 +128,38 @@ function FilterChip({ active, children, onClick }: { active: boolean; children: 
   )
 }
 
+type FeedLocationState = {
+  tab?: FeedTab
+  scrollY?: number
+  filters?: Record<string, string | boolean>
+}
+
 export default function Feed() {
   const queryClient = useQueryClient()
   const { profile } = useAuth()
   const userCity = profile?.city?.trim() ?? ''
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialTabParam = (searchParams.get('tab') as FeedTab | null) ?? 'news'
-  const [activeTab, setActiveTab] = useState<FeedTab>(FEED_TABS.some(tab => tab.id === initialTabParam) ? initialTabParam : 'news')
-  const [tabFilters, setTabFilters] = useState<Record<FeedTab, Record<string, string | boolean>>>(EMPTY_FILTERS)
+  const locationState = (location.state as FeedLocationState | null) ?? null
+  const tabFromParams = (searchParams.get('tab') as FeedTab | null) ?? 'news'
+  const initialTabCandidate = locationState?.tab ?? tabFromParams
+  const initialTab = FEED_TABS.some(tab => tab.id === initialTabCandidate) ? initialTabCandidate : 'news'
+  const [activeTab, setActiveTab] = useState<FeedTab>(initialTab)
+  const [tabFilters, setTabFilters] = useState<Record<FeedTab, Record<string, string | boolean>>>(() => {
+    const base = buildEmptyFilters()
+    if (locationState?.tab && locationState.filters) {
+      base[locationState.tab] = sanitizeFilters(locationState.filters)
+    }
+    return base
+  })
   const [newsSearch, setNewsSearch] = useState('')
-  const [pendingCounts, setPendingCounts] = useState<Record<FeedTab, number>>(ZERO_COUNTS)
-  const [scrollPositions, setScrollPositions] = useState<Record<FeedTab, number>>(DEFAULT_SCROLL)
+  const [pendingCounts, setPendingCounts] = useState<Record<FeedTab, number>>(() => buildZeroCounts())
+  const [scrollPositions, setScrollPositions] = useState<Record<FeedTab, number>>(() => {
+    if (locationState?.tab) {
+      return { ...buildDefaultScroll(), [locationState.tab]: locationState.scrollY ?? 0 }
+    }
+    return buildDefaultScroll()
+  })
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const isAtTopRef = useRef(true)
@@ -156,6 +183,7 @@ export default function Feed() {
   const autoRefreshRef = useRef(false)
 
   const activeFilters = tabFilters[activeTab] || {}
+  const filtersSnapshot = useMemo(() => ({ ...activeFilters }), [activeFilters])
   const filterKey = useMemo(() => JSON.stringify(activeFilters), [activeFilters])
   const queryKey = useMemo(() => ['feed', activeTab, filterKey] as const, [activeTab, filterKey])
 
@@ -651,11 +679,26 @@ export default function Feed() {
     return () => observer.disconnect()
   }, [activeTab, fetchNextPage, hasNextPage, isFetchingNextPage, items.length])
 
+  const getCurrentScrollPosition = useCallback(() => {
+    const container = scrollContainerRef.current
+    if (container) {
+      return container.scrollTop
+    }
+    return scrollPositions[activeTab] ?? 0
+  }, [activeTab, scrollPositions])
+
   const renderItem = useCallback((item: any) => {
-    if (activeTab === 'news') return <NewsCard key={`news-${item.id}`} item={item} />
+    if (activeTab === 'news')
+      return (
+        <NewsCard
+          key={`news-${item.id}`}
+          item={item}
+          navigationState={{ tab: 'news', scrollY: getCurrentScrollPosition(), filters: filtersSnapshot }}
+        />
+      )
     if (activeTab === 'recipes') return <RecipeCard key={`recipe-${item.id}`} item={item} />
     return <DealCard key={`deal-${item.id}`} item={item} />
-  }, [activeTab])
+  }, [activeTab, filtersSnapshot, getCurrentScrollPosition])
 
   const handleBannerClick = useCallback(() => {
     const container = scrollContainerRef.current
