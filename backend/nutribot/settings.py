@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.orders",
     "apps.monitoring",
     "apps.feed",
+    "apps.market",
 ]
 
 if JAZZMIN_AVAILABLE:  # pragma: no cover - optional skin
@@ -438,3 +439,6 @@ LOGGING = {
         "audit.crm": {"handlers": ["console", "db"], "level": LOG_LEVEL, "propagate": False},
     },
 }
+
+
+MARKET_TRANSLATE_RU_ENABLED = os.getenv("MARKET_TRANSLATE_RU_ENABLED", "0") == "1"

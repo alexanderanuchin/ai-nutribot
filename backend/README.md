@@ -101,3 +101,20 @@ USE_SQLITE=1 python manage.py shell -c "from django.contrib.auth import get_user
 ### Часовой пояс
 
 Админка использует часовой пояс `Europe/Moscow` (см. `TIME_ZONE` в настройках), поэтому даты и фильтры отображаются по московскому времени.
+
+## Marketplace API
+
+* Base path: `/api/v1/market/` (JWT required).
+* Resources: stores, products, recipes, inventory, carts, meal plans. Each endpoint honours pagination via `page`/`page_size` and simple query filters (e.g. `?search=`, `?store=`).
+* SSE notifications are published to the `market.*` channel via the existing feed event stream. Actions include `created`, `updated`, `published`, `verified` and `status_changed`.
+* Marketplace permissions: vendors manage their own stores/products; moderators (group `market_moderator`) moderate any payload.
+
+## Marketplace demo data
+
+Populate demo entities for local testing:
+
+```bash
+USE_SQLITE=1 python manage.py shell -c "from seeds import market; market.create()"
+```
+
+This command seeds a vendor store with a published product, recipe, inventory snapshot, sample cart and a meal plan owned by `demo-customer`.
