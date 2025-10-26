@@ -88,6 +88,29 @@ function SectionPopover({ label, items }: SectionPopoverProps) {
 
   const handleOpen = (value: boolean) => setOpen(value)
 
+  if (items.length === 1) {
+    const [item] = items
+    const ItemIcon = item.icon ?? Icon
+    const itemActive = isItemActive(item)
+
+    return (
+      <AppLink
+        to={item.path ?? '#'}
+        aria-current={itemActive ? 'page' : undefined}
+        aria-label={label}
+        className={clsx(
+          'flex h-12 w-12 items-center justify-center rounded-2xl border text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+          itemActive
+            ? 'border-primary/70 bg-primary/10 text-primary'
+            : 'border-transparent bg-muted/10 text-muted-foreground hover:border-border/60 hover:bg-muted/20',
+        )}
+      >
+        {ItemIcon ? <ItemIcon className="h-5 w-5" aria-hidden="true" /> : label[0]}
+        <span className="sr-only">{item.label}</span>
+      </AppLink>
+    )
+  }
+
   return (
     <Popover.Root open={open} onOpenChange={handleOpen}>
       <Popover.Trigger asChild>

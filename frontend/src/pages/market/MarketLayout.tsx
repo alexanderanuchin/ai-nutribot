@@ -1,11 +1,9 @@
 import { Outlet } from 'react-router-dom'
 
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { useSafeArea } from '../../hooks/useSafeArea'
 import MarketSectionNav from '../../features/market/components/MarketSectionNav'
 
 export function MarketLayout() {
-  useBodyScrollLock(true)
   const safeArea = useSafeArea({ inset: 16, edges: ['top', 'bottom'] })
 
   return (

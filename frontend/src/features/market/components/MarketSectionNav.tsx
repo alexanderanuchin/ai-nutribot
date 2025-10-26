@@ -5,20 +5,26 @@ import { MARKET_SECTIONS } from '../constants'
 
 export function MarketSectionNav() {
   return (
-    <nav className="flex flex-wrap items-center gap-2" aria-label="Разделы маркета">
+    <nav
+      className="grid grid-cols-1 gap-2 rounded-3xl bg-muted/40 p-1.5 shadow-soft sm:grid-cols-2 lg:grid-cols-4"
+      aria-label="Разделы маркета"
+    >
       {MARKET_SECTIONS.map(section => (
         <NavLink
           key={section.id}
           to={section.to}
+          end={section.to === '/market'}
           className={({ isActive }) =>
             clsx(
-              'flex min-w-0 flex-col gap-1 rounded-2xl border px-4 py-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:w-auto',
-              isActive ? 'border-primary bg-primary/10 text-primary' : 'border-border/60 bg-muted/40 text-foreground hover:bg-muted/60'
+              'group flex min-h-[2.75rem] min-w-0 flex-col gap-1 rounded-2xl px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+              isActive
+                ? 'bg-background text-foreground shadow-soft ring-1 ring-primary/50'
+                : 'text-muted-foreground hover:text-foreground',
             )
           }
         >
-          <span className="text-sm font-semibold leading-tight">{section.label}</span>
-          <span className="text-xs text-muted-foreground">{section.description}</span>
+          <span className="truncate text-sm font-semibold leading-snug">{section.label}</span>
+          <span className="truncate text-[11px] leading-none text-muted-foreground">{section.description}</span>
         </NavLink>
       ))}
     </nav>
