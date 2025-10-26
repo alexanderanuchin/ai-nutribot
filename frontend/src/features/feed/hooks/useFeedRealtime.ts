@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import { tokenStore } from '../../../utils/storage'
 import type { FeedRealtimeEvent, FeedTab } from '../../../types/feed'
+import { resolveRealtimeHttpBase, resolveRealtimeWsBase } from '../../../utils/realtime'
 import { GROUP_TO_TAB } from '../constants'
 
 const FEED_GROUPS: ReadonlyArray<FeedRealtimeEvent['group']> = [
@@ -20,29 +21,6 @@ export interface UseFeedRealtimeOptions {
   onEvent: (event: FeedRealtimeEvent) => void
 }
 
-function resolveHttpBase(): string {
-  const base = (import.meta.env.VITE_API_BASE || '/api') as string
-  if (base.startsWith('http')) {
-    return base.replace(/\/$/, '')
-  }
-  if (typeof window === 'undefined') return base
-  if (base.startsWith('/')) {
-    return `${window.location.origin}${base}`.replace(/\/$/, '')
-  }
-  return `${window.location.origin}/${base}`.replace(/\/$/, '')
-}
-
-function resolveWsBase(): string {
-  const custom = (import.meta.env as any)?.VITE_WS_BASE as string | undefined
-  if (custom && typeof custom === 'string') {
-    return custom.replace(/\/$/, '')
-  }
-  if (typeof window === 'undefined') return 'ws://localhost'
-  const { protocol, host } = window.location
-  const scheme = protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${scheme}//${host}`
-}
-
 export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void {
   const handlerRef = useRef(onEvent)
   handlerRef.current = onEvent
@@ -52,8 +30,8 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
     const token = tokenStore.access
     if (!token) return undefined
 
-    const httpBase = resolveHttpBase()
-    const wsBase = resolveWsBase()
+    const httpBase = resolveRealtimeHttpBase()
+    const wsBase = resolveRealtimeWsBase()
     const params = new URLSearchParams({ token, type: feed })
 
     let ws: WebSocket | null = null

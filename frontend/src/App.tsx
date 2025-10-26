@@ -12,6 +12,11 @@ import Compose from './pages/Compose'
 import Notifications from './pages/Notifications'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import MarketLayout from './pages/market/MarketLayout'
+import MarketHubPage from './pages/market/MarketHubPage'
+import MarketRecipesPage from './pages/market/MarketRecipesPage'
+import MarketProductsPage from './pages/market/MarketProductsPage'
+import MarketStoresPage from './pages/market/MarketStoresPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 import GridShimmerCanvas from './components/GridShimmerCanvas'
@@ -57,6 +62,19 @@ export default function App(){
                   <Route path="/plan" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
                   <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />
+                  <Route
+                    path="/market/*"
+                    element={(
+                      <ProtectedRoute>
+                        <MarketLayout />
+                      </ProtectedRoute>
+                    )}
+                  >
+                    <Route index element={<MarketHubPage />} />
+                    <Route path="recipes" element={<MarketRecipesPage />} />
+                    <Route path="products" element={<MarketProductsPage />} />
+                    <Route path="stores" element={<MarketStoresPage />} />
+                  </Route>
                   <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute><Orders /></ProtectedRoute>} />

@@ -121,7 +121,7 @@ export const SECONDARY_NAVIGATION: NavSection[] = [
       {
         id: 'marketplace',
         label: 'Маркетплейс здоровой еды',
-        path: '/marketplace',
+        path: '/market',
         icon: ShoppingBagIcon,
         featureFlag: 'marketplace',
         description: 'Выбор и доставка здоровых блюд',
