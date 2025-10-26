@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import clsx from 'clsx'
+import { RefreshCwIcon } from 'lucide-react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 
 import { fetchFeed } from '../api/feed'
@@ -15,6 +16,7 @@ import { FEED_TABS } from '../features/feed/constants'
 import type { FeedRealtimeEvent, FeedTab } from '../types/feed'
 import SearchBox from '../components/nav/SearchBox'
 import { useAuth } from '../hooks/useAuth'
+import { useTouchDevice } from '../hooks/useTouchDevice'
 
 function buildDefaultScroll(): Record<FeedTab, number> {
   return {
@@ -181,6 +183,8 @@ export default function Feed() {
   const lastBannerCountRef = useRef(0)
   const [bannerHidden, setBannerHidden] = useState(false)
   const autoRefreshRef = useRef(false)
+  const isTouchDevice = useTouchDevice()
+  const pullToRefreshEnabled = isTouchDevice
 
   const activeFilters = tabFilters[activeTab] || {}
   const filtersSnapshot = useMemo(() => ({ ...activeFilters }), [activeFilters])
@@ -191,6 +195,7 @@ export default function Feed() {
     data,
     fetchNextPage,
     hasNextPage,
+    isFetching,
     isFetchingNextPage,
     isLoading,
     isError,
@@ -210,8 +215,8 @@ export default function Feed() {
   // ===== вычисления, используемые в эффектах (объявлены ДО эффектов)
   const badgeCounts = pendingCounts
   const activePendingCount = badgeCounts[activeTab] ?? 0
-  const indicatorVisible = pullFeedback !== 'none' || pullState !== 'idle'
-  const showProgressBar = pullState === 'dragging' || pullState === 'armed'
+  const indicatorVisible = pullToRefreshEnabled && (pullFeedback !== 'none' || pullState !== 'idle')
+  const showProgressBar = pullToRefreshEnabled && (pullState === 'dragging' || pullState === 'armed')
   const progressPercent = Math.min(100, Math.round(pullProgress * 100))
   const indicatorMessage = useMemo(() => {
     const isNewsTab = activeTab === 'news'
@@ -239,18 +244,33 @@ export default function Feed() {
   )
 
   const shouldShowBanner =
-    activePendingCount > 0 && !bannerHidden && isOnline && !isAtTop && pullState !== 'refreshing'
+    activePendingCount > 0 &&
+    !bannerHidden &&
+    isOnline &&
+    pullState !== 'refreshing' &&
+    (pullToRefreshEnabled ? !isAtTop : true)
+  const showManualRefreshButton = !pullToRefreshEnabled
+  const isManualRefreshInProgress = isFetching && !isFetchingNextPage
+  const isManualRefreshDisabled = isLoading || isManualRefreshInProgress || !isOnline
+  const manualRefreshLabel = !isOnline
+    ? 'Нет соединения'
+    : isManualRefreshInProgress
+    ? 'Обновляем…'
+    : 'Обновить ленту'
   // ===== /вычисления
 
   // --- стили скролл-контейнера: запрещаем «пробой» скролла к WebView
   const scrollContainerStyles = useMemo<CSSProperties>(
-    () => ({
-      overscrollBehaviorY: 'none',
-      overscrollBehavior: 'none',
-      WebkitOverflowScrolling: 'touch',
-      touchAction: 'pan-y',
-    }),
-    []
+    () =>
+      pullToRefreshEnabled
+        ? {
+            overscrollBehaviorY: 'none',
+            overscrollBehavior: 'none',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          }
+        : {},
+    [pullToRefreshEnabled]
   )
 
   // На время страницы блокируем вертикальные свайпы Telegram WebApp и «пробой» у body
@@ -343,6 +363,23 @@ export default function Feed() {
     [activeTab, queryClient, queryKey, refetch]
   )
 
+  const refreshAndScrollToTop = useCallback(
+    async (options?: { bust?: boolean }) => {
+      const container = scrollContainerRef.current
+      if (container) {
+        container.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+      if (bannerAutoHideTimerRef.current) {
+        window.clearTimeout(bannerAutoHideTimerRef.current)
+        bannerAutoHideTimerRef.current = null
+      }
+      const result = await refetchCurrentTab({ bust: options?.bust ?? false })
+      if (!result.ok) setBannerHidden(false)
+      return result
+    },
+    [refetchCurrentTab, setBannerHidden]
+  )
+
   const releasePointerCapture = useCallback(() => {
     const container = scrollContainerRef.current
     if (container && pointerIdRef.current !== null) {
@@ -369,6 +406,7 @@ export default function Feed() {
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pullToRefreshEnabled) return
       if (!event.isPrimary) return
       if (pullState === 'refreshing') return
       const container = scrollContainerRef.current
@@ -386,11 +424,12 @@ export default function Feed() {
         container.setPointerCapture(event.pointerId)
       } catch {}
     },
-    [pullState, pullFeedback, clearFeedbackTimer]
+    [pullToRefreshEnabled, pullState, pullFeedback, clearFeedbackTimer]
   )
 
   const handlePointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pullToRefreshEnabled) return
       if (!pointerTrackingRef.current || !event.isPrimary) return
       const container = scrollContainerRef.current
       if (!container) return
@@ -415,11 +454,12 @@ export default function Feed() {
       schedulePullMetrics(delta)
       container.scrollTop = 0
     },
-    [pullState, releasePointerCapture, schedulePullMetrics]
+    [pullToRefreshEnabled, pullState, releasePointerCapture, schedulePullMetrics]
   )
 
   const handlePointerUp = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pullToRefreshEnabled) return
       if (!event.isPrimary) return
       if (!pointerTrackingRef.current) {
         releasePointerCapture()
@@ -452,6 +492,7 @@ export default function Feed() {
       isOnline,
       pullDistance,
       pullState,
+      pullToRefreshEnabled,
       refetchCurrentTab,
       releasePointerCapture,
       schedulePullMetrics,
@@ -462,13 +503,14 @@ export default function Feed() {
 
   const handlePointerCancel = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!pullToRefreshEnabled) return
       if (!event.isPrimary) return
       if (!pointerTrackingRef.current) return
       pointerTrackingRef.current = false
       releasePointerCapture()
       settleToIdle()
     },
-    [releasePointerCapture, settleToIdle]
+    [pullToRefreshEnabled, releasePointerCapture, settleToIdle]
   )
 
   useEffect(() => {
@@ -701,17 +743,8 @@ export default function Feed() {
   }, [activeTab, filtersSnapshot, getCurrentScrollPosition])
 
   const handleBannerClick = useCallback(() => {
-    const container = scrollContainerRef.current
-    if (container) container.scrollTo({ top: 0, behavior: 'smooth' })
-    if (bannerAutoHideTimerRef.current) {
-      window.clearTimeout(bannerAutoHideTimerRef.current)
-      bannerAutoHideTimerRef.current = null
-    }
-    void (async () => {
-      const result = await refetchCurrentTab({ bust: true })
-      if (!result.ok) setBannerHidden(false)
-    })()
-  }, [refetchCurrentTab])
+    void refreshAndScrollToTop({ bust: true })
+  }, [refreshAndScrollToTop])
 
   const handleBannerClose = useCallback(() => {
     if (bannerAutoHideTimerRef.current) {
@@ -720,6 +753,10 @@ export default function Feed() {
     }
     setBannerHidden(true)
   }, [])
+
+  const handleManualRefresh = useCallback(() => {
+    void refreshAndScrollToTop({ bust: true })
+  }, [refreshAndScrollToTop])
 
   const handleRetryFetch = useCallback(() => {
     void refetchCurrentTab({ bust: true })
@@ -763,10 +800,10 @@ export default function Feed() {
           ref={scrollContainerRef}
           className="relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
           style={scrollContainerStyles}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
+          onPointerDown={pullToRefreshEnabled ? handlePointerDown : undefined}
+          onPointerMove={pullToRefreshEnabled ? handlePointerMove : undefined}
+          onPointerUp={pullToRefreshEnabled ? handlePointerUp : undefined}
+          onPointerCancel={pullToRefreshEnabled ? handlePointerCancel : undefined}
         >
           <div className="relative flex min-h-full w-full flex-col gap-6 pb-12">
             <div aria-hidden="true" style={pullSpacerStyle} />
@@ -801,6 +838,19 @@ export default function Feed() {
             <div className="flex w-full flex-col gap-6 px-4">
               <div className="flex w-full flex-col gap-4">
                 <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
+                {showManualRefreshButton ? (
+                  <div className="flex w-full justify-end">
+                    <button
+                      type="button"
+                      onClick={handleManualRefresh}
+                      disabled={isManualRefreshDisabled}
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-2 text-sm font-semibold text-muted-foreground shadow-sm transition hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-background"
+                    >
+                      <RefreshCwIcon className="h-4 w-4" aria-hidden="true" />
+                      <span>{manualRefreshLabel}</span>
+                    </button>
+                  </div>
+                ) : null}
                 {activeTab === 'news' ? (
                   <SearchBox value={newsSearch} onChange={setNewsSearch} placeholder="Поиск новостей" />
                 ) : null}
