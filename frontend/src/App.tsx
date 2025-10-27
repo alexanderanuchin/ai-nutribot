@@ -29,6 +29,7 @@ import SideRail from './components/nav/SideRail'
 import MobileTabBar from './components/nav/MobileTabBar'
 import NavDrawer from './components/nav/NavDrawer'
 import CommandPanel from './components/nav/CommandPanel'
+import { ToastProvider } from './components/ui'
 
 const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password']
 
@@ -47,10 +48,11 @@ export default function App(){
   const showLoadingState = !showShell && !shouldShowAuthRoutes
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
-      {showShell && (
-        <>
-          <AppNavbar onMenuClick={() => setDrawerOpen(true)} onOpenCommand={openPalette} />
+    <ToastProvider>
+      <div className="min-h-screen bg-[var(--bg)]">
+        {showShell && (
+          <>
+            <AppNavbar onMenuClick={() => setDrawerOpen(true)} onOpenCommand={openPalette} />
           <div className="mx-auto flex w-full max-w-7xl">
             <SideRail onOpenCommand={openPalette} />
             <main className="flex min-h-screen flex-1 flex-col bg-transparent pb-24">
@@ -123,5 +125,6 @@ export default function App(){
       )}
       <CommandPanel />
     </div>
+    </ToastProvider>
   )
 }

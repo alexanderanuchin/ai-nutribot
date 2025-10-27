@@ -235,6 +235,24 @@ export const COMMAND_ACTIONS = [
     path: '/profile/integrations/telegram',
     description: 'Синхронизация с Telegram Stars',
   },
+  {
+    id: 'market-open-filters',
+    label: 'Фильтры маркета',
+    path: '/market/products',
+    description: 'Открыть каталог с фильтрами продуктов',
+  },
+  {
+    id: 'market-open-cart',
+    label: 'Перейти в корзину',
+    path: '/market/products',
+    description: 'Собрать заказ и оформить доставку',
+  },
+  {
+    id: 'market-open-search',
+    label: 'Поиск в маркете',
+    path: '/market/recipes',
+    description: 'Искать товары, рецепты и магазины',
+  },
 ] as const
 
 export type CommandAction = typeof COMMAND_ACTIONS[number]

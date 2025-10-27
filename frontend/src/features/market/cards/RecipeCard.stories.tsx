@@ -1,0 +1,44 @@
+import { RecipeCard } from './RecipeCard'
+import type { MarketRecipe } from '../../../types/market'
+
+const meta = {
+  title: 'Market/RecipeCard',
+  component: RecipeCard,
+}
+
+export default meta
+
+const sampleRecipe: MarketRecipe = {
+  id: 101,
+  title: 'Боул с киноа и авокадо',
+  subtitle: 'Баланс белков и полезных жиров',
+  description: 'Идеальный боул для обеда с киноа, нутом и свежими овощами.',
+  calories: 520,
+  protein_g: 28,
+  fat_g: 18,
+  carbs_g: 55,
+  cook_time_minutes: 25,
+  price: 390,
+  currency: 'RUB',
+  rating: 4.8,
+  rating_count: 87,
+  hero_image_url: 'https://images.unsplash.com/photo-1512058564366-c9e3e0464b1b?auto=format&fit=crop&w=700&q=80',
+  preview_image_url: null,
+  tags: ['vegan', 'gluten-free'],
+  is_premium: true,
+  is_in_plan: false,
+}
+
+export const Default = () => <RecipeCard item={sampleRecipe} />
+
+export const InPlan = () => (
+  <RecipeCard
+    item={{
+      ...sampleRecipe,
+      id: 102,
+      title: 'Смузи боул с ягодами',
+      rating: 4.5,
+      rating_count: 34,
+    }}
+  />
+)
