@@ -293,16 +293,23 @@ function TelegramStarIcon(props: React.SVGProps<SVGSVGElement>) {
     >
       <defs>
         <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#9fd8ff" />
-          <stop offset="50%" stopColor="#5bbcff" />
-          <stop offset="100%" stopColor="#4aa0ff" />
+          <stop offset="0%" stopColor="var(--badge-telegram-stop-start)" />
+          <stop offset="50%" stopColor="var(--badge-telegram-stop-mid)" />
+          <stop offset="100%" stopColor="var(--badge-telegram-stop-end)" />
         </linearGradient>
       </defs>
-      <circle cx="20" cy="20" r="19" fill="rgba(91, 188, 255, 0.16)" stroke="#5bbcff" strokeWidth="1.5" />
+      <circle
+        cx="20"
+        cy="20"
+        r="19"
+        fill="var(--badge-telegram-fill)"
+        stroke="var(--badge-telegram-stroke)"
+        strokeWidth="1.5"
+      />
       <path
         d="M20 8l3.18 6.82 7.52 1.06-5.44 5.25 1.28 7.43L20 25.9l-6.54 3.44 1.28-7.43-5.44-5.25 7.52-1.06z"
         fill="url(#starGradient)"
-        stroke="rgba(12, 18, 27, 0.22)"
+        stroke="var(--badge-outline)"
         strokeWidth="0.8"
       />
     </svg>
@@ -319,16 +326,23 @@ function CaloCoinIcon(props: React.SVGProps<SVGSVGElement>) {
     >
       <defs>
         <radialGradient id="caloGradient" cx="50%" cy="40%" r="70%">
-          <stop offset="0%" stopColor="#f6ffe2" />
-          <stop offset="45%" stopColor="#8ff0a6" />
-          <stop offset="100%" stopColor="#47c974" />
+          <stop offset="0%" stopColor="var(--badge-coin-stop-start)" />
+          <stop offset="45%" stopColor="var(--badge-coin-stop-mid)" />
+          <stop offset="100%" stopColor="var(--badge-coin-stop-end)" />
         </radialGradient>
       </defs>
-      <circle cx="20" cy="20" r="19" fill="rgba(142, 240, 166, 0.14)" stroke="#68e391" strokeWidth="1.5" />
+      <circle
+        cx="20"
+        cy="20"
+        r="19"
+        fill="var(--badge-coin-fill)"
+        stroke="var(--badge-coin-stroke)"
+        strokeWidth="1.5"
+      />
       <path
         d="M20 9.5c5.8 0 10.5 4.7 10.5 10.5S25.8 30.5 20 30.5 9.5 25.8 9.5 20 14.2 9.5 20 9.5zm0 4c-3.6 0-6.5 2.9-6.5 6.5s2.9 6.5 6.5 6.5c1.7 0 3.3-.7 4.5-1.8l-2.2-2.2c-.6.6-1.4 1-2.3 1-1.8 0-3.2-1.4-3.2-3.2 0-1.8 1.4-3.2 3.2-3.2.9 0 1.7.4 2.3 1l2.2-2.2c-1.2-1.1-2.8-1.8-4.5-1.8z"
         fill="url(#caloGradient)"
-        stroke="rgba(12, 18, 27, 0.22)"
+        stroke="var(--badge-outline)"
         strokeWidth="0.8"
       />
     </svg>
@@ -346,7 +360,7 @@ function EditAvatarIcon(props: React.SVGProps<SVGSVGElement>) {
     >
       <path
         d="M3.8 13.7V16.8H6.9L15.9 7.8 12.8 4.7 3.8 13.7Z"
-        fill="rgba(248, 251, 255, 0.85)"
+        fill="var(--avatar-edit-fill)"
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinejoin="round"

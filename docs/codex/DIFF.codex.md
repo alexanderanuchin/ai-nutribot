@@ -24,6 +24,23 @@ Summary: Align the frontend UI with the refreshed design tokens and theme system
 
 ## 2025-10-27 – commit HEAD
 
+Summary: Tokenize component color usage, harden linting against new literals, and add accessibility coverage for button variants.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/styles/tokens.css | Expand shared token palette with derived canvas/brand variables for component consumption. | frontend | no |
+| modify | frontend/src/components/Logo.tsx | Bind SVG fills and strokes to shared brand tokens. | frontend | no |
+| modify | frontend/src/components/ProfileSidebar.tsx | Replace gradient and badge literals with CSS custom properties. | frontend | no |
+| modify | frontend/src/components/GridShimmerCanvas.tsx | Resolve animation palette from CSS variables and observe theme changes. | frontend | no |
+| modify | frontend/src/components/GlowingLineCloudsCanvas.tsx | Probe runtime theme colors for framer-motion strokes and glows. | frontend | no |
+| modify | frontend/src/components/ui/Button.tsx | Align button variants with tokenized classes and normalize motion props. | frontend | no |
+| create | frontend/src/components/ui/__tests__/Button.accessibility.test.tsx | Add vitest + axe suite validating token-driven focus states and shadows. | frontend | no |
+| create | frontend/eslint.config.mjs | Introduce ESLint flat config banning new color literals in components. | frontend | no |
+| modify | frontend/package.json | Wire lint rule into workflows via lint/test scripts. | frontend | no |
+| modify | frontend/package-lock.json | Capture dependency graph for new lint/test tooling. | frontend | no |
+
+## 2025-10-27 – commit 56fcf02
+
 Summary: Resolve duplicate keys in the sheet component and align base form controls with the UI kit token system.
 
 | Action | Path | Reason | Impact | Restart/Migration |

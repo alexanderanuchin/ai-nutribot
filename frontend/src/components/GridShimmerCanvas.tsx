@@ -35,8 +35,8 @@ const DEFAULT_OPTIONS: GridShimmerOptions = {
   spacingY: 72,
   lineWidth: 1,
   baseAlpha: 1,
-  baseColor: '#000000',
-  glowColor: '#00d9ff',
+  baseColor: 'var(--effect-grid-base)',
+  glowColor: 'var(--effect-grid-glow)',
   glowLineWidth: 2,
   glowBlur: 18,
   maxGlowAlpha: 0.9,
@@ -69,6 +69,8 @@ class GridShimmer {
   private rafId: number | null = null
   private readonly onResize: () => void
   private lastPointerCell: { row: number; col: number } | null = null
+  private themeObserver: MutationObserver | null = null
+  private colorProbe: HTMLSpanElement | null = null
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
     if (!this.cells.length) return
@@ -125,6 +127,7 @@ class GridShimmer {
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave)
 
     this.init()
+    this.observeTheme()
   }
 
   start(): void {
@@ -147,6 +150,14 @@ class GridShimmer {
     window.removeEventListener('resize', this.onResize)
     this.canvas.removeEventListener('pointermove', this.handlePointerMove)
     this.canvas.removeEventListener('pointerleave', this.handlePointerLeave)
+    if (this.themeObserver) {
+      this.themeObserver.disconnect()
+      this.themeObserver = null
+    }
+    if (this.colorProbe?.parentNode) {
+      this.colorProbe.parentNode.removeChild(this.colorProbe)
+    }
+    this.colorProbe = null
   }
 
   private init(): void {
@@ -172,7 +183,7 @@ class GridShimmer {
   }
 
   private makeBaseGrid(): void {
-    const { spacingX, spacingY, lineWidth, baseColor, baseAlpha } = this.opts
+    const { spacingX, spacingY, lineWidth, baseAlpha } = this.opts
     const w = this.viewW
     const h = this.viewH
     const off = document.createElement('canvas')
@@ -182,7 +193,7 @@ class GridShimmer {
     if (!context) return
     context.clearRect(0, 0, w, h)
     context.globalAlpha = baseAlpha
-    context.strokeStyle = baseColor
+    context.strokeStyle = this.resolveColor(this.opts.baseColor)
     context.lineWidth = lineWidth
     context.beginPath()
     for (let x = 0; x <= w; x += spacingX) {
@@ -280,8 +291,9 @@ class GridShimmer {
     ctx.lineCap = 'square'
     ctx.lineWidth = glowLineWidth
     ctx.shadowBlur = glowBlur
-    ctx.shadowColor = glowColor
-    ctx.strokeStyle = glowColor
+    const resolvedGlow = this.resolveColor(glowColor)
+    ctx.shadowColor = resolvedGlow
+    ctx.strokeStyle = resolvedGlow
 
     for (let j = 0; j < this.rows; j += 1) {
       const y0 = Math.floor(j * spacingY) + 0.5
@@ -313,6 +325,57 @@ class GridShimmer {
   private lerp(a: number, b: number, t: number): number {
     return a + (b - a) * t
   }
+
+  private resolveColor(input: string): string {
+    const trimmed = input.trim()
+    if (!trimmed || typeof window === 'undefined') {
+      return trimmed
+    }
+    const probe = this.ensureColorProbe()
+    probe.style.color = trimmed
+    const computed = getComputedStyle(probe).color
+    return computed || trimmed
+  }
+
+  private ensureColorProbe(): HTMLSpanElement {
+    if (!this.colorProbe) {
+      const probe = document.createElement('span')
+      probe.style.position = 'absolute'
+      probe.style.width = '0'
+      probe.style.height = '0'
+      probe.style.opacity = '0'
+      probe.style.pointerEvents = 'none'
+      document.body.appendChild(probe)
+      this.colorProbe = probe
+    }
+    return this.colorProbe
+  }
+
+  private observeTheme(): void {
+    if (typeof window === 'undefined' || typeof MutationObserver === 'undefined') {
+      return
+    }
+    const root = document.documentElement
+    const refresh = () => {
+      if (!this.running) {
+        // ensure the base grid re-renders even before animation starts
+        this.makeBaseGrid()
+        this.render()
+      } else {
+        this.makeBaseGrid()
+      }
+    }
+    this.themeObserver = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') {
+          refresh()
+          break
+        }
+      }
+    })
+    this.themeObserver.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class'] })
+    refresh()
+  }
 }
 
 export default function GridShimmerCanvas(): JSX.Element {
@@ -326,7 +389,7 @@ export default function GridShimmerCanvas(): JSX.Element {
     const shimmer = new GridShimmer(canvas, {
       spacingX: 72,
       spacingY: 72,
-      glowColor: '#00d9ff',
+      glowColor: 'var(--effect-grid-glow)',
       glowBlur: 18,
       glowLineWidth: 2,
       maxGlowAlpha: 0.9,

@@ -56,6 +56,43 @@ type MouseState = { x: number; y: number; inside: boolean }
 
 type CanvasSize = { w: number; h: number; dpr: number }
 
+let globalColorProbe: HTMLSpanElement | null = null
+
+function ensureColorProbe(): HTMLSpanElement {
+  if (!globalColorProbe) {
+    const probe = document.createElement('span')
+    probe.style.position = 'absolute'
+    probe.style.opacity = '0'
+    probe.style.pointerEvents = 'none'
+    probe.style.width = '0'
+    probe.style.height = '0'
+    document.body.appendChild(probe)
+    globalColorProbe = probe
+  }
+  return globalColorProbe
+}
+
+function resolveThemeColor(value: string | undefined, fallbackToken: string): string {
+  if (typeof window === 'undefined') {
+    return value ?? ''
+  }
+  const probe = ensureColorProbe()
+  const candidate = value && value.trim().length > 0 ? value.trim() : `var(${fallbackToken})`
+  probe.style.color = candidate
+  let computed = getComputedStyle(probe).color
+  if (computed) {
+    return computed
+  }
+  if (candidate !== `var(${fallbackToken})`) {
+    probe.style.color = `var(${fallbackToken})`
+    computed = getComputedStyle(probe).color
+    if (computed) {
+      return computed
+    }
+  }
+  return candidate
+}
+
 export default function GlowingLineCloudsCanvas({
   cloudCount = 14,
   minRadius = 60,
@@ -66,7 +103,7 @@ export default function GlowingLineCloudsCanvas({
   verticalDrift = 18,
   strokeWidth = 2.2,
   glowBlur = 18,
-  strokeColor = 'rgba(88, 160, 255, 0.9)',
+  strokeColor,
   secondaryStroke = true,
   secondaryOpacity = 0.5,
   globalChaos = 0.65,
@@ -241,7 +278,11 @@ export default function GlowingLineCloudsCanvas({
     ctx.lineCap = 'round'
     ctx.globalCompositeOperation = 'lighter'
 
-    const baseStroke = parseRgba(strokeColor)
+    const fallbackStrokeColor = resolveThemeColor('var(--effect-cloud-stroke)', '--effect-cloud-stroke')
+    let activeStrokeColor = strokeColor
+      ? resolveThemeColor(strokeColor, '--effect-cloud-stroke')
+      : fallbackStrokeColor
+    let baseStroke = parseRgba(activeStrokeColor) ?? parseRgba(fallbackStrokeColor)
 
     let last = performance.now()
 
@@ -361,10 +402,10 @@ export default function GlowingLineCloudsCanvas({
         ctx.save()
         ctx.translate(cloud.x, cloud.y)
 
-        ctx.shadowColor = strokeColor
+        ctx.shadowColor = activeStrokeColor
         ctx.shadowBlur = glowBlur
         ctx.lineWidth = strokeWidth
-        ctx.strokeStyle = strokeColor
+        ctx.strokeStyle = activeStrokeColor
 
         ctx.beginPath()
         for (let i = 0; i < cloud.outline.length; i++) {
@@ -388,7 +429,7 @@ export default function GlowingLineCloudsCanvas({
             const nextA = Math.max(0, Math.min(1, a * secondaryOpacity))
             ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${nextA})`
           } else {
-            ctx.strokeStyle = strokeColor
+            ctx.strokeStyle = activeStrokeColor
           }
           ctx.beginPath()
           for (let i = 0; i < cloud.outline.length; i++) {
@@ -421,7 +462,7 @@ export default function GlowingLineCloudsCanvas({
             const alpha = sparkleOpacity * (0.7 + 0.3 * pulse)
             ctx.strokeStyle = `rgba(${brightR}, ${brightG}, ${brightB}, ${alpha})`
           } else {
-            ctx.strokeStyle = strokeColor
+            ctx.strokeStyle = activeStrokeColor
           }
           ctx.shadowBlur = sparkleBaseBlur + (sparkleMaxBlur - sparkleBaseBlur) * pulse
           ctx.lineWidth = sparkleStrokeWidth
@@ -442,12 +483,35 @@ export default function GlowingLineCloudsCanvas({
     const handleResize = () => resize()
     window.addEventListener('resize', handleResize)
 
+    let themeObserver: MutationObserver | null = null
+    if (typeof MutationObserver !== 'undefined') {
+      const root = document.documentElement
+      const recomputeStroke = () => {
+        const fallback = resolveThemeColor('var(--effect-cloud-stroke)', '--effect-cloud-stroke')
+        const resolved = strokeColor
+          ? resolveThemeColor(strokeColor, '--effect-cloud-stroke')
+          : fallback
+        activeStrokeColor = resolved
+        baseStroke = parseRgba(resolved) ?? parseRgba(fallback)
+      }
+      themeObserver = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'attributes') {
+            recomputeStroke()
+            break
+          }
+        }
+      })
+      themeObserver.observe(root, { attributes: true, attributeFilter: ['data-theme', 'class'] })
+    }
+
     return () => {
       if (rafRef.current !== null) {
         window.cancelAnimationFrame(rafRef.current)
         rafRef.current = null
       }
       window.removeEventListener('resize', handleResize)
+      themeObserver?.disconnect()
     }
   }, [
     baseSpeed,

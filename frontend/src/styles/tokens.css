@@ -90,6 +90,35 @@
   --ring-hsl: 205 100% 68%;
 }
 
+:root,
+[data-theme='dark'] {
+  --brand-logo-blue: var(--primary);
+  --brand-logo-cyan: color-mix(in srgb, var(--primary) 35%, var(--accent) 65%);
+  --brand-logo-green: var(--success);
+  --brand-logo-yellow: var(--warning);
+  --brand-logo-rose: var(--destructive);
+  --brand-logo-gray: color-mix(in srgb, var(--muted-foreground) 80%, var(--surface) 20%);
+
+  --badge-telegram-stop-start: color-mix(in srgb, var(--primary) 35%, var(--surface) 65%);
+  --badge-telegram-stop-mid: color-mix(in srgb, var(--primary) 65%, var(--surface) 35%);
+  --badge-telegram-stop-end: color-mix(in srgb, var(--primary) 85%, var(--foreground) 15%);
+  --badge-telegram-fill: color-mix(in srgb, var(--primary) 20%, transparent);
+  --badge-telegram-stroke: color-mix(in srgb, var(--primary) 90%, transparent 10%);
+
+  --badge-coin-stop-start: color-mix(in srgb, var(--success) 30%, var(--surface) 70%);
+  --badge-coin-stop-mid: color-mix(in srgb, var(--success) 70%, var(--surface) 30%);
+  --badge-coin-stop-end: color-mix(in srgb, var(--success) 85%, var(--foreground) 15%);
+  --badge-coin-fill: color-mix(in srgb, var(--success) 20%, transparent);
+  --badge-coin-stroke: color-mix(in srgb, var(--success) 88%, transparent 12%);
+
+  --badge-outline: color-mix(in srgb, var(--foreground) 35%, transparent 65%);
+  --avatar-edit-fill: color-mix(in srgb, var(--surface) 92%, transparent 8%);
+
+  --effect-grid-base: color-mix(in srgb, var(--foreground) 65%, transparent 35%);
+  --effect-grid-glow: color-mix(in srgb, var(--primary) 82%, var(--surface) 18%);
+  --effect-cloud-stroke: color-mix(in srgb, var(--primary) 72%, var(--surface) 28%);
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
