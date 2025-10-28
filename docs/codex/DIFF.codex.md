@@ -1,5 +1,14 @@
 # Codex Diff Journal
 
+## 2025-10-28 – commit TBD
+
+Summary: Modernize the sticky navigation bar interactions and neutralize control styling for the 2025 design refresh.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/nav/AppNavbar.tsx | Rework sticky reveal/hide logic and restyle navigation controls with neutral theming. | frontend | no |
+| modify | frontend/src/components/nav/ThemeToggle.tsx | Harmonize theme switcher visuals with the updated neutral palette and improve dark/light legibility. | frontend | no |
+
 ## 2025-10-27 – commit d9ebc28
 
 Summary: Align the frontend UI with the refreshed design tokens and theme system from the new UI kit.

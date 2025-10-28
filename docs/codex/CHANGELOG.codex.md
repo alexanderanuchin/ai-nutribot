@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-10-28
+
+- Refined the sticky navigation bar for scroll-aware reveal/hide behavior and neutralized control accents. See DIFF entry “2025-10-28 – commit TBD”.
+
 ## 2025-10-27
 
 - Harmonized the frontend palette with the new UI kit tokens across shared styles and interactive components. See DIFF entry “2025-10-27 – commit d9ebc28”.
