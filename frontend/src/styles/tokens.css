@@ -44,6 +44,28 @@
   --ring-hsl: 213 100% 59%;
 }
 
+/* Максимально сложная формула одной переменной (современные движки) */
+@supports (color: oklch(50% 0.2 150)) and (color: color-mix(in oklch, white, black)) {
+  :root {
+    --primary: color-mix(
+      in oklch,
+      /* Ядро: относительное усиление L и C + лёгкий сдвиг тона */
+      color(
+        from oklch(0.78 0.17 150) oklch
+        calc(clamp(0, l + 0.05, 0.94))
+        calc(min(c * 1.28, 0.33))
+        calc(h + 8)
+      ) 62%,
+      /* Ореол: неоновая P3-мята с “подсветкой” белым и микро-приглушением чёрным */
+      color-mix(
+        in oklch,
+        color(display-p3 0 1 0.6) 88%,
+        color-mix(in oklch, white 14%, black 6%) 12%
+      ) 38%
+    );
+  }
+}
+
 [data-theme='dark'] {
   color-scheme: dark;
   --bg: #0b0c10;
