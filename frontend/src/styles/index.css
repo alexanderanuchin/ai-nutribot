@@ -3,10 +3,7 @@
 /* Tailwind core first */
 @tailwind base;
 
-/* Keep all element/base rules strictly in base layer */
-@layer base {
-  @import './base.css';
-}
+/* Legacy pages inject base.css dynamically via useLegacyStyles */
 
 @tailwind components;
 

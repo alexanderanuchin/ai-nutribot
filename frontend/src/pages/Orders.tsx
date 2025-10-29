@@ -13,6 +13,7 @@ import { tg } from '../lib/telegram'
 import { debugLog, generateRequestId, warnLog } from '../lib/logging'
 import { sendApplicationLog } from '../lib/monitoring'
 import { useAuthContext } from '../providers/AuthProvider'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 interface OperationFormState {
   currency: WalletCurrency
@@ -40,6 +41,7 @@ const numberFormatter = new Intl.NumberFormat('ru-RU', {
 const TOPUP_SUBMIT_LOCK_MS = 2500
 
 export default function Orders(): JSX.Element {
+  useLegacyStyles()
   const { authReady } = useAuthContext()
   const [summary, setSummary] = useState<WalletSummary | null>(null)
   const [transactions, setTransactions] = useState<WalletTransactionRecord[]>([])

@@ -4,8 +4,10 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
 import successAnimation from '../assets/animation.json'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 export default function ResetPassword(){
+  useLegacyStyles()
   const [params] = useSearchParams()
   const uid = params.get('uid') || ''
   const token = params.get('token') || ''

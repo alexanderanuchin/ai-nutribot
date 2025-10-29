@@ -2,8 +2,10 @@ import React, { useState } from 'react'
 import { register, login, checkPhone, checkEmail } from '../api/auth'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 export default function Register(){
+  useLegacyStyles()
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)

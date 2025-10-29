@@ -7,6 +7,7 @@ import ProfileEditDialog from '../components/ProfileEditDialog'
 import ProfileSidebar from '../components/ProfileSidebar'
 import { tokenStore } from '../utils/storage'
 import { fetchWalletSummary } from '../api/orders'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 const emptyProfile: ProfileT = {
   sex: 'm',
@@ -60,6 +61,7 @@ type MacroSuggestion = MacroBreakdown & { color: string }
 
 
 export default function Profile(){
+  useLegacyStyles()
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<ProfileT>(emptyProfile)
   const [profileId, setProfileId] = useState<number | null>(null)
