@@ -4,8 +4,10 @@ import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
 import successAnimation from '../assets/animation.json'
 import { Link, useNavigate } from 'react-router-dom'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 export default function ForgotPassword(){
+  useLegacyStyles()
   const [email, setEmail] = useState('')
   const [step, setStep] = useState<'send' | 'success' | undefined>(undefined)
   const [loading, setLoading] = useState(false)

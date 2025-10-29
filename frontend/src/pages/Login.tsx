@@ -4,10 +4,12 @@ import { useLocation, useNavigate, Link } from 'react-router-dom'
 import type { Location } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
 import { useQueryClient } from '@tanstack/react-query'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 type LoginMode = 'phone' | 'email'
 
 export default function Login(){
+  useLegacyStyles()
   const [mode, setMode] = useState<LoginMode>('phone')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')

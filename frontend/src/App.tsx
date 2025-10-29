@@ -24,6 +24,7 @@ import GlowingLineCloudsCanvas from './components/GlowingLineCloudsCanvas'
 import { useAuth } from './hooks/useAuth'
 import { useTheme } from './hooks/useTheme'
 import { useCommandPalette } from './hooks/useCommandPalette'
+import { useLegacyStyles } from './hooks/useLegacyStyles'
 import AppNavbar from './components/nav/AppNavbar'
 import SideRail from './components/nav/SideRail'
 import MobileTabBar from './components/nav/MobileTabBar'
@@ -46,6 +47,8 @@ export default function App(){
   const shouldShowAuthRoutes = (!authenticated && !hasTokens) || ((!authenticated || !ready) && isAuthRoute)
   const showAuthBackground = shouldShowAuthRoutes && (isAuthRoute || !hasTokens)
   const showLoadingState = !showShell && !shouldShowAuthRoutes
+
+  useLegacyStyles(!showShell && shouldShowAuthRoutes)
 
   return (
     <ToastProvider>

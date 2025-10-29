@@ -10,6 +10,7 @@ import {
   updatePlanMeal,
   updatePlanStatus,
 } from '../api/menuPlans'
+import { useLegacyStyles } from '../hooks/useLegacyStyles'
 
 interface MealUpdatingState {
   [mealId: number]: boolean
@@ -34,6 +35,7 @@ function useHistoryUpdater(setHistory: React.Dispatch<React.SetStateAction<MenuP
 }
 
 export default function Dashboard() {
+  useLegacyStyles()
   const [plan, setPlan] = useState<MenuPlanResponse | null>(null)
   const [history, setHistory] = useState<MenuPlanResponse[]>([])
   const [loading, setLoading] = useState(false)

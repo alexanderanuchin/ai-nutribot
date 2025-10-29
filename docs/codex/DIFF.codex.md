@@ -1,5 +1,33 @@
 # Codex Diff Journal
 
+## 2025-10-29 – commit TBD (auth legacy background)
+
+Summary: Ensure legacy auth background canvases and logo colors reuse the scoped base stylesheet without timing glitches.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/hooks/useLegacyStyles.ts | Switch to an isomorphic layout effect and allow conditional activation so legacy CSS mounts before auth canvases read layout metrics. | frontend | no |
+| modify | frontend/src/App.tsx | Mount legacy styles while showing auth routes so the background canvases and shared chrome reuse the restored stylesheet. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Log the auth background fix in the diff journal. | docs | no |
+
+## 2025-10-29 – commit TBD
+
+Summary: Restore legacy auth/profile/billing layouts by injecting their base styles only for the relevant routes.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | frontend/src/hooks/useLegacyStyles.ts | Inject legacy base.css dynamically with lifecycle control so classic pages regain styling without affecting the new UI kit. | frontend | no |
+| create | frontend/src/types/assets.d.ts | Provide TypeScript typings for Vite inline CSS imports used by the legacy style injector. | frontend | no |
+| modify | frontend/src/pages/Login.tsx | Load legacy styles on the login route to restore layout and segmented control formatting. | frontend | no |
+| modify | frontend/src/pages/Register.tsx | Attach legacy styles for the registration form so validation and layout visuals return. | frontend | no |
+| modify | frontend/src/pages/ForgotPassword.tsx | Reapply legacy visuals to the recovery flow while preserving new UI defaults elsewhere. | frontend | no |
+| modify | frontend/src/pages/ResetPassword.tsx | Ensure reset forms mount legacy styling during token-based password updates. | frontend | no |
+| modify | frontend/src/pages/Profile.tsx | Bring back the extensive profile sidebar/card styling by mounting the legacy stylesheet. | frontend | no |
+| modify | frontend/src/pages/Orders.tsx | Restore billing/monetization cards and tables via scoped legacy styles. | frontend | no |
+| modify | frontend/src/pages/Dashboard.tsx | Reinstate daily plan cards and forms with legacy styling injection. | frontend | no |
+| modify | frontend/src/styles/index.css | Remove the global base.css import since styles now load on demand per page. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Record scoped legacy style restoration for traceability. | docs | no |
+
 ## 2025-10-28 – commit TBD
 
 Summary: Modernize the sticky navigation bar interactions and neutralize control styling for the 2025 design refresh.
