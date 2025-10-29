@@ -39,7 +39,8 @@ export function UserMenu({ onLogout }: UserMenuProps) {
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="flex min-w-0 items-center gap-2 rounded-full border border-border/60 bg-background/70 px-1.5 py-1.5 text-left text-sm transition hover:border-primary/60 hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:pl-2 sm:pr-3"
+          // Убираем синий фон/hover, ставим пунктирную овальную рамку цветом иконки (currentColor = primary).
+          className="relative flex min-w-0 items-center gap-2 rounded-full border border-dashed border-current bg-transparent px-1.5 py-1.5 text-left text-sm transition focus-visible:outline-none focus-visible:ring-0 sm:pl-2 sm:pr-3 text-muted/20"
         >
           <span
             className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-primary/15 text-sm font-semibold text-primary"

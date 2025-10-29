@@ -29,7 +29,9 @@ export function WalletBadge({ className }: WalletBadgeProps) {
         <button
           type="button"
           className={clsx(
-            'group flex shrink-0 items-center gap-2 rounded-full border border-border/60 bg-background/80 px-2 py-1.5 text-sm shadow-soft transition hover:border-primary/60 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary md:px-3',
+            // Гасим "синий primary": прозрачный фон, пунктирная овальная рамка цветом иконки,
+            // ring убран, hover без синего.
+            'group relative flex shrink-0 items-center gap-2 rounded-full border border-dashed border-current bg-transparent px-2 py-1.5 text-sm shadow-soft transition focus-visible:outline-none focus-visible:ring-0 md:px-3 text-muted/20',
             className,
           )}
           aria-label="Открыть кошелёк"
