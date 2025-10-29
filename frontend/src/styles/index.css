@@ -1,7 +1,18 @@
 @import './tokens.css';
-@import './base.css';
-@import './components/buttons.css';
 
+/* Tailwind core first */
 @tailwind base;
+
+/* Keep all element/base rules strictly in base layer */
+@layer base {
+  @import './base.css';
+}
+
 @tailwind components;
+
+/* Component styles only in components layer */
+@layer components {
+  @import './components/buttons.css';
+}
+
 @tailwind utilities;

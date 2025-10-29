@@ -1,5 +1,6 @@
 @layer components {
-  button {
+  /* ----- Legacy buttons without any classes (don't break old UI) ----- */
+  :where(button):not([class]) {
     border: 0;
     border-radius: var(--button-radius);
     background: var(--primary);
@@ -11,146 +12,180 @@
     align-items: center;
     justify-content: center;
     gap: var(--button-gap);
-    transition: background 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+    transition:
+      background .25s ease,
+      color .25s ease,
+      box-shadow .25s ease,
+      transform .2s ease;
     box-shadow: var(--shadow-soft);
   }
 
-  button:not(:disabled):hover {
+  :where(button):not([class]):not(:disabled):hover {
     background: color-mix(in srgb, var(--primary) 92%, #ffffff 8%);
     transform: translateY(-1px);
   }
 
-  button:not(:disabled):active {
+  :where(button):not([class]):not(:disabled):active {
     transform: translateY(0);
+    box-shadow: var(--shadow-soft);
   }
 
-  button:focus-visible {
+  :where(button):disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    filter: grayscale(.12);
+  }
+
+  :where(button):focus-visible {
     outline: 2px solid color-mix(in srgb, var(--ring) 80%, transparent 20%);
     outline-offset: 2px;
   }
 
-  button.ghost {
+  /* ----- Modern API (safe with UI kits) ----- */
+  /* Base */
+  .btn,
+  button[data-role="btn"],
+  /* Legacy aliasing to avoid breaking existing pages */
+  .orders-button {
+    border: 0;
+    border-radius: var(--button-radius);
+    background: var(--primary);
+    color: var(--button-text);
+    padding: var(--button-padding-y) var(--button-padding-x);
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--button-gap);
+    transition:
+      background .25s ease,
+      color .25s ease,
+      box-shadow .25s ease,
+      transform .2s ease;
+    box-shadow: var(--shadow-soft);
+    cursor: pointer;
+  }
+
+  .btn:not(:disabled):hover,
+  button[data-role="btn"]:not(:disabled):hover,
+  .orders-button:not(:disabled):hover {
+    background: color-mix(in srgb, var(--primary) 92%, #ffffff 8%);
+    transform: translateY(-1px);
+  }
+
+  .btn:active,
+  button[data-role="btn"]:active,
+  .orders-button:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn:disabled,
+  button[data-role="btn"]:disabled,
+  .orders-button:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    filter: grayscale(.12);
+  }
+
+  .btn:focus-visible,
+  button[data-role="btn"]:focus-visible,
+  .orders-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--ring) 80%, transparent 20%);
+    outline-offset: 2px;
+  }
+
+  /* ----- Variants ----- */
+  /* Primary (default) */
+  .btn--primary,
+  button[data-variant="primary"],
+  .orders-button--primary {
+    background: var(--primary);
+    color: var(--button-text);
+  }
+
+  .btn--primary:not(:disabled):hover,
+  button[data-variant="primary"]:not(:disabled):hover,
+  .orders-button--primary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--primary) 92%, #ffffff 8%);
+  }
+
+  /* Secondary */
+  .btn--secondary,
+  button[data-variant="secondary"],
+  .orders-button--secondary {
+    background: var(--secondary);
+    color: var(--primary-foreground, #ffffff);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn--secondary:not(:disabled):hover,
+  button[data-variant="secondary"]:not(:disabled):hover,
+  .orders-button--secondary:not(:disabled):hover {
+    background: color-mix(in srgb, var(--secondary) 92%, #ffffff 8%);
+    transform: translateY(-1px);
+  }
+
+  /* Accent */
+  .btn--accent,
+  button[data-variant="accent"],
+  .orders-button--accent {
+    background: var(--accent);
+    color: var(--accent-foreground, #0b0f16);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .btn--accent:not(:disabled):hover,
+  button[data-variant="accent"]:not(:disabled):hover,
+  .orders-button--accent:not(:disabled):hover {
+    background: color-mix(in srgb, var(--accent) 92%, #ffffff 8%);
+    transform: translateY(-1px);
+  }
+
+  /* Ghost */
+  .btn--ghost,
+  button[data-variant="ghost"],
+  .orders-button--ghost {
     background: transparent;
     color: var(--muted);
     border: 1px solid var(--border);
     box-shadow: none;
   }
 
-  button.ghost:not(:disabled):hover {
-    background: var(--surface);
-    color: var(--text);
-  }
-
-  button:disabled {
-    background: var(--button-disabled-bg);
-    color: var(--button-disabled-text);
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
-  }
-
-  .profile-sidebar__avatar-upload-button {
-    align-self: flex-start;
-    padding: 0.5rem 0.9rem;
-    border-radius: 999px;
-    border: 0;
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--primary) 95%, transparent 5%),
-      color-mix(in srgb, var(--accent) 92%, transparent 8%)
-    );
-    color: var(--button-text);
-    font-weight: 600;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .profile-sidebar__avatar-upload-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 20px 40px -28px color-mix(in srgb, var(--primary) 60%, transparent);
-  }
-
-  .profile-sidebar__avatar-upload-button:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--surface) 90%, #ffffff 10%);
-    outline-offset: 2px;
-  }
-
-  .profile-sidebar__avatar-reset {
-    margin-top: 12px;
-    align-self: flex-start;
-    border: 0;
-    background: none;
-    color: color-mix(in srgb, var(--text) 80%, transparent 20%);
-    font-size: 0.75rem;
-    padding: 0;
-    text-decoration: underline;
-    cursor: pointer;
-    transition: color 0.2s ease;
-  }
-
-  .profile-sidebar__avatar-reset:hover {
-    color: var(--text);
-  }
-
-  .profile-sidebar__avatar-reset:focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--surface) 90%, #ffffff 10%);
-    outline-offset: 2px;
-  }
-
-  .orders-button {
-    align-self: flex-start;
-    padding: 0.65rem 1.2rem;
-    border-radius: 999px;
-    border: none;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--primary) 85%, transparent 15%),
-      color-mix(in srgb, var(--accent) 85%, transparent 15%)
-    );
-    color: var(--button-text);
-  }
-
-  .orders-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 12px 24px -18px color-mix(in srgb, var(--primary) 55%, transparent);
-  }
-
-  .orders-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
-  }
-
-  .orders-button--secondary {
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--warning) 80%, transparent 20%),
-      color-mix(in srgb, var(--destructive) 55%, transparent 45%)
-    );
-    color: color-mix(in srgb, var(--primary-foreground) 92%, #ffffff 8%);
-  }
-
-  .orders-button--accent {
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--primary) 90%, transparent 10%),
-      color-mix(in srgb, var(--accent) 90%, transparent 10%)
-    );
-  }
-
-  .orders-button--ghost {
-    background: transparent;
-    border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent 55%);
-    color: color-mix(in srgb, var(--primary) 95%, var(--text) 5%);
-  }
-
-  .orders-button--ghost:hover {
+  .btn--ghost:not(:disabled):hover,
+  button[data-variant="ghost"]:not(:disabled):hover,
+  .orders-button--ghost:not(:disabled):hover {
+    background: color-mix(in srgb, var(--muted) 10%, transparent 90%);
     transform: none;
     box-shadow: none;
+  }
+
+  /* Destructive */
+  .btn--destructive,
+  button[data-variant="destructive"],
+  .orders-button--destructive {
+    background: var(--destructive);
+    color: var(--destructive-foreground, #fff);
+  }
+
+  .btn--destructive:not(:disabled):hover,
+  button[data-variant="destructive"]:not(:disabled):hover,
+  .orders-button--destructive:not(:disabled):hover {
+    background: color-mix(in srgb, var(--destructive) 90%, #ffffff 10%);
+  }
+
+  /* ----- Sizes ----- */
+  .btn--sm,
+  button[data-size="sm"],
+  .orders-button--sm {
+    padding: calc(var(--button-padding-y) * .8) calc(var(--button-padding-x) * .85);
+    font-size: .9em;
+  }
+
+  .btn--lg,
+  button[data-size="lg"],
+  .orders-button--lg {
+    padding: calc(var(--button-padding-y) * 1.15) calc(var(--button-padding-x) * 1.15);
+    font-size: 1.05em;
   }
 }
