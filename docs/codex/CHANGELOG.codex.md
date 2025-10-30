@@ -2,6 +2,7 @@
 
 ## 2025-10-30
 
+- Hardened the market realtime stack with a temporary events endpoint, websocket proxy upgrades, and Telegram Mini App guards. See DIFF entry “2025-10-30 – commit TBD (market realtime hardening)”.
 - Migrated the billing wallet actions to the shared UI kit button component to restore theming and hover states on both light and dark themes. See DIFF entry “2025-10-30 – commit TBD (billing buttons ui kit)”.
 
 ## 2025-10-29
