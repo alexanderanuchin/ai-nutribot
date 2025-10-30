@@ -44,9 +44,7 @@
   /* ----- Modern API (safe with UI kits) ----- */
   /* Base */
   .btn,
-  button[data-role="btn"],
-  /* Legacy aliasing to avoid breaking existing pages */
-  .orders-button {
+  button[data-role="btn"] {
     border: 0;
     border-radius: var(--button-radius);
     background: var(--primary);
@@ -67,30 +65,26 @@
   }
 
   .btn:not(:disabled):hover,
-  button[data-role="btn"]:not(:disabled):hover,
-  .orders-button:not(:disabled):hover {
+  button[data-role="btn"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--primary) 92%, #ffffff 8%);
     transform: translateY(-1px);
   }
 
   .btn:active,
-  button[data-role="btn"]:active,
-  .orders-button:active {
+  button[data-role="btn"]:active {
     transform: translateY(0);
     box-shadow: var(--shadow-soft);
   }
 
   .btn:disabled,
-  button[data-role="btn"]:disabled,
-  .orders-button:disabled {
+  button[data-role="btn"]:disabled {
     opacity: .6;
     cursor: not-allowed;
     filter: grayscale(.12);
   }
 
   .btn:focus-visible,
-  button[data-role="btn"]:focus-visible,
-  .orders-button:focus-visible {
+  button[data-role="btn"]:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--ring) 80%, transparent 20%);
     outline-offset: 2px;
   }
@@ -98,54 +92,47 @@
   /* ----- Variants ----- */
   /* Primary (default) */
   .btn--primary,
-  button[data-variant="primary"],
-  .orders-button--primary {
+  button[data-variant="primary"] {
     background: var(--primary);
     color: var(--button-text);
   }
 
   .btn--primary:not(:disabled):hover,
-  button[data-variant="primary"]:not(:disabled):hover,
-  .orders-button--primary:not(:disabled):hover {
+  button[data-variant="primary"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--primary) 92%, #ffffff 8%);
   }
 
   /* Secondary */
   .btn--secondary,
-  button[data-variant="secondary"],
-  .orders-button--secondary {
+  button[data-variant="secondary"] {
     background: var(--secondary);
     color: var(--primary-foreground, #ffffff);
     box-shadow: var(--shadow-soft);
   }
 
   .btn--secondary:not(:disabled):hover,
-  button[data-variant="secondary"]:not(:disabled):hover,
-  .orders-button--secondary:not(:disabled):hover {
+  button[data-variant="secondary"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--secondary) 92%, #ffffff 8%);
     transform: translateY(-1px);
   }
 
   /* Accent */
   .btn--accent,
-  button[data-variant="accent"],
-  .orders-button--accent {
+  button[data-variant="accent"] {
     background: var(--accent);
     color: var(--accent-foreground, #0b0f16);
     box-shadow: var(--shadow-soft);
   }
 
   .btn--accent:not(:disabled):hover,
-  button[data-variant="accent"]:not(:disabled):hover,
-  .orders-button--accent:not(:disabled):hover {
+  button[data-variant="accent"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--accent) 92%, #ffffff 8%);
     transform: translateY(-1px);
   }
 
   /* Ghost */
   .btn--ghost,
-  button[data-variant="ghost"],
-  .orders-button--ghost {
+  button[data-variant="ghost"] {
     background: transparent;
     color: var(--muted);
     border: 1px solid var(--border);
@@ -153,8 +140,7 @@
   }
 
   .btn--ghost:not(:disabled):hover,
-  button[data-variant="ghost"]:not(:disabled):hover,
-  .orders-button--ghost:not(:disabled):hover {
+  button[data-variant="ghost"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--muted) 10%, transparent 90%);
     transform: none;
     box-shadow: none;
@@ -162,29 +148,25 @@
 
   /* Destructive */
   .btn--destructive,
-  button[data-variant="destructive"],
-  .orders-button--destructive {
+  button[data-variant="destructive"] {
     background: var(--destructive);
     color: var(--destructive-foreground, #fff);
   }
 
   .btn--destructive:not(:disabled):hover,
-  button[data-variant="destructive"]:not(:disabled):hover,
-  .orders-button--destructive:not(:disabled):hover {
+  button[data-variant="destructive"]:not(:disabled):hover {
     background: color-mix(in srgb, var(--destructive) 90%, #ffffff 10%);
   }
 
   /* ----- Sizes ----- */
   .btn--sm,
-  button[data-size="sm"],
-  .orders-button--sm {
+  button[data-size="sm"] {
     padding: calc(var(--button-padding-y) * .8) calc(var(--button-padding-x) * .85);
     font-size: .9em;
   }
 
   .btn--lg,
-  button[data-size="lg"],
-  .orders-button--lg {
+  button[data-size="lg"] {
     padding: calc(var(--button-padding-y) * 1.15) calc(var(--button-padding-x) * 1.15);
     font-size: 1.05em;
   }

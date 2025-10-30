@@ -1,5 +1,15 @@
 # Codex Diff Journal
 
+## 2025-10-30 – commit TBD (billing buttons ui kit)
+
+Summary: Swap the billing actions to the new UI kit button component and delete the legacy `.orders-button` styles so dark and light themes render consistently.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/Orders.tsx | Replace legacy `<button>` markup with the shared Button component, add action state tracking, and wire loading indicators for billing operations. | frontend | no |
+| modify | frontend/src/styles/components/buttons.css | Remove the `.orders-button` aliases now that the billing page uses the UI kit components exclusively. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Record the UI kit button migration for the billing actions. | docs | no |
+
 ## 2025-10-29 – commit TBD (grid shimmer dark override)
 
 Summary: Lock the grid shimmer canvas palette to component-scoped values so the night theme no longer recolors the animation.

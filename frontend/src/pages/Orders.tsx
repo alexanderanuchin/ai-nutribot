@@ -14,6 +14,7 @@ import { debugLog, generateRequestId, warnLog } from '../lib/logging'
 import { sendApplicationLog } from '../lib/monitoring'
 import { useAuthContext } from '../providers/AuthProvider'
 import { useLegacyStyles } from '../hooks/useLegacyStyles'
+import { Button } from '../components/ui'
 
 interface OperationFormState {
   currency: WalletCurrency
@@ -59,6 +60,8 @@ export default function Orders(): JSX.Element {
     pay_with_wallet: true,
     description: 'Подписка на PRO-доступ',
   })
+  const [activeAction, setActiveAction] = useState<'topup' | 'withdraw' | 'order' | 'pay' | null>(null)
+  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null)
   const lastTopupAttemptRef = useRef<{ rid: string; expiresAt: number } | null>(null)
   const topupReleaseTimerRef = useRef<number | null>(null)
   const isMountedRef = useRef(true)
@@ -70,6 +73,7 @@ export default function Orders(): JSX.Element {
     }
     lastTopupAttemptRef.current = null
     setSubmitting(false)
+    setActiveAction(prev => (prev === 'topup' ? null : prev))
   }, [])
 
   const scheduleTopupRelease = useCallback((rid: string) => {
@@ -86,6 +90,7 @@ export default function Orders(): JSX.Element {
         lastTopupAttemptRef.current = null
         topupReleaseTimerRef.current = null
         setSubmitting(false)
+        setActiveAction(prev => (prev === 'topup' ? null : prev))
       }
     }, TOPUP_SUBMIT_LOCK_MS)
   }, [])
@@ -197,6 +202,9 @@ export default function Orders(): JSX.Element {
   const baseOperationsDisabled = useMemo(() => submitting || !authReady, [authReady, submitting])
   const starsPurchaseBlocked = summary?.flags?.stars_purchase_blocked ?? false
   const topupDisabled = baseOperationsDisabled || starsPurchaseBlocked
+  const isTopupSubmitting = submitting && activeAction === 'topup'
+  const isWithdrawSubmitting = submitting && activeAction === 'withdraw'
+  const isOrderSubmitting = submitting && activeAction === 'order'
 
   const handleTopUpSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -250,6 +258,7 @@ export default function Orders(): JSX.Element {
     }
     const rid = generateRequestId()
     lastTopupAttemptRef.current = { rid, expiresAt: Date.now() + TOPUP_SUBMIT_LOCK_MS }
+    setActiveAction('topup')
     setSubmitting(true)
     setError(null)
     const trimmedComment = topupForm.description.trim()
@@ -351,6 +360,7 @@ export default function Orders(): JSX.Element {
       setError('Введите корректную сумму для списания')
       return
     }
+    setActiveAction('withdraw')
     setSubmitting(true)
     setError(null)
     try {
@@ -380,6 +390,7 @@ export default function Orders(): JSX.Element {
       }
     } finally {
       setSubmitting(false)
+      setActiveAction(null)
     }
   }
 
@@ -390,6 +401,7 @@ export default function Orders(): JSX.Element {
       setError('Введите корректную сумму заказа')
       return
     }
+    setActiveAction('order')
     setSubmitting(true)
     setError(null)
     try {
@@ -408,10 +420,13 @@ export default function Orders(): JSX.Element {
       setError(typeof detail === 'string' ? detail : 'Не удалось создать заказ. Попробуйте ещё раз.')
     } finally {
       setSubmitting(false)
+      setActiveAction(null)
     }
   }
 
   const handlePayOrder = async (orderId: number) => {
+    setActiveAction('pay')
+    setPendingPaymentId(orderId)
     setSubmitting(true)
     setError(null)
     try {
@@ -424,6 +439,8 @@ export default function Orders(): JSX.Element {
       setError(typeof detail === 'string' ? detail : 'Не удалось оплатить заказ из кошелька.')
     } finally {
       setSubmitting(false)
+      setActiveAction(null)
+      setPendingPaymentId(null)
     }
   }
 
@@ -515,9 +532,9 @@ export default function Orders(): JSX.Element {
                 Пополнение Stars временно отключено Telegram для вашего региона.
               </div>
             )}
-            <button type="submit" className="orders-button" disabled={topupDisabled}>
+            <Button type="submit" variant="primary" size="md" className="w-full" disabled={topupDisabled} loading={isTopupSubmitting}>
               Пополнить
-            </button>
+            </Button>
           </form>
 
           <form className="orders-form" onSubmit={handleWithdrawSubmit}>
@@ -554,9 +571,16 @@ export default function Orders(): JSX.Element {
                 disabled={baseOperationsDisabled}
               />
             </label>
-            <button type="submit" className="orders-button orders-button--secondary" disabled={baseOperationsDisabled}>
+            <Button
+              type="submit"
+              variant="secondary"
+              size="md"
+              className="w-full"
+              disabled={baseOperationsDisabled}
+              loading={isWithdrawSubmitting}
+            >
               Списать
-            </button>
+            </Button>
           </form>
 
           <form className="orders-form" onSubmit={handleOrderSubmit}>
@@ -612,9 +636,9 @@ export default function Orders(): JSX.Element {
                 disabled={submitting}
               />
             </label>
-            <button type="submit" className="orders-button orders-button--accent" disabled={submitting}>
+            <Button type="submit" variant="success" size="md" className="w-full" disabled={submitting} loading={isOrderSubmitting}>
               Создать заказ
-            </button>
+            </Button>
           </form>
         </section>
 
@@ -661,14 +685,17 @@ export default function Orders(): JSX.Element {
                       </div>
                     </div>
                     {canPay && (
-                      <button
+                      <Button
                         type="button"
-                        className="orders-button orders-button--ghost"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
                         onClick={() => handlePayOrder(order.id)}
                         disabled={submitting}
+                        loading={submitting && activeAction === 'pay' && pendingPaymentId === order.id}
                       >
                         Оплатить из кошелька
-                      </button>
+                      </Button>
                     )}
                   </li>
                 )

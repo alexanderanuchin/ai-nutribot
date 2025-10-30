@@ -3,6 +3,7 @@ import { register, login, checkPhone, checkEmail } from '../api/auth'
 import { useNavigate, Link } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
 import { useLegacyStyles } from '../hooks/useLegacyStyles'
+import { Button } from '../components/ui'
 
 export default function Register(){
   useLegacyStyles()
@@ -183,7 +184,14 @@ export default function Register(){
         </div>
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
-          <button type="submit" disabled={loading || !isFormValid}>{loading?'Регистрируем…':'Зарегистрироваться'}</button>
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={loading || !isFormValid}
+            className="w-full justify-center"
+          >
+            {loading ? 'Регистрируем…' : 'Зарегистрироваться'}
+          </Button>
         </div>
       </form>
       <div className="hr"></div>

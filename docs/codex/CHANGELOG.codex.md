@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-10-30
+
+- Migrated the billing wallet actions to the shared UI kit button component to restore theming and hover states on both light and dark themes. See DIFF entry “2025-10-30 – commit TBD (billing buttons ui kit)”.
+
 ## 2025-10-29
 
 - Scoped the grid shimmer canvas palette so the dark theme no longer shifts its neon colors. See DIFF entry “2025-10-29 – commit TBD (grid shimmer dark override)”.

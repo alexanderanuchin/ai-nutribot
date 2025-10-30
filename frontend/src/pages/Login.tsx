@@ -5,6 +5,7 @@ import type { Location } from 'react-router-dom'
 import { formatPhoneInput } from '../utils/phone'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLegacyStyles } from '../hooks/useLegacyStyles'
+import { Button, SegmentedControl } from '../components/ui'
 
 type LoginMode = 'phone' | 'email'
 
@@ -110,7 +111,9 @@ export default function Login(){
         <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" />
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
-          <button type="submit" disabled={loading}>{loading?'Входим…':'Войти'}</button>
+          <Button type="submit" loading={loading} disabled={loading} className="w-full justify-center">
+            {loading ? 'Входим…' : 'Войти'}
+          </Button>
         </div>
       </form>
       <div className="small" style={{marginTop:10}}><Link to="/forgot-password">Забыли пароль?</Link></div>

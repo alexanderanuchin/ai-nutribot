@@ -5,6 +5,7 @@ import Lottie from 'lottie-react'
 import sendAnimation from '../assets/send-message.json'
 import successAnimation from '../assets/animation.json'
 import { useLegacyStyles } from '../hooks/useLegacyStyles'
+import { Button } from '../components/ui'
 
 export default function ResetPassword(){
   useLegacyStyles()
@@ -57,7 +58,9 @@ export default function ResetPassword(){
         <input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoFocus />
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
-          <button type="submit" disabled={loading}>{loading?'Сохраняем…':'Сохранить'}</button>
+          <Button type="submit" loading={loading} disabled={loading} className="w-full justify-center">
+            {loading ? 'Сохраняем…' : 'Сохранить'}
+          </Button>
         </div>
       </form>
     </div>

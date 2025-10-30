@@ -5,6 +5,7 @@ import sendAnimation from '../assets/send-message.json'
 import successAnimation from '../assets/animation.json'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLegacyStyles } from '../hooks/useLegacyStyles'
+import { Button } from '../components/ui'
 
 export default function ForgotPassword(){
   useLegacyStyles()
@@ -108,7 +109,9 @@ export default function ForgotPassword(){
         )}
         {error && <div className="small" style={{color:'#ff8b8b'}}>{error}</div>}
         <div className="form-actions" style={{marginTop:10}}>
-          <button type="submit" disabled={loading}>{loading?'Отправляем…':'Отправить'}</button>
+          <Button type="submit" loading={loading} disabled={loading} className="w-full justify-center">
+            {loading ? 'Отправляем…' : 'Отправить'}
+          </Button>
         </div>
       </form>
       <div className="hr" style={{marginTop:26}}></div>
