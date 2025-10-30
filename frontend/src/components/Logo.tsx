@@ -44,7 +44,7 @@ export default function Logo({ className }: LogoProps) {
       </g>
       <g transform="translate(200,102)">
         <text x="0" y="0" fontSize="68" fontWeight="800" fontFamily="Inter, 'SF Pro Display', Roboto, Helvetica, Arial, sans-serif">
-          <tspan fill="var(--brand-logo-cyan)">C</tspan>
+          <tspan fill="var(--brand-logo-cyan, var(--primary))">C</tspan>
           <tspan fill="var(--brand-logo-green)">a</tspan>
           <tspan fill="var(--brand-logo-yellow)">l</tspan>
           <tspan fill="var(--brand-logo-rose)">o</tspan>

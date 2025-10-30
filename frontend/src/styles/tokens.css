@@ -35,7 +35,9 @@
   --secondary-foreground-hsl: 215 31% 15%;
   --muted-hsl: 216 14% 42%;
   --muted-foreground-hsl: 220 19% 37%;
+  --accent: var(--success);
   --accent-hsl: 152 65% 50%;
+  --accent-foreground: hsl(var(--accent-foreground-hsl));
   --accent-foreground-hsl: 210 40% 98%;
   --destructive-hsl: 0 62% 50%;
   --destructive-foreground-hsl: 210 40% 98%;
@@ -103,7 +105,9 @@
   --secondary-foreground-hsl: 220 23% 92%;
   --muted-hsl: 218 9% 66%;
   --muted-foreground-hsl: 218 9% 75%;
+  --accent: var(--success);
   --accent-hsl: 135 77% 75%;
+  --accent-foreground: hsl(var(--accent-foreground-hsl));
   --accent-foreground-hsl: 228 19% 5%;
   --destructive-hsl: 0 62% 52%;
   --destructive-foreground-hsl: 210 40% 98%;
@@ -115,7 +119,7 @@
 :root,
 [data-theme='dark'] {
   --brand-logo-blue: var(--primary);
-  --brand-logo-cyan: color-mix(in srgb, var(--primary) 35%, var(--accent) 65%);
+  --brand-logo-cyan: color-mix(in srgb, var(--primary) 35%, var(--accent, var(--primary)) 65%);
   --brand-logo-green: var(--success);
   --brand-logo-yellow: var(--warning);
   --brand-logo-rose: var(--destructive);
