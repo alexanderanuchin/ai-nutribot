@@ -45,7 +45,7 @@
 }
 
 /* Максимально сложная формула одной переменной (современные движки) */
-@supports (color: oklch(50% 0.2 150)) and (color: color-mix(in oklch, white, black)) {
+@supports (color: oklch(50% 0.2 150)) and (color: color-mix(in oklch, white, black)) and (color: color(from oklch(0.78 0.17 150) oklch l c h)) and (color: color(display-p3 0 1 0.6)) {
   :root {
     --primary: color-mix(
       in oklch,

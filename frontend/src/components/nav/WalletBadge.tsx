@@ -43,7 +43,7 @@ export function WalletBadge({ className }: WalletBadgeProps) {
             <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
             {isLoading ? <span className="animate-pulse">•••</span> : formatNumber(stars)}
           </span>
-          <span className="hidden items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-xs font-semibold text-accent-foreground md:flex">
+          <span className="hidden items-center gap-1 rounded-full bg-accent/30 px-2 py-1 text-xs font-semibold text-accent-foreground md:flex">
             <CoinsIcon className="h-3.5 w-3.5" aria-hidden="true" />
             {isLoading ? <span className="animate-pulse">•••</span> : formatNumber(calo)}
           </span>
