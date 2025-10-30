@@ -2,11 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import { tokenStore } from '../../../utils/storage'
 import type { MarketRealtimeEvent, MarketResource } from '../../../types/market'
-
-const RAW_EVENTS_URL = (import.meta.env as Record<string, string | undefined>).VITE_MARKET_EVENTS_URL
-const EVENTS_URL = typeof RAW_EVENTS_URL === 'string' && RAW_EVENTS_URL.trim().length > 0
-  ? RAW_EVENTS_URL.trim().replace(/\/$/, '')
-  : null
+import { resolveRealtimeHttpBase } from '../../../utils/realtime'
 
 const RESOURCE_TO_GROUP: Record<MarketResource, MarketRealtimeEvent['group']> = {
   recipes: 'market.recipes',
@@ -29,7 +25,6 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
     if (typeof window === 'undefined') return undefined
     const token = tokenStore.access
     if (!token) return undefined
-    if (!EVENTS_URL) return undefined
 
     let es: EventSource | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -66,8 +61,9 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
 
     const connect = () => {
       if (closed) return
+      const httpBase = resolveRealtimeHttpBase()
       const params = new URLSearchParams({ token, resource })
-      const url = `${EVENTS_URL}?${params.toString()}`
+      const url = `${httpBase}/v1/market/events/?${params.toString()}`
 
       es = new EventSource(url)
       const group = RESOURCE_TO_GROUP[resource]

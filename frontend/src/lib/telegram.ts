@@ -3,52 +3,33 @@ import { tokenStore } from '../utils/storage'
 import { debugLog, generateRequestId, maskToken, warnLog } from './logging'
 import { sendApplicationLog } from './monitoring'
 
-export function getWebAppRaw() {
-  if (typeof window === 'undefined') return null
-  return (window as any)?.Telegram?.WebApp ?? null
-}
-
-export function getWebAppSafe() {
-  const webApp = getWebAppRaw()
-  if (!webApp) return null
-  const unsafeUserId = webApp.initDataUnsafe?.user?.id
-  const hasUnsafeUserId =
-    typeof unsafeUserId === 'number' || (typeof unsafeUserId === 'string' && unsafeUserId.trim().length > 0)
-  const hasInitDataString = typeof webApp.initData === 'string' && webApp.initData.length > 0
-  const hasInitData = hasUnsafeUserId || hasInitDataString
-  const platform = typeof webApp.platform === 'string' ? webApp.platform : 'unknown'
-  const insideTelegram = platform !== 'unknown' && hasInitData
-  return insideTelegram ? webApp : null
+export function tg() {
+  return (window as any).Telegram?.WebApp
 }
 
 export function initTheme() {
-  const webApp = getWebAppSafe()
+  const webApp = tg()
   if (webApp) {
-    webApp.ready?.()
-    if (typeof document !== 'undefined') {
-      document.body.style.background = webApp.themeParams?.bg_color || '#0b0c10'
-    }
+    webApp.ready()
+    document.body.style.background = webApp.themeParams?.bg_color || '#0b0c10'
   }
 }
 
 export function getInitData(): string | null {
-  const webApp = getWebAppSafe()
+  const webApp = tg()
   return webApp?.initData || null
 }
 
 function logWebAppEnvironment(initData: string | null): void {
   if (typeof window === 'undefined') return
   const rid = generateRequestId()
-  const webAppRaw = getWebAppRaw()
-  const webAppSafe = getWebAppSafe()
-  const hasTelegram = Boolean(webAppRaw)
-  const insideTelegram = Boolean(webAppSafe)
+  const webApp = tg()
+  const hasTelegram = Boolean(webApp)
   const length = initData?.length ?? 0
   const preview = initData ? initData.slice(0, 16) : ''
   const url = window.location.href
   const payload = {
     hasTelegram,
-    insideTelegram,
     initDataLength: length,
     initDataPreview: preview,
     url,
@@ -161,7 +142,7 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
       hasRefresh: Boolean(refreshToken),
     },
   })
-  const webApp = getWebAppSafe()
+  const webApp = tg()
   if (webApp && typeof webApp.sendData === 'function') {
     try {
       debugLog('telegram/sendData', 'auth payload', {

@@ -1,25 +1,5 @@
 # Codex Diff Journal
 
-## 2025-10-30 – commit TBD (market realtime hardening)
-
-Summary: Stabilize the market realtime surface by serving a temporary events stub, hardening websocket transport, and guarding Telegram-only behaviors on the web client.
-
-| Action | Path | Reason | Impact | Restart/Migration |
-| --- | --- | --- | --- | --- |
-| create | backend/apps/market/views_events.py | Provide an authenticated placeholder response for `/api/v1/market/events/` so the SPA no longer receives 404 errors while the real feed is under construction. | backend | no |
-| modify | backend/apps/market/urls.py | Register the events stub route alongside existing market routers. | backend | no |
-| modify | backend/nutribot/settings.py | Normalize allowed host parsing, seed default CSRF origins, and default the channel layer to Redis to support websocket handshakes behind nginx. | backend | backend restart |
-| modify | infra/nginx.conf | Add a dedicated `/ws/` location with Upgrade headers for Channels websocket traffic. | infra | nginx reload |
-| modify | frontend/src/features/market/hooks/useMarketRealtime.ts | Skip the SSE poller unless an explicit `VITE_MARKET_EVENTS_URL` is configured, preventing spurious calls to the absent endpoint. | frontend | no |
-| modify | frontend/src/lib/telegram.ts | Gate Telegram WebApp helpers behind init data checks and avoid invoking Mini App APIs in a regular browser. | frontend | no |
-| modify | frontend/src/lib/monitoring.ts | Resolve init data through the safe Telegram guard to prevent bogus headers. | frontend | no |
-| modify | frontend/src/pages/Orders.tsx | Require a verified Telegram Mini App context before wiring invoice handlers, reducing user-facing errors outside Telegram. | frontend | no |
-| modify | frontend/src/pages/Feed.tsx | Disable vertical swipes only on supported Telegram versions and skip the call entirely when the Mini App context is absent. | frontend | no |
-| modify | frontend/src/components/ui/Sheet.tsx | Switch to `motion.create` and assign explicit keys to eliminate Framer/React warnings. | frontend | no |
-| modify | frontend/src/main.tsx | Opt into the React Router v7 future flags to silence migration warnings. | frontend | no |
-| modify | docs/codex/CHANGELOG.codex.md | Record the market realtime hardening work at a high level. | docs | no |
-| modify | docs/codex/DIFF.codex.md | Log the detailed artifact changes for this patch. | docs | no |
-
 ## 2025-10-30 – commit TBD (billing buttons ui kit)
 
 Summary: Swap the billing actions to the new UI kit button component and delete the legacy `.orders-button` styles so dark and light themes render consistently.

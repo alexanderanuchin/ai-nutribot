@@ -17,7 +17,6 @@ import type { FeedRealtimeEvent, FeedTab } from '../types/feed'
 import SearchBox from '../components/nav/SearchBox'
 import { useAuth } from '../hooks/useAuth'
 import { useTouchDevice } from '../hooks/useTouchDevice'
-import { getWebAppSafe } from '../lib/telegram'
 
 function buildDefaultScroll(): Record<FeedTab, number> {
   return {
@@ -276,17 +275,10 @@ export default function Feed() {
 
   // На время страницы блокируем вертикальные свайпы Telegram WebApp и «пробой» у body
   useEffect(() => {
-    const webApp = getWebAppSafe()
-    let swipesDisabled = false
+    const tg = (window as any)?.Telegram?.WebApp
     try {
-      webApp?.expand?.()
-      if (webApp) {
-        const versionValue = parseFloat(webApp.version ?? '0')
-        if (Number.isNaN(versionValue) || versionValue >= 6.1) {
-          webApp.disableVerticalSwipes?.()
-          swipesDisabled = true
-        }
-      }
+      tg?.expand?.()
+      tg?.disableVerticalSwipes?.()
     } catch {}
     let prevBodyOverscroll = ''
     if (typeof document !== 'undefined') {
@@ -295,9 +287,7 @@ export default function Feed() {
     }
     return () => {
       try {
-        if (swipesDisabled) {
-          webApp?.enableVerticalSwipes?.()
-        }
+        tg?.enableVerticalSwipes?.()
       } catch {}
       if (typeof document !== 'undefined') {
         document.body.style.overscrollBehaviorY = prevBodyOverscroll

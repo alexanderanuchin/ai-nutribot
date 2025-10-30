@@ -13,7 +13,6 @@ from .views import (
     RecipeViewSet,
     StoreViewSet,
 )
-from .views_events import MarketEventsView
 
 app_name = "market"
 
@@ -31,5 +30,4 @@ router.register("meal-plan-items", MealPlanItemViewSet, basename="market-meal-pl
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("events/", MarketEventsView.as_view(), name="market-events"),
 ]

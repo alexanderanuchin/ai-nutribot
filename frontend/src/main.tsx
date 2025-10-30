@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
 })
 
 createRoot(document.getElementById('root')!).render(
-  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider onLogout={performLogout}>

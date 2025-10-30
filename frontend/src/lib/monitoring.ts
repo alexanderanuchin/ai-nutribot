@@ -1,6 +1,5 @@
 import { tokenStore } from '../utils/storage'
 import { generateRequestId, isDebugLogsEnabled } from './logging'
-import { getWebAppSafe } from './telegram'
 
 const API_BASE = (import.meta.env.VITE_API_BASE || '/api').replace(/\/$/, '')
 const MONITORING_ENDPOINT = `${API_BASE}/monitoring/application/logs/`
@@ -64,6 +63,7 @@ export async function sendApplicationLog(payload: RemoteLogPayload): Promise<voi
 }
 
 function resolveInitData(): string | null {
-  const telegram = getWebAppSafe()
+  if (typeof window === 'undefined') return null
+  const telegram = (window as any)?.Telegram?.WebApp
   return telegram?.initData || null
 }

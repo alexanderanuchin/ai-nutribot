@@ -9,7 +9,7 @@ import {
   createTelegramStarsInvoice,
 } from '../api/orders'
 import type { WalletCurrency, WalletOrderRecord, WalletSummary, WalletTransactionRecord } from '../types'
-import { getWebAppSafe } from '../lib/telegram'
+import { tg } from '../lib/telegram'
 import { debugLog, generateRequestId, warnLog } from '../lib/logging'
 import { sendApplicationLog } from '../lib/monitoring'
 import { useAuthContext } from '../providers/AuthProvider'
@@ -136,7 +136,7 @@ export default function Orders(): JSX.Element {
   }, [authReady, loadData])
 
   useEffect(() => {
-    const webApp = getWebAppSafe()
+    const webApp = tg()
     if (!webApp || typeof webApp.onEvent !== 'function') {
       return
     }
@@ -230,7 +230,7 @@ export default function Orders(): JSX.Element {
       setError('Сумма Stars должна быть положительным целым числом')
       return
     }
-    const webApp = getWebAppSafe()
+    const webApp = tg()
     if (!webApp) {
       setError('Telegram WebApp недоступен. Откройте экран в Telegram-клиенте.')
       return

@@ -27,22 +27,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
-_DEFAULT_ALLOWED_HOSTS = {"backend", "localhost", "127.0.0.1", "[::1]"}
-
 
 def _parse_allowed_hosts(raw_value: str | None) -> list[str]:
-    hosts: set[str] = set()
-    if raw_value:
-        hosts = {host.strip() for host in raw_value.split(",") if host.strip()}
+    default_hosts = {"backend", "localhost", "127.0.0.1", "[::1]"}
+    if not raw_value:
+        return ["*"]
+    hosts = {host.strip() for host in raw_value.split(",") if host.strip()}
     if not hosts:
-        return sorted(_DEFAULT_ALLOWED_HOSTS)
+        return ["*"]
     if "*" in hosts:
         return ["*"]
-    return sorted(hosts | _DEFAULT_ALLOWED_HOSTS)
+    return sorted(hosts | default_hosts)
 
 
 ALLOWED_HOSTS = _parse_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
 
+CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 INSTALLED_APPS = [
@@ -106,13 +106,20 @@ TEMPLATES = [
 WSGI_APPLICATION = "nutribot.wsgi.application"
 ASGI_APPLICATION = "nutribot.asgi.application"
 
-_redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {"hosts": [_redis_url]},
+_redis_url = os.getenv("REDIS_URL", "")
+if _redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [_redis_url]},
+        }
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 USE_SQLITE_VALUE = os.getenv("USE_SQLITE")
 if USE_SQLITE_VALUE is None:
@@ -189,17 +196,7 @@ CORS_ALLOW_HEADERS = list(
         ]
     )
 )
-_explicit_csrf = [
-    origin.strip()
-    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
-    if origin.strip()
-]
-_default_csrf = {
-    "https://adversely-congruent-viper.cloudpub.ru",
-    "https://localhost",
-    "https://127.0.0.1",
-}
-CSRF_TRUSTED_ORIGINS = sorted({*CORS_ALLOWED_ORIGINS, *_explicit_csrf, *_default_csrf})
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
