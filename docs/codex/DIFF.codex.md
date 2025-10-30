@@ -1,5 +1,14 @@
 # Codex Diff Journal
 
+## 2025-10-29 – commit TBD (grid shimmer dark override)
+
+Summary: Lock the grid shimmer canvas palette to component-scoped values so the night theme no longer recolors the animation.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/GridShimmerCanvas.tsx | Apply component-only palette overrides and theme detection so the shimmer colors stay consistent in dark mode without touching global tokens. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Record the grid shimmer palette override for traceability. | docs | no |
+
 ## 2025-10-29 – commit TBD (auth legacy background)
 
 Summary: Ensure legacy auth background canvases and logo colors reuse the scoped base stylesheet without timing glitches.

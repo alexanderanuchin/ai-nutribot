@@ -30,13 +30,28 @@ type GridFront = {
   speed: number
 }
 
+type GridShimmerPalette = {
+  baseColor: string
+  glowColor: string
+}
+
+const LIGHT_PALETTE: GridShimmerPalette = {
+  baseColor: 'color-mix(in srgb, #1b2533 65%, transparent 35%)',
+  glowColor: 'color-mix(in srgb, #2d8cff 82%, #f8fbff 18%)',
+}
+
+const DARK_PALETTE: GridShimmerPalette = {
+  baseColor: 'color-mix(in srgb, #1b2533 65%, transparent 35%)',
+  glowColor: 'color-mix(in srgb, #00d9ff 92%, #f8fbff 8%)',
+}
+
 const DEFAULT_OPTIONS: GridShimmerOptions = {
   spacingX: 72,
   spacingY: 72,
   lineWidth: 1,
   baseAlpha: 1,
-  baseColor: 'var(--effect-grid-base)',
-  glowColor: 'var(--effect-grid-glow)',
+  baseColor: LIGHT_PALETTE.baseColor,
+  glowColor: LIGHT_PALETTE.glowColor,
   glowLineWidth: 2,
   glowBlur: 18,
   maxGlowAlpha: 0.9,
@@ -71,6 +86,7 @@ class GridShimmer {
   private lastPointerCell: { row: number; col: number } | null = null
   private themeObserver: MutationObserver | null = null
   private colorProbe: HTMLSpanElement | null = null
+  private currentTheme: 'light' | 'dark' = 'light'
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
     if (!this.cells.length) return
@@ -118,6 +134,8 @@ class GridShimmer {
 
     this.ctx = ctx
     this.opts = { ...DEFAULT_OPTIONS, ...opts }
+    this.currentTheme = this.detectTheme()
+    this.applyThemePalette(this.currentTheme)
     this.onResize = () => {
       this.resize()
       this.makeBaseGrid()
@@ -161,6 +179,7 @@ class GridShimmer {
   }
 
   private init(): void {
+    this.applyThemePalette(this.detectTheme())
     this.onResize()
     window.addEventListener('resize', this.onResize)
     const width = this.viewW
@@ -351,18 +370,47 @@ class GridShimmer {
     return this.colorProbe
   }
 
+  private detectTheme(): 'light' | 'dark' {
+    if (typeof document === 'undefined') {
+      return 'light'
+    }
+    const themeAttr = document.documentElement.getAttribute('data-theme')
+    if (themeAttr === 'dark' || themeAttr === 'light') {
+      return themeAttr
+    }
+    if (typeof window !== 'undefined' && 'matchMedia' in window) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+    return 'light'
+  }
+
+  private applyThemePalette(theme: 'light' | 'dark'): boolean {
+    const palette = theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE
+    const nextBase = palette.baseColor
+    const nextGlow = palette.glowColor
+    if (this.opts.baseColor === nextBase && this.opts.glowColor === nextGlow && this.currentTheme === theme) {
+      return false
+    }
+    this.opts.baseColor = nextBase
+    this.opts.glowColor = nextGlow
+    this.currentTheme = theme
+    return true
+  }
+
   private observeTheme(): void {
     if (typeof window === 'undefined' || typeof MutationObserver === 'undefined') {
       return
     }
     const root = document.documentElement
     const refresh = () => {
+      const changed = this.applyThemePalette(this.detectTheme())
+      if (!changed && this.running) {
+        return
+      }
+      this.makeBaseGrid()
       if (!this.running) {
         // ensure the base grid re-renders even before animation starts
-        this.makeBaseGrid()
         this.render()
-      } else {
-        this.makeBaseGrid()
       }
     }
     this.themeObserver = new MutationObserver(mutations => {
@@ -389,7 +437,6 @@ export default function GridShimmerCanvas(): JSX.Element {
     const shimmer = new GridShimmer(canvas, {
       spacingX: 72,
       spacingY: 72,
-      glowColor: 'var(--effect-grid-glow)',
       glowBlur: 18,
       glowLineWidth: 2,
       maxGlowAlpha: 0.9,
