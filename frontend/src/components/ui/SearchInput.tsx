@@ -26,7 +26,14 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(functi
   }, [onShortcut])
 
   return (
-    <div className={clsx('group relative flex w-full items-center gap-2 rounded-full border border-border/70 bg-card/95 px-4 py-2.5 shadow-level-1 transition focus-within:border-primary focus-within:shadow-level-2', className)}>
+    <div
+      className={clsx(
+        'group relative flex w-full items-center gap-2 rounded-full border border-border/70 bg-card/95 px-4 py-2.5 shadow-level-1 transition focus-within:border-primary focus-within:shadow-level-2',
+        'lg:rounded-[30px] lg:border-border/40 lg:bg-card/70 lg:px-6 lg:py-3 lg:shadow-[0_24px_72px_-48px_rgba(15,23,42,0.55)] lg:backdrop-blur',
+        'lg:before:pointer-events-none lg:before:absolute lg:before:inset-0 lg:before:-z-10 lg:before:rounded-[30px] lg:before:bg-[radial-gradient(circle_at_left,color-mix(in_srgb,var(--primary)_32%,transparent)_0%,transparent_60%)] lg:before:opacity-0 lg:before:transition-opacity lg:hover:before:opacity-60 lg:focus-within:before:opacity-80',
+        className,
+      )}
+    >
       <SearchIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
       <input
         ref={ref}
