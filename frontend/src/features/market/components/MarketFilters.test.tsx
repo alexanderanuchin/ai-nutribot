@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
 import { MARKET_FILTERS } from '../constants'
-import { MarketFiltersToolbar } from './MarketFilters'
+import { MarketFiltersSidebar } from './MarketFilters'
 
 describe('MarketFilters', () => {
   beforeAll(() => {
@@ -35,8 +35,7 @@ describe('MarketFilters', () => {
     const handleSort = vi.fn()
 
     render(
-      <MarketFiltersToolbar
-        layout="laptop"
+      <MarketFiltersSidebar
         resource="products"
         filters={MARKET_FILTERS.products}
         chipValue={{}}
@@ -56,7 +55,7 @@ describe('MarketFilters', () => {
     await user.click(screen.getByText(MARKET_FILTERS.products[0].label))
     expect(handleToggle).toHaveBeenCalledWith(MARKET_FILTERS.products[0].id, true)
 
-    await user.click(screen.getByText('Цена ↑'))
+    await user.click(screen.getByRole('radio', { name: 'Цена ↑' }))
     expect(handleSort).toHaveBeenCalledWith('price_asc')
   })
 })

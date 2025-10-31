@@ -1,5 +1,10 @@
 # Codex Changelog
 
+## 2025-11-04
+
+- Removed the duplicated market toolbar filters so only the sidebar/sheet experiences remain visible across breakpoints. See DIFF entry “2025-11-04 – commit TBD (market filters toolbar removal)”.
+
+
 ## 2025-11-03
 
 - Unblocked backend market search testing by dropping the hard gcld3 dependency and authenticating the DRF search tests via API client fixtures. See DIFF entry “2025-11-03 – commit TBD (market search test enablement)”.

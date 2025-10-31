@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { MARKET_FILTERS } from '../constants'
-import { MarketFiltersToolbar } from './MarketFilters'
+import { MarketFiltersMobileSheet, MarketFiltersSidebar } from './MarketFilters'
 
 const meta = {
-  title: 'Market/FiltersSheet',
-  component: MarketFiltersToolbar,
+  title: 'Market/Filters',
+  component: MarketFiltersSidebar,
 }
 
 export default meta
@@ -17,9 +17,31 @@ export const Products = () => {
   const [availability, setAvailability] = useState<'all' | 'available'>('all')
 
   return (
-    <div className="max-w-4xl space-y-4">
-      <MarketFiltersToolbar
-        layout="laptop"
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex flex-col gap-4">
+        <MarketFiltersMobileSheet
+          resource="products"
+          filters={MARKET_FILTERS.products}
+          chipValue={chips}
+          onToggleChip={(id, active) => setChips(prev => ({ ...prev, [id]: active }))}
+          onReset={() => {
+            setChips({})
+            setSort('recommended')
+            setPriceRange([0, 5000])
+            setRating(0)
+            setAvailability('all')
+          }}
+          sortValue={sort}
+          onSortChange={setSort}
+          priceRange={priceRange}
+          onPriceRangeChange={setPriceRange}
+          ratingValue={rating}
+          onRatingChange={setRating}
+          availability={availability}
+          onAvailabilityChange={setAvailability}
+        />
+      </div>
+      <MarketFiltersSidebar
         resource="products"
         filters={MARKET_FILTERS.products}
         chipValue={chips}

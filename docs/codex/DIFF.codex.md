@@ -1,5 +1,19 @@
 # Codex Diff Journal
 
+## 2025-11-04 – commit TBD (market filters toolbar removal)
+
+Summary: Retire the duplicated top-of-page market filters so the redesigned sidebar and sheet experiences remain the single source of truth across breakpoints.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Drop the legacy toolbar instance, keep the mobile sheet for sub-desktop layouts, and expose the sidebar filters on all wide screens. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.tsx | Delete the unused toolbar variant and streamline shared sort/range controls for the sidebar and sheet. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.test.tsx | Point the unit test at the sidebar component to reflect the surviving interaction contract. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.stories.tsx | Showcase the sidebar and sheet pair in Storybook instead of the removed toolbar. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the UI cleanup for traceability. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Record the toolbar removal diff entry. | docs | no |
+
+
 ## 2025-11-03 – commit TBD (market search test enablement)
 
 Summary: Restore backend installability and search coverage by making gcld3 optional and switching the market search API tests to JWT-aware API clients compatible with the DRF settings.

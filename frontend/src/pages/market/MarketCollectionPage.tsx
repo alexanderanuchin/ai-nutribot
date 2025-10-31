@@ -10,7 +10,6 @@ import MarketListSkeleton from '../../features/market/components/MarketListSkele
 import {
   MARKET_PRICE_LIMITS,
   MARKET_SORT_OPTIONS,
-  MarketFiltersToolbar,
   MarketFiltersSidebar,
   MarketFiltersMobileSheet,
 } from '../../features/market/components/MarketFilters'
@@ -238,7 +237,6 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const searchHandleRef = useRef<MarketSearchHandle | null>(null)
   const isTabletUp = useMediaQuery('(min-width: 768px)')
-  const isLaptopUp = useMediaQuery('(min-width: 1280px)')
   const isDesktopWide = useMediaQuery('(min-width: 1440px)')
 
   const cartTotals = useMarketCartStore(
@@ -479,8 +477,6 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     />
   )
 
-  const toolbarLayout: 'tablet' | 'laptop' | 'desktop' = isDesktopWide ? 'desktop' : isLaptopUp ? 'laptop' : 'tablet'
-
   const listContent = useMemo(() => {
     if (resource === 'stores') {
       return (
@@ -521,10 +517,9 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
         >
           <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
             {searchControl}
-            {isTabletUp ? <MarketFiltersToolbar layout={toolbarLayout} {...filterComponentProps} /> : null}
           </div>
         </MarketPageHeader>
-        {!isTabletUp ? (
+        {!isDesktopWide ? (
           <MarketFiltersMobileSheet
             {...filterComponentProps}
             open={filtersOpen}
@@ -571,14 +566,10 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
           <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
         </div>
         <aside className="hidden xl:block xl:sticky xl:top-28">
-          {isDesktopWide ? (
-            <div className="flex flex-col gap-6">
-              <MarketFiltersSidebar {...filterComponentProps} />
-              <FloatingSummary cart={cartTotals} plan={planTotals} />
-            </div>
-          ) : (
+          <div className="flex flex-col gap-6">
+            <MarketFiltersSidebar {...filterComponentProps} />
             <FloatingSummary cart={cartTotals} plan={planTotals} />
-          )}
+          </div>
         </aside>
       </div>
 
