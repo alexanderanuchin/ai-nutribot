@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-07
+
+- Moved the marketplace desktop search into the filter sidebar so laptop and monitor layouts align with the filter block design. See DIFF entry “2025-11-07 – commit TBD (market search sidebar placement)”.
+
 ## 2025-11-06
 
 - Released the market filters sheet overlay when closed so mobile/tablet navigation no longer lands on a locked dialog and added a regression test to guard the behavior. See DIFF entry “2025-11-06 – commit TBD (market filters sheet overlay release)”.

@@ -1,5 +1,17 @@
 # Codex Diff Journal
 
+## 2025-11-07 – commit TBD (market search sidebar placement)
+
+Summary: Embed the marketplace search control inside the desktop filter sidebar on laptop and monitor breakpoints so the layout
+matches the filter block design.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Render the search control inside the desktop filter sidebar while keeping the mobile/tablet placement intact. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.tsx | Accept an optional search control slot and surface the shared heading inside the sidebar card. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the search placement adjustment for traceability. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Record the desktop search relocation in the diff journal. | docs | no |
+
 ## 2025-11-06 – commit TBD (market filters sheet overlay release)
 
 Summary: Allow the Radix sheet portal to unmount while closed so mobile and tablet navigation lands on content instead of a locked filter overlay, and capture the regression with a focused test harness.

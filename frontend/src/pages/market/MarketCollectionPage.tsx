@@ -237,6 +237,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const searchHandleRef = useRef<MarketSearchHandle | null>(null)
   const isTabletUp = useMediaQuery('(min-width: 768px)')
+  const isLaptopUp = useMediaQuery('(min-width: 1280px)')
   const isDesktopWide = useMediaQuery('(min-width: 1440px)')
 
   const cartTotals = useMarketCartStore(
@@ -465,24 +466,35 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     ],
   )
 
-  const searchControl = isTabletUp ? (
-    <MarketSearch
-      ref={searchHandleRef}
-      resource={resource}
-      value={searchValue}
-      onSubmit={setSearchValue}
-      onQuickFilterSelect={handleQuickFilterSelect}
-    />
-  ) : (
-    <SearchInput
-      ref={searchInputRef}
-      value={searchValue}
-      onChange={event => setSearchValue(event.target.value)}
-      placeholder="Поиск по названию, ингредиентам или тегам"
-      onClear={() => setSearchValue('')}
-      className="max-w-full"
-    />
-  )
+  const renderSearchControl = useCallback(() => {
+    if (isTabletUp) {
+      return (
+        <MarketSearch
+          ref={searchHandleRef}
+          resource={resource}
+          value={searchValue}
+          onSubmit={setSearchValue}
+          onQuickFilterSelect={handleQuickFilterSelect}
+        />
+      )
+    }
+    return (
+      <SearchInput
+        ref={searchInputRef}
+        value={searchValue}
+        onChange={event => setSearchValue(event.target.value)}
+        placeholder="Поиск по названию, ингредиентам или тегам"
+        onClear={() => setSearchValue('')}
+        className="max-w-full"
+      />
+    )
+  }, [
+    handleQuickFilterSelect,
+    isTabletUp,
+    resource,
+    searchValue,
+    setSearchValue,
+  ])
 
   const listContent = useMemo(() => {
     if (resource === 'stores') {
@@ -522,9 +534,11 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
             ) : null
           }
         >
-          <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
-            {searchControl}
-          </div>
+          {!isLaptopUp ? (
+            <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
+              <div className="w-full">{renderSearchControl()}</div>
+            </div>
+          ) : null}
         </MarketPageHeader>
         {!isDesktopWide ? (
           <MarketFiltersMobileSheet
@@ -574,7 +588,10 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
         </div>
         <aside className="hidden xl:block xl:sticky xl:top-28">
           <div className="flex flex-col gap-6">
-            <MarketFiltersSidebar {...filterComponentProps} />
+            <MarketFiltersSidebar
+              {...filterComponentProps}
+              searchControl={isLaptopUp ? renderSearchControl() : undefined}
+            />
             <FloatingSummary cart={cartTotals} plan={planTotals} />
           </div>
         </aside>

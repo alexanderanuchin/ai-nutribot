@@ -1,4 +1,4 @@
-import { forwardRef, useMemo, useState } from 'react'
+import { forwardRef, useMemo, useState, type ReactNode } from 'react'
 import { FilterIcon, SparklesIcon } from 'lucide-react'
 
 import type { MarketResource } from '../../../types/market'
@@ -62,13 +62,14 @@ const RATING_CHOICES = [0, 3, 4, 4.5]
 
 export interface MarketFiltersSidebarProps extends MarketFiltersProps {
   title?: string
+  searchControl?: ReactNode
 }
 
 export const MarketFiltersSidebar = forwardRef<HTMLDivElement, MarketFiltersSidebarProps>(function MarketFiltersSidebar(
   props,
   ref,
 ) {
-  const { resource, filters, chipValue, onToggleChip, onReset } = props
+  const { resource, filters, chipValue, onToggleChip, onReset, searchControl } = props
   const sortOptions = MARKET_SORT_OPTIONS[resource]
   const [minPrice, maxPrice] = MARKET_PRICE_LIMITS[resource]
   const priceFormatter = useMemo(
@@ -83,6 +84,12 @@ export const MarketFiltersSidebar = forwardRef<HTMLDivElement, MarketFiltersSide
 
   return (
     <div ref={ref} className="flex flex-col gap-6 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-level-2 backdrop-blur">
+      {searchControl ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Поиск</span>
+          <div className="w-full">{searchControl}</div>
+        </div>
+      ) : null}
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Быстрые фильтры</span>
         <Button variant="ghost" size="sm" onClick={onReset}>
