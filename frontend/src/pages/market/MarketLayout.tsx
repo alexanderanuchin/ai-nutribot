@@ -8,7 +8,7 @@ export function MarketLayout() {
 
   return (
     <div
-      className="relative -mx-4 -mt-6 flex min-h-[min(100dvh,calc(100vh-3.5rem))] flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl sm:-mx-6 lg:-mx-10"
+      className="relative -mt-6 w-full flex min-h-[min(100dvh,calc(100vh-3.5rem))] flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl"
       style={{ ...safeArea, overscrollBehavior: 'contain' }}
     >
       <div className="flex flex-col gap-4 border-b border-border/60 bg-background/95/90 px-4 pb-4 pt-6 sm:px-6 lg:px-8">

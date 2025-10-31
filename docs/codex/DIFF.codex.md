@@ -1,5 +1,14 @@
 # Codex Diff Journal
 
+## 2025-10-31 – commit TBD (market layout spacing)
+
+Summary: Restore horizontal breathing room for the market shell so its border no longer collides with the dashboard rail on wide layouts or mobile safe areas.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/market/MarketLayout.tsx | Remove negative horizontal margins and enforce full-width layout so the market shell keeps consistent spacing from the dashboard rail and viewport edges. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Document the market layout spacing adjustment for traceability. | docs | no |
+
 ## 2025-10-30 – commit TBD (billing buttons ui kit)
 
 Summary: Swap the billing actions to the new UI kit button component and delete the legacy `.orders-button` styles so dark and light themes render consistently.
