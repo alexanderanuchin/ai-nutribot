@@ -445,33 +445,36 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
           ) : null
         }
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <SearchInput
-            ref={searchInputRef}
-            value={searchValue}
-            onChange={event => setSearchValue(event.target.value)}
-            placeholder="Поиск по названию, ингредиентам или тегам"
-            onClear={() => setSearchValue('')}
-            onShortcut={() => openPalette()}
-            className="max-w-full lg:max-w-md"
-          />
-          <MarketFilters
-            resource={resource}
-            filters={filterDefinitions}
-            chipValue={chipFilters}
-            onToggleChip={handleToggleFilter}
-            onReset={handleResetFilters}
-            sortValue={sortValue}
-            onSortChange={setSortValue}
-            priceRange={priceRange}
-            onPriceRangeChange={setPriceRange}
-            ratingValue={ratingValue}
-            onRatingChange={setRatingValue}
-            availability={availability}
-            onAvailabilityChange={setAvailability}
-            open={filtersOpen}
-            onOpenChange={setFiltersOpen}
-          />
+        <div className="flex flex-col gap-3 lg:gap-6">
+          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,380px)] lg:items-stretch lg:gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,420px)]">
+            <SearchInput
+              ref={searchInputRef}
+              value={searchValue}
+              onChange={event => setSearchValue(event.target.value)}
+              placeholder="Поиск по названию, ингредиентам или тегам"
+              onClear={() => setSearchValue('')}
+              onShortcut={() => openPalette()}
+              className="max-w-full lg:max-w-none"
+            />
+            <MarketFilters
+              resource={resource}
+              filters={filterDefinitions}
+              chipValue={chipFilters}
+              onToggleChip={handleToggleFilter}
+              onReset={handleResetFilters}
+              sortValue={sortValue}
+              onSortChange={setSortValue}
+              priceRange={priceRange}
+              onPriceRangeChange={setPriceRange}
+              ratingValue={ratingValue}
+              onRatingChange={setRatingValue}
+              availability={availability}
+              onAvailabilityChange={setAvailability}
+              open={filtersOpen}
+              onOpenChange={setFiltersOpen}
+              className="lg:flex lg:shadow-[0_28px_88px_-52px_rgba(15,23,42,0.55)]"
+            />
+          </div>
         </div>
       </MarketPageHeader>
 

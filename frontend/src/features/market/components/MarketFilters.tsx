@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { FilterIcon, SparklesIcon } from 'lucide-react'
+import clsx from 'clsx'
 
 import type { MarketResource } from '../../../types/market'
 import type { MarketFilterDefinition } from '../constants'
@@ -59,6 +60,7 @@ interface MarketFiltersProps {
   onAvailabilityChange: (value: 'all' | 'available') => void
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  className?: string
 }
 
 const RATING_CHOICES = [0, 3, 4, 4.5]
@@ -77,46 +79,66 @@ function DesktopFilters({
   onRatingChange,
   availability,
   onAvailabilityChange,
+  className,
 }: MarketFiltersProps) {
   const sortOptions = MARKET_SORT_OPTIONS[resource]
   const [minPrice, maxPrice] = MARKET_PRICE_LIMITS[resource]
   const priceFormatter = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 })
 
   return (
-    <div className="flex w-full flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {filters.map(filter => {
-          const selected = Boolean(chipValue[filter.id])
-          return (
-            <Chip
-              key={filter.id}
-              selected={selected}
-              onClick={() => onToggleChip(filter.id, !selected)}
-              tone={selected ? 'primary' : 'muted'}
-            >
-              {filter.label}
-            </Chip>
-          )
-        })}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          onClick={onReset}
-        >
-          Сбросить
-        </Button>
+    <div
+      className={clsx(
+        'group relative flex w-full flex-col gap-5 overflow-hidden rounded-[28px] border border-border/60 bg-card/70 p-5 text-foreground shadow-soft backdrop-blur lg:border-border/40 lg:bg-card/60 lg:p-6 lg:shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)]',
+        'before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(circle_at_top_right,color-mix(in_srgb,var(--primary)_28%,transparent)_0%,rgba(255,255,255,0)_55%)] before:opacity-60',
+        className,
+      )}
+    >
+      <div className="relative flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2 rounded-[22px] border border-border/50 bg-card/70 p-2.5 shadow-level-1 backdrop-blur-sm">
+          <div className="flex flex-wrap gap-2">
+            {filters.map(filter => {
+              const selected = Boolean(chipValue[filter.id])
+              return (
+                <Chip
+                  key={filter.id}
+                  selected={selected}
+                  onClick={() => onToggleChip(filter.id, !selected)}
+                  tone={selected ? 'primary' : 'muted'}
+                >
+                  {filter.label}
+                </Chip>
+              )
+            })}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto rounded-full px-4"
+            leadingIcon={<SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+            onClick={onReset}
+          >
+            Сбросить
+          </Button>
+        </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
-        <SegmentedControl
-          value={sortValue}
-          onValueChange={value => value && onSortChange(value)}
-          options={sortOptions}
-        />
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)_minmax(0,0.85fr)] xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)_minmax(0,260px)]">
+        <div className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-card/60 p-4 shadow-level-1">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
+            <span>Сортировка</span>
+            <span className="text-xs text-primary/70">
+              {sortOptions.find(option => option.value === sortValue)?.label ?? sortOptions[0]?.label}
+            </span>
+          </div>
+          <SegmentedControl
+            value={sortValue}
+            onValueChange={value => value && onSortChange(value)}
+            options={sortOptions}
+          />
+        </div>
+        <div className="flex flex-col gap-3 rounded-2xl border border-border/40 bg-card/60 p-4 shadow-level-1">
+          <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">
             <span>Диапазон</span>
-            <span>
+            <span className="text-xs text-foreground/80">
               {priceFormatter.format(priceRange[0])} — {priceFormatter.format(priceRange[1])}
             </span>
           </div>
@@ -128,37 +150,43 @@ function DesktopFilters({
             step={50}
           />
         </div>
-        <div className="flex items-center gap-2">
-          <ToggleGroupRoot
-            type="single"
-            value={ratingValue.toString()}
-            onValueChange={value => onRatingChange(Number(value) || 0)}
-            className="inline-flex rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
-            aria-label="Минимальный рейтинг"
-          >
-            {RATING_CHOICES.map(choice => (
-              <ToggleGroupItem key={choice} value={choice.toString()}>
-                {choice > 0 ? `${choice}+` : 'Все рейтинги'}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroupRoot>
-          <ToggleGroupRoot
-            type="single"
-            value={availability}
-            onValueChange={value => value && onAvailabilityChange(value as 'all' | 'available')}
-            className="inline-flex rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
-            aria-label="Доступность"
-          >
-            <ToggleGroupItem value="all">Все</ToggleGroupItem>
-            <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
-          </ToggleGroupRoot>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-card/60 p-4 shadow-level-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">Рейтинг</span>
+            <ToggleGroupRoot
+              type="single"
+              value={ratingValue.toString()}
+              onValueChange={value => onRatingChange(Number(value) || 0)}
+              className="inline-flex rounded-2xl border border-border/60 bg-background/60 p-1 shadow-level-1 backdrop-blur"
+              aria-label="Минимальный рейтинг"
+            >
+              {RATING_CHOICES.map(choice => (
+                <ToggleGroupItem key={choice} value={choice.toString()}>
+                  {choice > 0 ? `${choice}+` : 'Все рейтинги'}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroupRoot>
+          </div>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border/40 bg-card/60 p-4 shadow-level-1">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.35em] text-muted-foreground">Доступность</span>
+            <ToggleGroupRoot
+              type="single"
+              value={availability}
+              onValueChange={value => value && onAvailabilityChange(value as 'all' | 'available')}
+              className="inline-flex rounded-2xl border border-border/60 bg-background/60 p-1 shadow-level-1 backdrop-blur"
+              aria-label="Доступность"
+            >
+              <ToggleGroupItem value="all">Все</ToggleGroupItem>
+              <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
+            </ToggleGroupRoot>
+          </div>
         </div>
       </div>
     </div>
   )
 }
 
-function MobileFilters(props: MarketFiltersProps) {
+function MobileFilters({ className: _className, ...props }: MarketFiltersProps) {
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = props.open !== undefined
   const open = isControlled ? Boolean(props.open) : internalOpen

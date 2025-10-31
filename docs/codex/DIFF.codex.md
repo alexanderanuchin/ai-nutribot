@@ -1,5 +1,16 @@
 # Codex Diff Journal
 
+## 2025-10-31 – commit TBD (market premium filters)
+
+Summary: Elevate the market search and filter surface on larger screens with glassmorphic gradients and reorganized controls for a lighter, premium feel.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/features/market/components/MarketFilters.tsx | Restyle the desktop filter tray with layered cards, gradient accents, and refined control grouping while keeping mobile behavior intact. | frontend | no |
+| modify | frontend/src/components/ui/SearchInput.tsx | Add responsive glassmorphic treatments and hover lighting for the market search field on tablet and desktop. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Recompose the header layout so the enhanced desktop filters sit alongside the upgraded search input and remain mobile-friendly. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Record the premium market search and filter refresh for traceability. | docs | no |
+
 ## 2025-10-31 – commit TBD (market layout spacing)
 
 Summary: Restore horizontal breathing room for the market shell so its border no longer collides with the dashboard rail on wide layouts or mobile safe areas.
