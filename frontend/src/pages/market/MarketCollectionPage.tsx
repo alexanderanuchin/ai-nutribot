@@ -256,11 +256,18 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     setSortValue(MARKET_SORT_OPTIONS[resource][0]?.value ?? 'relevance')
     setSearchValue('')
     setBannerState({ count: 0, visible: false })
+    setFiltersOpen(false)
     if (hideBannerTimerRef.current) {
       clearTimeout(hideBannerTimerRef.current)
       hideBannerTimerRef.current = null
     }
   }, [resource])
+
+  useEffect(() => {
+    if (filtersOpen && isDesktopWide) {
+      setFiltersOpen(false)
+    }
+  }, [filtersOpen, isDesktopWide])
 
   const filterParams = useMemo(() => {
     const params: Record<string, string | number | boolean> = {}

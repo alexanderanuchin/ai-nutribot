@@ -23,12 +23,9 @@ export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(functi
 ) {
   const shouldReduceMotion = useReducedMotion()
   return (
-    <Dialog.Portal forceMount>
-      <AnimatePresence>
-        <Dialog.Overlay
-          forceMount
-          asChild
-        >
+    <Dialog.Portal>
+      <AnimatePresence initial={false}>
+        <Dialog.Overlay asChild>
           <motion.div
             className="fixed inset-0 z-40 bg-black/45 backdrop-blur-md"
             initial={{ opacity: 0 }}
@@ -38,7 +35,6 @@ export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(functi
         </Dialog.Overlay>
         <MotionContent
           ref={ref}
-          forceMount
           className={clsx(
             'fixed z-50 flex max-h-[92vh] w-full flex-col gap-4 rounded-t-3xl border border-border/60 bg-card/98 p-6 shadow-level-3 backdrop-blur-xl focus:outline-none md:w-[480px]',
             side === 'right' && 'right-4 top-4 h-[calc(100vh-2rem)] max-h-none rounded-3xl md:bottom-4',

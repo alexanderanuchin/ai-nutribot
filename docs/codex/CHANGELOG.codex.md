@@ -1,5 +1,13 @@
 # Codex Changelog
 
+## 2025-11-06
+
+- Released the market filters sheet overlay when closed so mobile/tablet navigation no longer lands on a locked dialog and added a regression test to guard the behavior. See DIFF entry “2025-11-06 – commit TBD (market filters sheet overlay release)”.
+
+## 2025-11-05
+
+- Stopped the market mobile/tablet navigation from opening directly inside the filters sheet by resetting the overlay when switching sections or breakpoints. See DIFF entry “2025-11-05 – commit TBD (market filters sheet gating)”.
+
 ## 2025-11-04
 
 - Removed the duplicated market toolbar filters so only the sidebar/sheet experiences remain visible across breakpoints. See DIFF entry “2025-11-04 – commit TBD (market filters toolbar removal)”.

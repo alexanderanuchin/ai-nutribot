@@ -1,5 +1,25 @@
 # Codex Diff Journal
 
+## 2025-11-06 – commit TBD (market filters sheet overlay release)
+
+Summary: Allow the Radix sheet portal to unmount while closed so mobile and tablet navigation lands on content instead of a locked filter overlay, and capture the regression with a focused test harness.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/ui/Sheet.tsx | Stop force-mounting the dialog overlay/content so the body scroll lock clears when the sheet is closed while preserving motion transitions. | frontend | no |
+| create | frontend/src/pages/market/MarketCollectionPage.test.tsx | Reproduce the mobile navigation flow and assert the filters sheet stays closed on initial render. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the overlay release fix and regression guard for traceability. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Record the overlay release adjustments in the diff journal. | docs | no |
+
+## 2025-11-05 – commit TBD (market filters sheet gating)
+
+Summary: Ensure marketplace sections load their content first on mobile and tablet by resetting the filter sheet state when switching categories or breakpoints.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Close the mobile filters sheet when entering a new section or widening to desktop so navigation no longer lands inside the overlay. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Record the filter sheet gating adjustment for traceability. | docs | no |
+
 ## 2025-11-04 – commit TBD (market filters toolbar removal)
 
 Summary: Retire the duplicated top-of-page market filters so the redesigned sidebar and sheet experiences remain the single source of truth across breakpoints.
