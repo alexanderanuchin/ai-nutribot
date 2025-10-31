@@ -6,6 +6,7 @@ import type {
   MarketProduct,
   MarketRecipe,
   MarketResource,
+  MarketSearchResponse,
   MarketStore,
 } from '../types/market'
 
@@ -85,4 +86,36 @@ export async function addProductToCart(payload: AddProductToCartPayload): Promis
 
 export async function addRecipeToPlan(payload: AddRecipeToPlanPayload): Promise<void> {
   await api.post('/v1/market/plan/', payload)
+}
+
+export interface MarketSearchOptions {
+  query?: string
+  resource?: 'all' | MarketResource
+  limit?: number
+  filters?: Record<string, string | number | boolean | Array<string | number | boolean>>
+}
+
+export async function searchMarket(options: MarketSearchOptions): Promise<MarketSearchResponse> {
+  const params: Record<string, unknown> = {}
+  if (options.query && options.query.trim()) {
+    params.q = options.query.trim()
+  }
+  if (options.resource) {
+    params.resource = options.resource
+  }
+  if (options.limit) {
+    params.limit = options.limit
+  }
+  if (options.filters) {
+    Object.entries(options.filters).forEach(([key, value]) => {
+      if (value === undefined || value === null) return
+      if (Array.isArray(value)) {
+        params[key] = value.join(',')
+        return
+      }
+      params[key] = value
+    })
+  }
+  const { data } = await api.get<MarketSearchResponse>('/v1/market/search/', { params })
+  return data
 }

@@ -7,10 +7,14 @@ import clsx from 'clsx'
 import { fetchMarketCollection, type MarketCollectionItemMap, type MarketResource } from '../../api/market'
 import { useMarketRealtime } from '../../features/market/hooks/useMarketRealtime'
 import MarketListSkeleton from '../../features/market/components/MarketListSkeleton'
-import MarketFilters, {
+import {
   MARKET_PRICE_LIMITS,
   MARKET_SORT_OPTIONS,
+  MarketFiltersToolbar,
+  MarketFiltersSidebar,
+  MarketFiltersMobileSheet,
 } from '../../features/market/components/MarketFilters'
+import MarketSearch, { MarketSearchHandle } from '../../features/market/components/MarketSearch'
 import MarketPageHeader from '../../features/market/components/MarketPageHeader'
 import RecipeCard from '../../features/market/cards/RecipeCard'
 import ProductCard from '../../features/market/cards/ProductCard'
@@ -22,7 +26,7 @@ import {
   MARKET_RESOURCE_TITLE,
 } from '../../features/market/constants'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
-import { useCommandPalette } from '../../hooks/useCommandPalette'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useMarketCartStore, selectCartTotals } from '../../features/market/stores/cartStore'
 import { useMarketPlanStore, selectPlanTotals } from '../../features/market/stores/planStore'
 import { useSafeArea } from '../../hooks/useSafeArea'
@@ -33,6 +37,7 @@ import {
   EmptyState,
   SearchInput,
 } from '../../components/ui'
+import type { MarketQuickFilter } from '../../types/market'
 
 interface MarketCollectionPageProps<T extends MarketResource> {
   resource: T
@@ -231,7 +236,10 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   const hideBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
-  const { openPalette } = useCommandPalette()
+  const searchHandleRef = useRef<MarketSearchHandle | null>(null)
+  const isTabletUp = useMediaQuery('(min-width: 768px)')
+  const isLaptopUp = useMediaQuery('(min-width: 1280px)')
+  const isDesktopWide = useMediaQuery('(min-width: 1440px)')
 
   const cartTotals = useMarketCartStore(
     selectCartTotals,
@@ -363,6 +371,16 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     setSortValue(MARKET_SORT_OPTIONS[resource][0]?.value ?? 'relevance')
   }, [resource])
 
+  const handleQuickFilterSelect = useCallback(
+    (filter: MarketQuickFilter) => {
+      if (filter.resource !== resource) return
+      const target = filterDefinitions.find(definition => definition.id === filter.id)
+      if (!target) return
+      setChipFilters(state => ({ ...state, [target.id]: true }))
+    },
+    [filterDefinitions, resource],
+  )
+
   useMarketRealtime({
     resource,
     onEvent: event => {
@@ -413,6 +431,56 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     setBannerState({ count: 0, visible: false })
   }, [refetch])
 
+  const filterComponentProps = useMemo(
+    () => ({
+      resource,
+      filters: filterDefinitions,
+      chipValue: chipFilters,
+      onToggleChip: handleToggleFilter,
+      onReset: handleResetFilters,
+      sortValue,
+      onSortChange: setSortValue,
+      priceRange,
+      onPriceRangeChange: setPriceRange,
+      ratingValue,
+      onRatingChange: setRatingValue,
+      availability,
+      onAvailabilityChange: setAvailability,
+    }),
+    [
+      resource,
+      filterDefinitions,
+      chipFilters,
+      handleToggleFilter,
+      handleResetFilters,
+      sortValue,
+      priceRange,
+      ratingValue,
+      availability,
+    ],
+  )
+
+  const searchControl = isTabletUp ? (
+    <MarketSearch
+      ref={searchHandleRef}
+      resource={resource}
+      value={searchValue}
+      onSubmit={setSearchValue}
+      onQuickFilterSelect={handleQuickFilterSelect}
+    />
+  ) : (
+    <SearchInput
+      ref={searchInputRef}
+      value={searchValue}
+      onChange={event => setSearchValue(event.target.value)}
+      placeholder="Поиск по названию, ингредиентам или тегам"
+      onClear={() => setSearchValue('')}
+      className="max-w-full"
+    />
+  )
+
+  const toolbarLayout: 'tablet' | 'laptop' | 'desktop' = isDesktopWide ? 'desktop' : isLaptopUp ? 'laptop' : 'tablet'
+
   const listContent = useMemo(() => {
     if (resource === 'stores') {
       return (
@@ -436,44 +504,34 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
 
   return (
     <div className="flex flex-col gap-6 pb-28 lg:pb-16">
-      <MarketPageHeader
-        title={MARKET_RESOURCE_TITLE[resource]}
-        description={MARKET_RESOURCE_DESCRIPTION[resource]}
-        action={
-          totalAvailable ? (
-            <Badge tone="primary">{totalAvailable.toLocaleString('ru-RU')} {MARKET_RESOURCE_LABELS[resource]}</Badge>
-          ) : null
-        }
+      <div
+        className={clsx(
+          'flex flex-col gap-4',
+          isDesktopWide ? 'xl:sticky xl:top-20 xl:z-30 xl:bg-background/95 xl:backdrop-blur xl:pt-3 xl:pb-4 xl:shadow-level-2/20' : '',
+        )}
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <SearchInput
-            ref={searchInputRef}
-            value={searchValue}
-            onChange={event => setSearchValue(event.target.value)}
-            placeholder="Поиск по названию, ингредиентам или тегам"
-            onClear={() => setSearchValue('')}
-            onShortcut={() => openPalette()}
-            className="max-w-full lg:max-w-md"
-          />
-          <MarketFilters
-            resource={resource}
-            filters={filterDefinitions}
-            chipValue={chipFilters}
-            onToggleChip={handleToggleFilter}
-            onReset={handleResetFilters}
-            sortValue={sortValue}
-            onSortChange={setSortValue}
-            priceRange={priceRange}
-            onPriceRangeChange={setPriceRange}
-            ratingValue={ratingValue}
-            onRatingChange={setRatingValue}
-            availability={availability}
-            onAvailabilityChange={setAvailability}
+        <MarketPageHeader
+          title={MARKET_RESOURCE_TITLE[resource]}
+          description={MARKET_RESOURCE_DESCRIPTION[resource]}
+          action={
+            totalAvailable ? (
+              <Badge tone="primary">{totalAvailable.toLocaleString('ru-RU')} {MARKET_RESOURCE_LABELS[resource]}</Badge>
+            ) : null
+          }
+        >
+          <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
+            {searchControl}
+            {isTabletUp ? <MarketFiltersToolbar layout={toolbarLayout} {...filterComponentProps} /> : null}
+          </div>
+        </MarketPageHeader>
+        {!isTabletUp ? (
+          <MarketFiltersMobileSheet
+            {...filterComponentProps}
             open={filtersOpen}
             onOpenChange={setFiltersOpen}
           />
-        </div>
-      </MarketPageHeader>
+        ) : null}
+      </div>
 
       <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-8">
         <div className="flex flex-col gap-6">
@@ -512,7 +570,16 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
 
           <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
         </div>
-        <FloatingSummary cart={cartTotals} plan={planTotals} />
+        <aside className="hidden xl:block xl:sticky xl:top-28">
+          {isDesktopWide ? (
+            <div className="flex flex-col gap-6">
+              <MarketFiltersSidebar {...filterComponentProps} />
+              <FloatingSummary cart={cartTotals} plan={planTotals} />
+            </div>
+          ) : (
+            <FloatingSummary cart={cartTotals} plan={planTotals} />
+          )}
+        </aside>
       </div>
 
       <MobileSummaryBar
@@ -520,6 +587,10 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
         plan={planTotals}
         onFilters={() => setFiltersOpen(true)}
         onSearch={() => {
+          if (isTabletUp) {
+            searchHandleRef.current?.openExtended()
+            return
+          }
           searchInputRef.current?.focus()
           window.scrollTo({ top: 0, behavior: 'smooth' })
         }}

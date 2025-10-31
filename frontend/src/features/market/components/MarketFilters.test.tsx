@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
 import { MARKET_FILTERS } from '../constants'
-import { MarketFilters } from './MarketFilters'
+import { MarketFiltersToolbar } from './MarketFilters'
 
 describe('MarketFilters', () => {
   beforeAll(() => {
@@ -35,7 +35,8 @@ describe('MarketFilters', () => {
     const handleSort = vi.fn()
 
     render(
-      <MarketFilters
+      <MarketFiltersToolbar
+        layout="laptop"
         resource="products"
         filters={MARKET_FILTERS.products}
         chipValue={{}}

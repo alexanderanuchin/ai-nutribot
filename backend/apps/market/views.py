@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal, InvalidOperation
+import logging
 
+from django.db import models
 from django.db.models import Prefetch, Q
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .models import (
     Cart,
@@ -40,6 +45,12 @@ from .serializers import (
     RecipeStepSerializer,
     StoreSerializer,
 )
+from .serializers import MarketSearchQuerySerializer, MarketSearchResponseSerializer
+from .services.search import MarketSearchService
+from nutribot.middleware import get_request_id
+
+
+logger = logging.getLogger(__name__)
 
 
 class StoreViewSet(viewsets.ModelViewSet):
@@ -71,6 +82,21 @@ class StoreViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
+        tag = self.request.query_params.get("tag")
+        if tag:
+            qs = qs.filter(metadata__tags__icontains=tag)
+        max_eta = self.request.query_params.get("max_eta")
+        if max_eta:
+            try:
+                qs = qs.filter(metadata__delivery_eta_minutes__lte=int(max_eta))
+            except ValueError:
+                pass
+        free_delivery = self.request.query_params.get("free_delivery")
+        if free_delivery in {"true", "1"}:
+            qs = qs.filter(Q(metadata__delivery_price=0) | Q(metadata__delivery_price__isnull=True))
+        is_online = self.request.query_params.get("is_online")
+        if is_online in {"true", "1"}:
+            qs = qs.filter(metadata__is_online=True)
         return qs.order_by("name")
 
     def perform_create(self, serializer):
@@ -109,6 +135,30 @@ class ProductViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(Q(title__icontains=search) | Q(tags__icontains=search))
+        tag = self.request.query_params.get("tag")
+        if tag:
+            qs = qs.filter(tags__icontains=tag)
+        origin = self.request.query_params.get("origin")
+        if origin:
+            qs = qs.filter(metadata__origin__iexact=origin)
+        discount_only = self.request.query_params.get("discount_only")
+        if discount_only in {"true", "1"}:
+            qs = qs.filter(metadata__discount_percent__gt=0)
+        available = self.request.query_params.get("available")
+        if available in {"true", "1"}:
+            qs = qs.filter(inventory__quantity__gt=models.F("inventory__reserved"))
+        min_price = self.request.query_params.get("min_price")
+        if min_price:
+            try:
+                qs = qs.filter(price__gte=Decimal(min_price))
+            except InvalidOperation:
+                pass
+        max_price = self.request.query_params.get("max_price")
+        if max_price:
+            try:
+                qs = qs.filter(price__lte=Decimal(max_price))
+            except InvalidOperation:
+                pass
         published = self.request.query_params.get("published")
         if published in {"true", "1"}:
             qs = qs.filter(is_published=True)
@@ -161,6 +211,18 @@ class RecipeViewSet(viewsets.ModelViewSet):
         search = self.request.query_params.get("search")
         if search:
             qs = qs.filter(Q(title__icontains=search) | Q(summary__icontains=search))
+        max_time = self.request.query_params.get("max_time")
+        if max_time:
+            try:
+                qs = qs.filter(cooking_time_minutes__lte=int(max_time))
+            except ValueError:
+                pass
+        difficulty = self.request.query_params.get("difficulty")
+        if difficulty:
+            qs = qs.filter(difficulty__iexact=difficulty)
+        tag = self.request.query_params.get("tag")
+        if tag:
+            qs = qs.filter(metadata__tags__icontains=tag)
         return qs.order_by("title")
 
     def _assert_store_owner(self, store: Store) -> None:
@@ -399,3 +461,60 @@ class MealPlanItemViewSet(viewsets.ModelViewSet):
         if instance.meal_plan.user_id != self.request.user.id:
             raise PermissionDenied("Нельзя изменять чужой план питания")
         instance.delete()
+
+
+class MarketSearchView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *_args, **_kwargs):
+        query_serializer = MarketSearchQuerySerializer(data=request.query_params, context={"request": request})
+        query_serializer.is_valid(raise_exception=True)
+        params = query_serializer.validated_data
+
+        service = MarketSearchService(
+            user=request.user,
+            query=params.get("q", ""),
+            resource=params.get("resource", "all"),
+            limit=params.get("limit", 12),
+            filters=params.get("filters") or {},
+        )
+        payload = service.execute()
+
+        rid = getattr(request, "request_id", get_request_id())
+        logger.info(
+            "market.search.executed",
+            extra={
+                "rid": rid,
+                "user_id": getattr(request.user, "id", None),
+                "resource": params.get("resource", "all"),
+                "query": params.get("q", ""),
+                "filters": params.get("filters") or {},
+                "total": payload.total,
+                "count": len(payload.results),
+            },
+        )
+
+        response_data = MarketSearchResponseSerializer(
+            {
+                "query": params.get("q", ""),
+                "resource": params.get("resource", "all"),
+                "total": payload.total,
+                "results": [
+                    {
+                        "resource": result.resource,
+                        "id": result.id,
+                        "title": result.title,
+                        "subtitle": result.subtitle,
+                        "description": result.description,
+                        "tags": result.tags,
+                        "metrics": result.metrics,
+                        "preview": result.preview,
+                    }
+                    for result in payload.results
+                ],
+                "facets": payload.facets,
+                "suggestions": payload.suggestions,
+            }
+        ).data
+
+        return Response(response_data, status=status.HTTP_200_OK)

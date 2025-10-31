@@ -1,5 +1,50 @@
 # Codex Diff Journal
 
+## 2025-11-03 – commit TBD (market search test enablement)
+
+Summary: Restore backend installability and search coverage by making gcld3 optional and switching the market search API tests to JWT-aware API clients compatible with the DRF settings.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | backend/requirements.txt | Drop the hard gcld3 dependency so local/CI environments without protobuf headers can install backend requirements. | backend | no |
+| modify | backend/apps/market/tests/test_search_api.py | Authenticate with DRF APIClient and adjust fixtures/query data so the search endpoint test passes under SQLite/JWT defaults. | backend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the market search test enablement for traceability. | docs | no |
+
+## 2025-11-02 – commit TBD (market search filters implementation)
+
+Summary: Deliver the premium `/market` search overlay and responsive filters with a unified backend search service, richer facet filtering, and redesigned tablet-to-desktop layouts.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/market/constants.py | Centralize quick filter definitions shared by the search service and API responses. | backend | no |
+| create | backend/apps/market/services/__init__.py | Define the services package for marketplace utilities. | backend | no |
+| create | backend/apps/market/services/search.py | Implement aggregated search logic with facets, suggestions, and resource-specific mapping. | backend | no |
+| create | backend/apps/market/migrations/0002_product_metadata.py | Add a JSON `metadata` field to products for search facets and badges. | backend | yes – run `python manage.py migrate apps.market 0002` |
+| modify | backend/apps/market/models.py | Extend `Product` with metadata storage used for quick filters and availability checks. | backend | covered by migration |
+| modify | backend/apps/market/serializers.py | Expose product metadata and wire serializers for the new search payload. | backend | no |
+| modify | backend/apps/market/urls.py | Register the `/v1/market/search/` endpoint. | backend | no |
+| modify | backend/apps/market/views.py | Add `MarketSearchView` and expand list filters for stores, products, and recipes. | backend | no |
+| modify | backend/seeds/market.py | Seed product and store metadata to exercise new filters. | backend | no |
+| create | backend/apps/market/tests/__init__.py | Initialize the marketplace test package. | backend | no |
+| create | backend/apps/market/tests/test_search_api.py | Cover search aggregation, resource scoping, and quick filter responses. | backend | no |
+| modify | frontend/src/api/market.ts | Add the `searchMarket` client helper and request typing. | frontend | no |
+| create | frontend/src/features/market/components/MarketSearch.tsx | Build the popover + overlay search UI with quick filters and previews. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.tsx | Restructure filters into toolbar, sidebar, and mobile sheet variants. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.test.tsx | Update tests for the new toolbar component contract. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.stories.tsx | Point Storybook to the toolbar variant for interactive demos. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Integrate the command search, responsive filters, and desktop sidebar. | frontend | no |
+| modify | frontend/src/types/market.ts | Define search result and quick filter typings consumed by the UI. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Record the end-to-end market search implementation milestone. | docs | no |
+
+## 2025-11-01 – commit TBD (market premium filters search spec)
+
+Summary: Capture the premium tablet-to-desktop filters and command search experience for /market so design and engineering share a single blueprint anchored to the existing UI kit.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | docs/frontend/market/market-filters-search-premium.md | Document layouts, interactions, accessibility, and data contracts for the refreshed /market filters and command search. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Log the premium filters/search specification for traceability. | docs | no |
+
 ## 2025-10-31 – commit TBD (market layout spacing)
 
 Summary: Restore horizontal breathing room for the market shell so its border no longer collides with the dashboard rail on wide layouts or mobile safe areas.

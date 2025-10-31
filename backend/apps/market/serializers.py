@@ -5,6 +5,7 @@ from typing import Any
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+
 from .models import (
     Cart,
     CartItem,
@@ -77,6 +78,7 @@ class ProductSerializer(serializers.ModelSerializer):
             "weight_grams",
             "tags",
             "nutrition",
+            "metadata",
             "is_published",
             "published_at",
             "available_from",
@@ -206,6 +208,44 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
             "notes",
         ]
         read_only_fields = ["id"]
+
+
+class MarketSearchResultSerializer(serializers.Serializer):
+    resource = serializers.ChoiceField(choices=["recipes", "products", "stores"])
+    id = serializers.IntegerField()
+    title = serializers.CharField()
+    subtitle = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    description = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    tags = serializers.ListField(child=serializers.CharField(), required=False)
+    metrics = serializers.DictField(child=serializers.JSONField(), required=False)
+    preview = serializers.DictField(child=serializers.JSONField(), required=False)
+
+
+class MarketSearchResponseSerializer(serializers.Serializer):
+    query = serializers.CharField()
+    resource = serializers.ChoiceField(choices=["all", "recipes", "products", "stores"])
+    total = serializers.IntegerField()
+    results = MarketSearchResultSerializer(many=True)
+    facets = serializers.DictField(child=serializers.ListField(child=serializers.DictField()))
+    suggestions = serializers.DictField()
+
+
+class MarketSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(required=False, allow_blank=True)
+    resource = serializers.ChoiceField(choices=["all", "recipes", "products", "stores"], default="all")
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=30, default=12)
+
+    def validate(self, attrs):
+        attrs.setdefault("filters", {})
+        request = self.context.get("request")
+        if request:
+            filters = {}
+            for key, value in request.query_params.items():
+                if key in {"q", "resource", "limit"}:
+                    continue
+                filters[key] = value
+            attrs["filters"] = filters
+        return attrs
 
 
 class MealPlanSerializer(serializers.ModelSerializer):

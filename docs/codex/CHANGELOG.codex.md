@@ -1,5 +1,17 @@
 # Codex Changelog
 
+## 2025-11-03
+
+- Unblocked backend market search testing by dropping the hard gcld3 dependency and authenticating the DRF search tests via API client fixtures. See DIFF entry “2025-11-03 – commit TBD (market search test enablement)”.
+
+## 2025-11-02
+
+- Implemented the `/market` premium search and responsive filter experience end-to-end across backend APIs and the React tablet/desktop UI. See DIFF entry “2025-11-02 – commit TBD (market search filters implementation)”.
+
+## 2025-11-01
+
+- Published the premium `/market` tablet-to-desktop filters and command search specification aligned with the UI kit. See DIFF entry “2025-11-01 – commit TBD (market premium filters search spec)”.
+
 ## 2025-10-30
 
 - Migrated the billing wallet actions to the shared UI kit button component to restore theming and hover states on both light and dark themes. See DIFF entry “2025-10-30 – commit TBD (billing buttons ui kit)”.

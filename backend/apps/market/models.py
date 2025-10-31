@@ -60,6 +60,7 @@ class Product(models.Model):
     weight_grams = models.PositiveIntegerField(default=0)
     tags = models.JSONField(default=list, blank=True)
     nutrition = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
     available_from = models.DateTimeField(null=True, blank=True)

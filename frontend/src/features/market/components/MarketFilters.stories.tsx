@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { MARKET_FILTERS } from '../constants'
-import { MarketFilters } from './MarketFilters'
+import { MarketFiltersToolbar } from './MarketFilters'
 
 const meta = {
   title: 'Market/FiltersSheet',
-  component: MarketFilters,
+  component: MarketFiltersToolbar,
 }
 
 export default meta
@@ -18,7 +18,8 @@ export const Products = () => {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <MarketFilters
+      <MarketFiltersToolbar
+        layout="laptop"
         resource="products"
         filters={MARKET_FILTERS.products}
         chipValue={chips}

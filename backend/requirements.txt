@@ -20,8 +20,9 @@ responses==0.25.*
 aiogram==3.22.*
 telethon==1.36.*
 cryptg>=0.5,<0.6
-gcld3==3.*
 langdetect==1.0.*
+# Optional language detection acceleration (requires protobuf headers):
+# gcld3==3.*
 # dev
 pytest==8.*
 pytest-django==4.*

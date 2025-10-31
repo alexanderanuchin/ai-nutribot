@@ -46,6 +46,14 @@ def create():
             "logo_url": "https://placehold.co/128x128",
             "is_active": True,
             "is_verified": True,
+            "metadata": {
+                "tags": ["premium", "local"],
+                "delivery_eta_minutes": 35,
+                "delivery_price": 0,
+                "headline": "Фермерские продукты и готовые рационы",
+                "hero_image_url": "https://placehold.co/1200x600",
+                "is_online": True,
+            },
         },
     )
 
@@ -64,6 +72,13 @@ def create():
                 "protein": 22,
                 "fat": 9,
                 "carbs": 35,
+            },
+            "metadata": {
+                "brand": "NutriCraft",
+                "origin": "local",
+                "subtitle": "Без сахара · 22 г белка",
+                "image_url": "https://placehold.co/600x600",
+                "discount_percent": 12,
             },
             "is_published": True,
             "published_at": timezone.now(),

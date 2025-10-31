@@ -85,3 +85,36 @@ export interface AddRecipeToPlanPayload {
   recipe_id: number
   servings?: number
 }
+
+export interface MarketQuickFilter {
+  id: string
+  label: string
+  param: string
+  value: string | number | boolean
+  resource: MarketResource
+}
+
+export interface MarketSearchResultItem {
+  resource: MarketResource
+  id: number
+  title: string
+  subtitle?: string | null
+  description?: string | null
+  tags?: string[] | null
+  metrics?: Record<string, unknown>
+  preview?: Record<string, unknown>
+}
+
+export interface MarketSearchResponse {
+  query: string
+  resource: 'all' | MarketResource
+  total: number
+  results: MarketSearchResultItem[]
+  facets: Record<string, Array<Record<string, unknown>>>
+  suggestions: {
+    quick_filters?: MarketQuickFilter[]
+    popular?: string[]
+    recent?: string[]
+    [key: string]: unknown
+  }
+}

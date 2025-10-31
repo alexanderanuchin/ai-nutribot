@@ -5,6 +5,7 @@ from .views import (
     CartItemViewSet,
     CartViewSet,
     InventoryViewSet,
+    MarketSearchView,
     MealPlanItemViewSet,
     MealPlanViewSet,
     ProductViewSet,
@@ -29,5 +30,6 @@ router.register("meal-plans", MealPlanViewSet, basename="market-meal-plan")
 router.register("meal-plan-items", MealPlanItemViewSet, basename="market-meal-plan-item")
 
 urlpatterns = [
+    path("search/", MarketSearchView.as_view(), name="market-search"),
     path("", include(router.urls)),
 ]
