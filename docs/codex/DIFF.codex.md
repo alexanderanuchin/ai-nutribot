@@ -10,6 +10,23 @@ in logs, and recorded follow-up decisions for cart/plan endpoint alignment.
 | modify | docs/codex/DIFF.codex.md | Record the audit findings and logging observations for traceability. | docs | no |
 | create | docs/codex/adr/2025-11-08-cart-plan-endpoints.md | Draft ADR covering cart/plan endpoint alignment options pending implementation. | docs | no |
 
+## 2025-11-08 – commit TBD (market page-number pagination adoption)
+
+Summary: Switch the market listings to page/page_size parameters across the backend and frontend, provide typed client helpers,
+and cover the new response contract with unit tests.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/pagination.py | Return page metadata alongside count/next/previous so API consumers can drive page-number pagination. | backend | no |
+| create | backend/apps/market/tests/test_pagination.py | Assert that the store listing endpoint yields page and page_size values when paginating. | backend | no |
+| modify | frontend/src/api/market.ts | Request market collections with page/page_size params and extract the next page number from response links. | frontend | no |
+| modify | frontend/src/types/market.ts | Model the shared market paginated response with page and page_size fields. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Drive infinite scroll with numeric page params instead of cursor tokens. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.test.tsx | Align mocks with the updated market collection response shape. | frontend | no |
+| create | frontend/src/tests/marketApi.test.ts | Cover the market API client pagination params and next-page extraction logic. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the market pagination contract update for traceability. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Record the market pagination adoption changes in the diff journal. | docs | no |
+
 ## 2025-11-07 – commit TBD (market search sidebar placement)
 
 Summary: Embed the marketplace search control inside the desktop filter sidebar on laptop and monitor breakpoints so the layout

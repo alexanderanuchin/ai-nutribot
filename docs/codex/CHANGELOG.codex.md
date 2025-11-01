@@ -1,5 +1,10 @@
 # Codex Changelog
 
+## 2025-11-08
+
+- Adopted page-number pagination for market listings across backend and frontend layers and covered the contract with unit
+  tests. See DIFF entry “2025-11-08 – commit TBD (market page-number pagination adoption)”.
+
 ## 2025-11-07
 
 - Moved the marketplace desktop search into the filter sidebar so laptop and monitor layouts align with the filter block design. See DIFF entry “2025-11-07 – commit TBD (market search sidebar placement)”.

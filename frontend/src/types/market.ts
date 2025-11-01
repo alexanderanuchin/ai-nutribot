@@ -57,8 +57,10 @@ export interface MarketStore {
   link_url?: string | null
 }
 
-export interface MarketCursorResponse<TItem> {
+export interface MarketPaginatedResponse<TItem> {
   count: number
+  page: number
+  page_size: number
   next: string | null
   previous: string | null
   results: TItem[]

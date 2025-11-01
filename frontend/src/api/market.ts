@@ -2,7 +2,7 @@ import api from './client'
 import type {
   AddProductToCartPayload,
   AddRecipeToPlanPayload,
-  MarketCursorResponse,
+  MarketPaginatedResponse,
   MarketProduct,
   MarketRecipe,
   MarketResource,
@@ -26,39 +26,44 @@ export type MarketCollectionItem<T extends MarketResource> = MarketCollectionIte
 
 export interface FetchMarketCollectionOptions<T extends MarketResource> {
   resource: T
-  cursor?: string | null
+  page?: number
   filters?: Record<string, string | number | boolean | undefined>
   search?: string
   pageSize?: number
 }
 
-function extractCursor(value?: string | null): string | null {
+function extractPage(value?: string | null): number | null {
   if (!value) return null
   try {
     const url = new URL(
       value,
       typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
     )
-    return url.searchParams.get('cursor')
+    const pageParam = url.searchParams.get('page')
+    if (!pageParam) return null
+    const parsed = Number.parseInt(pageParam, 10)
+    return Number.isNaN(parsed) ? null : parsed
   } catch (_error) {
-    return value
+    const fallback = Number.parseInt(value, 10)
+    return Number.isNaN(fallback) ? null : fallback
   }
 }
 
 export async function fetchMarketCollection<T extends MarketResource>({
   resource,
-  cursor,
+  page,
   filters,
   search,
   pageSize,
 }: FetchMarketCollectionOptions<T>): Promise<{
   items: MarketCollectionItem<T>[]
-  nextCursor: string | null
-  raw: MarketCursorResponse<MarketCollectionItem<T>>
+  nextPage: number | null
+  raw: MarketPaginatedResponse<MarketCollectionItem<T>>
 }> {
   const endpoint = MARKET_ENDPOINTS[resource]
   const params: Record<string, unknown> = {}
-  if (cursor) params.cursor = cursor
+  const currentPage = typeof page === 'number' && page > 0 ? page : 1
+  params.page = currentPage
   if (search && search.trim()) {
     params.search = search.trim()
   }
@@ -72,10 +77,12 @@ export async function fetchMarketCollection<T extends MarketResource>({
       params[key] = value
     })
   }
-  const { data } = await api.get<MarketCursorResponse<MarketCollectionItem<T>>>(endpoint, { params })
+  const { data } = await api.get<MarketPaginatedResponse<MarketCollectionItem<T>>>(endpoint, {
+    params,
+  })
   return {
     items: data.results,
-    nextCursor: extractCursor(data.next ?? null),
+    nextPage: extractPage(data.next ?? null),
     raw: data,
   }
 }

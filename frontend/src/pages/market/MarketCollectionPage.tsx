@@ -328,18 +328,19 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     refetch,
   } = useInfiniteQuery({
     queryKey,
-    initialPageParam: null as string | null,
+    initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
-      const { items, nextCursor, raw } = await fetchMarketCollection({
+      const pageNumber = typeof pageParam === 'number' && pageParam > 0 ? pageParam : 1
+      const { items, nextPage, raw } = await fetchMarketCollection({
         resource,
-        cursor: pageParam,
+        page: pageNumber,
         filters: filterParams,
         search: debouncedSearch.trim() || undefined,
         pageSize: resource === 'stores' ? 10 : 12,
       })
-      return { items, nextCursor, raw }
+      return { items, nextPage, raw }
     },
-    getNextPageParam: lastPage => lastPage.nextCursor,
+    getNextPageParam: lastPage => lastPage.nextPage,
   })
 
   const isRefreshing = isFetching && !isLoading && !isFetchingNextPage

@@ -8,8 +8,8 @@ import { MarketCollectionPage } from './MarketCollectionPage'
 vi.mock('../../api/market', () => ({
   fetchMarketCollection: vi.fn().mockResolvedValue({
     items: [],
-    nextCursor: null,
-    raw: { count: 0 },
+    nextPage: null,
+    raw: { count: 0, page: 1, page_size: 12, next: null, previous: null },
   }),
 }))
 
