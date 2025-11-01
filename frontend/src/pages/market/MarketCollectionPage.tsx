@@ -238,7 +238,6 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   const searchHandleRef = useRef<MarketSearchHandle | null>(null)
   const isTabletUp = useMediaQuery('(min-width: 768px)')
   const isLaptopUp = useMediaQuery('(min-width: 1280px)')
-  const isDesktopWide = useMediaQuery('(min-width: 1440px)')
 
   const cartTotals = useMarketCartStore(
     selectCartTotals,
@@ -265,10 +264,10 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
   }, [resource])
 
   useEffect(() => {
-    if (filtersOpen && isDesktopWide) {
+    if (filtersOpen && isLaptopUp) {
       setFiltersOpen(false)
     }
-  }, [filtersOpen, isDesktopWide])
+  }, [filtersOpen, isLaptopUp])
 
   const filterParams = useMemo(() => {
     const params: Record<string, string | number | boolean> = {}
@@ -521,26 +520,28 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     <div className="flex flex-col gap-6 pb-28 lg:pb-16">
       <div
         className={clsx(
-          'flex flex-col gap-4',
-          isDesktopWide ? 'xl:sticky xl:top-20 xl:z-30 xl:bg-background/95 xl:backdrop-blur xl:pt-3 xl:pb-4 xl:shadow-level-2/20' : '',
+          'relative flex flex-col gap-4 lg:gap-5 xl:gap-6',
+          isLaptopUp ? 'xl:sticky xl:top-16 xl:z-40 xl:pb-4' : '',
         )}
       >
-        <MarketPageHeader
-          title={MARKET_RESOURCE_TITLE[resource]}
-          description={MARKET_RESOURCE_DESCRIPTION[resource]}
-          action={
-            totalAvailable ? (
-              <Badge tone="primary">{totalAvailable.toLocaleString('ru-RU')} {MARKET_RESOURCE_LABELS[resource]}</Badge>
-            ) : null
-          }
-        >
-          {!isLaptopUp ? (
-            <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
-              <div className="w-full">{renderSearchControl()}</div>
-            </div>
-          ) : null}
-        </MarketPageHeader>
-        {!isDesktopWide ? (
+        <div className="relative xl:z-40">
+          <MarketPageHeader
+            title={MARKET_RESOURCE_TITLE[resource]}
+            description={MARKET_RESOURCE_DESCRIPTION[resource]}
+            action={
+              totalAvailable ? (
+                <Badge tone="primary">{totalAvailable.toLocaleString('ru-RU')} {MARKET_RESOURCE_LABELS[resource]}</Badge>
+              ) : null
+            }
+          >
+            {!isLaptopUp ? (
+              <div className={clsx('flex flex-col gap-3', isTabletUp ? 'lg:flex-row lg:items-center lg:justify-between' : '')}>
+                <div className="w-full">{renderSearchControl()}</div>
+              </div>
+            ) : null}
+          </MarketPageHeader>
+        </div>
+        {!isLaptopUp ? (
           <MarketFiltersMobileSheet
             {...filterComponentProps}
             open={filtersOpen}
@@ -550,7 +551,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
       </div>
 
       <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-8">
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-6 xl:mt-6">
           <FreshBanner
             visible={bannerState.visible}
             count={bannerState.count}
@@ -582,7 +583,13 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
             <>{listContent}</>
           )}
 
-          <AnimatePresence>{isFetchingNextPage ? <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}><MarketListSkeleton variant={skeletonVariant} count={resource === 'stores' ? 2 : 3} /></motion.div> : null}</AnimatePresence>
+          <AnimatePresence>
+            {isFetchingNextPage ? (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <MarketListSkeleton variant={skeletonVariant} count={resource === 'stores' ? 2 : 3} />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
           <div ref={sentinelRef} aria-hidden="true" className="h-px w-full" />
         </div>
