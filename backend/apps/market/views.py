@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal, InvalidOperation
 import logging
 
-from django.db import models
 from django.db.models import Prefetch, Q
-from rest_framework import permissions, status, viewsets
+from rest_framework import filters as drf_filters, permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .filters import (
+    apply_product_filters,
+    apply_recipe_filters,
+    apply_store_filters,
+)
 from .models import (
     Cart,
     CartItem,
@@ -56,6 +59,14 @@ logger = logging.getLogger(__name__)
 class StoreViewSet(viewsets.ModelViewSet):
     serializer_class = StoreSerializer
     pagination_class = MarketPagination
+    filter_backends = [drf_filters.OrderingFilter]
+    ordering_fields = {
+        "name": "name",
+        "rating": "metadata__rating",
+        "eta": "metadata__delivery_eta_minutes",
+        "freshness": "created_at",
+    }
+    ordering = ("name", "id")
 
     def get_permissions(self):
         if self.action == "create":
@@ -76,28 +87,8 @@ class StoreViewSet(viewsets.ModelViewSet):
         mine = self.request.query_params.get("mine")
         if mine and user.is_authenticated:
             qs = qs.filter(owner=user)
-        city = self.request.query_params.get("city")
-        if city:
-            qs = qs.filter(city__iexact=city)
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(name__icontains=search) | Q(description__icontains=search))
-        tag = self.request.query_params.get("tag")
-        if tag:
-            qs = qs.filter(metadata__tags__icontains=tag)
-        max_eta = self.request.query_params.get("max_eta")
-        if max_eta:
-            try:
-                qs = qs.filter(metadata__delivery_eta_minutes__lte=int(max_eta))
-            except ValueError:
-                pass
-        free_delivery = self.request.query_params.get("free_delivery")
-        if free_delivery in {"true", "1"}:
-            qs = qs.filter(Q(metadata__delivery_price=0) | Q(metadata__delivery_price__isnull=True))
-        is_online = self.request.query_params.get("is_online")
-        if is_online in {"true", "1"}:
-            qs = qs.filter(metadata__is_online=True)
-        return qs.order_by("name")
+        qs = apply_store_filters(qs, self.request.query_params)
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -113,6 +104,15 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     pagination_class = MarketPagination
     permission_classes = [IsMarketOperatorOrReadOnly]
+    filter_backends = [drf_filters.OrderingFilter]
+    ordering_fields = {
+        "title": "title",
+        "price": "price",
+        "discount": "metadata__discount_percent",
+        "rating": "metadata__rating",
+        "created": "created_at",
+    }
+    ordering = ("title", "id")
 
     def get_queryset(self):
         qs = (
@@ -126,45 +126,8 @@ class ProductViewSet(viewsets.ModelViewSet):
             qs = qs.filter(store__owner=user)
         else:
             qs = qs.filter(is_published=True, store__is_active=True)
-        store_param = self.request.query_params.get("store")
-        if store_param:
-            if store_param.isdigit():
-                qs = qs.filter(store_id=int(store_param))
-            else:
-                qs = qs.filter(store__slug=store_param)
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(title__icontains=search) | Q(tags__icontains=search))
-        tag = self.request.query_params.get("tag")
-        if tag:
-            qs = qs.filter(tags__icontains=tag)
-        origin = self.request.query_params.get("origin")
-        if origin:
-            qs = qs.filter(metadata__origin__iexact=origin)
-        discount_only = self.request.query_params.get("discount_only")
-        if discount_only in {"true", "1"}:
-            qs = qs.filter(metadata__discount_percent__gt=0)
-        available = self.request.query_params.get("available")
-        if available in {"true", "1"}:
-            qs = qs.filter(inventory__quantity__gt=models.F("inventory__reserved"))
-        min_price = self.request.query_params.get("min_price")
-        if min_price:
-            try:
-                qs = qs.filter(price__gte=Decimal(min_price))
-            except InvalidOperation:
-                pass
-        max_price = self.request.query_params.get("max_price")
-        if max_price:
-            try:
-                qs = qs.filter(price__lte=Decimal(max_price))
-            except InvalidOperation:
-                pass
-        published = self.request.query_params.get("published")
-        if published in {"true", "1"}:
-            qs = qs.filter(is_published=True)
-        elif published in {"false", "0"}:
-            qs = qs.filter(is_published=False)
-        return qs.order_by("title")
+        qs = apply_product_filters(qs, self.request.query_params)
+        return qs
 
     def _assert_store_owner(self, store: Store) -> None:
         if is_market_moderator(self.request.user):
@@ -192,6 +155,16 @@ class RecipeViewSet(viewsets.ModelViewSet):
     serializer_class = RecipeSerializer
     pagination_class = MarketPagination
     permission_classes = [IsMarketOperatorOrReadOnly]
+    filter_backends = [drf_filters.OrderingFilter]
+    ordering_fields = {
+        "title": "title",
+        "time_minutes": "cooking_time_minutes",
+        "calories": "metadata__nutrition__calories",
+        "rating": "metadata__rating",
+        "price": "metadata__price__value",
+        "created": "created_at",
+    }
+    ordering = ("title", "id")
 
     def get_queryset(self):
         qs = (
@@ -205,28 +178,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
             qs = qs.filter(store__owner=user)
         else:
             qs = qs.filter(is_public=True, store__is_active=True)
-        store_param = self.request.query_params.get("store")
-        if store_param:
-            if store_param.isdigit():
-                qs = qs.filter(store_id=int(store_param))
-            else:
-                qs = qs.filter(store__slug=store_param)
-        search = self.request.query_params.get("search")
-        if search:
-            qs = qs.filter(Q(title__icontains=search) | Q(summary__icontains=search))
-        max_time = self.request.query_params.get("max_time")
-        if max_time:
-            try:
-                qs = qs.filter(cooking_time_minutes__lte=int(max_time))
-            except ValueError:
-                pass
-        difficulty = self.request.query_params.get("difficulty")
-        if difficulty:
-            qs = qs.filter(difficulty__iexact=difficulty)
-        tag = self.request.query_params.get("tag")
-        if tag:
-            qs = qs.filter(metadata__tags__icontains=tag)
-        return qs.order_by("title")
+        qs = apply_recipe_filters(qs, self.request.query_params)
+        return qs
 
     def _assert_store_owner(self, store: Store) -> None:
         if is_market_moderator(self.request.user):

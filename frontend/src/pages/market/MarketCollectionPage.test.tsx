@@ -1,8 +1,10 @@
 import { describe, expect, test, vi, beforeAll, afterAll } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 
+import { fetchMarketCollection } from '../../api/market'
 import { MarketCollectionPage } from './MarketCollectionPage'
 
 vi.mock('../../api/market', () => ({
@@ -91,5 +93,78 @@ describe('MarketCollectionPage mobile filters', () => {
     })
 
     expect(document.body.style.overflow).not.toBe('hidden')
+  })
+})
+
+describe('MarketCollectionPage desktop filters', () => {
+  beforeAll(() => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: query === '(min-width: 1024px)',
+      media: query,
+      onchange: null,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      dispatchEvent: () => false,
+    }))
+
+    class ResizeObserverMock {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+    ;(globalThis as any).ResizeObserver = ResizeObserverMock
+
+    class IntersectionObserverMock {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return []
+      }
+    }
+    ;(globalThis as any).IntersectionObserver = IntersectionObserverMock
+  })
+
+  afterAll(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('applies quick filters and rating to collection requests', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+    const user = userEvent.setup()
+    const fetchMock = vi.mocked(fetchMarketCollection)
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <MarketCollectionPage resource="recipes" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    fetchMock.mockClear()
+
+    await user.click(await screen.findByRole('button', { name: 'Больше белка' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    let lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters).toMatchObject({ min_protein: 25 })
+
+    fetchMock.mockClear()
+    await user.click(screen.getByRole('button', { name: 'До 300 ₽' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters).toMatchObject({ min_protein: 25, max_price: 300 })
+
+    fetchMock.mockClear()
+    const ratingToggle = screen.getByRole('radio', { name: /4\+/ })
+    await user.click(ratingToggle)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters).toMatchObject({ min_protein: 25, max_price: 300, min_rating: 4 })
   })
 })

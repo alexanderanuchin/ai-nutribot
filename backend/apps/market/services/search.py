@@ -10,6 +10,7 @@ from django.db import models
 from django.db.models import Prefetch, Q
 
 from apps.market.constants import MARKET_QUICK_FILTERS, MarketResource
+from apps.market.filters import coerce_decimal, coerce_int
 from apps.market.models import Inventory, Product, Recipe, RecipeIngredient, Store
 
 
@@ -135,8 +136,8 @@ class MarketSearchService:
                 | Q(metadata__category__icontains=self.query)
                 | Q(metadata__diet__icontains=self.query)
             )
-        max_time = self.filters.get("max_time")
-        if max_time:
+        max_time = coerce_int(self.filters.get("max_time"))
+        if max_time is not None:
             qs = qs.filter(cooking_time_minutes__lte=max_time)
         difficulty = self.filters.get("difficulty")
         if difficulty:
@@ -144,6 +145,18 @@ class MarketSearchService:
         tag = self.filters.get("tag")
         if tag:
             qs = qs.filter(metadata__tags__icontains=str(tag))
+        min_rating = coerce_decimal(self.filters.get("min_rating"))
+        if min_rating is not None:
+            qs = qs.filter(metadata__rating__gte=float(min_rating))
+        min_protein = coerce_decimal(self.filters.get("min_protein"))
+        if min_protein is not None:
+            qs = qs.filter(metadata__nutrition__protein_g__gte=float(min_protein))
+        max_price = coerce_decimal(self.filters.get("max_price"))
+        if max_price is not None:
+            qs = qs.filter(
+                Q(metadata__price__value__lte=float(max_price))
+                | Q(metadata__price__lte=float(max_price))
+            )
         qs = qs.order_by("-published_at", "-id")
 
         total = qs.count()
@@ -209,10 +222,10 @@ class MarketSearchService:
         if self.query:
             qs = qs.filter(Q(title__icontains=self.query) | Q(tags__icontains=self.query) | Q(description__icontains=self.query))
 
-        min_price = self.filters.get("min_price")
+        min_price = coerce_decimal(self.filters.get("min_price"))
         if min_price is not None:
             qs = qs.filter(price__gte=min_price)
-        max_price = self.filters.get("max_price")
+        max_price = coerce_decimal(self.filters.get("max_price"))
         if max_price is not None:
             qs = qs.filter(price__lte=max_price)
         tag = self.filters.get("tag")
@@ -225,6 +238,9 @@ class MarketSearchService:
             qs = qs.filter(metadata__brand__icontains=str(brand))
         if self.filters.get("discount_only"):
             qs = qs.filter(metadata__discount_percent__gt=0)
+        min_rating = coerce_decimal(self.filters.get("min_rating"))
+        if min_rating is not None:
+            qs = qs.filter(metadata__rating__gte=float(min_rating))
 
         qs = qs.order_by("title", "id")
         total = qs.count()
@@ -291,9 +307,12 @@ class MarketSearchService:
             qs = qs.filter(metadata__tags__icontains=str(tag))
         if self.filters.get("is_online"):
             qs = qs.filter(metadata__is_online=True)
-        max_eta = self.filters.get("max_eta")
+        max_eta = coerce_int(self.filters.get("max_eta"))
         if max_eta is not None:
             qs = qs.filter(metadata__delivery_eta_minutes__lte=max_eta)
+        min_rating = coerce_decimal(self.filters.get("min_rating"))
+        if min_rating is not None:
+            qs = qs.filter(metadata__rating__gte=float(min_rating))
 
         qs = qs.order_by("name", "id")
         total = qs.count()

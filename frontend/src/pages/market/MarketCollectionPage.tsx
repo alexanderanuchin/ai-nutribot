@@ -7,12 +7,7 @@ import clsx from 'clsx'
 import { fetchMarketCollection, type MarketCollectionItemMap, type MarketResource } from '../../api/market'
 import { useMarketEvents } from '../../features/market/hooks/useMarketEvents'
 import MarketListSkeleton from '../../features/market/components/MarketListSkeleton'
-import {
-  MARKET_PRICE_LIMITS,
-  MARKET_SORT_OPTIONS,
-  MarketFiltersSidebar,
-  MarketFiltersMobileSheet,
-} from '../../features/market/components/MarketFilters'
+import { MarketFiltersSidebar, MarketFiltersMobileSheet } from '../../features/market/components/MarketFilters'
 import MarketSearch, { MarketSearchHandle } from '../../features/market/components/MarketSearch'
 import MarketPageHeader from '../../features/market/components/MarketPageHeader'
 import RecipeCard from '../../features/market/cards/RecipeCard'
@@ -24,6 +19,11 @@ import {
   MARKET_RESOURCE_LABELS,
   MARKET_RESOURCE_TITLE,
 } from '../../features/market/constants'
+import {
+  MARKET_ORDERING_MAP,
+  MARKET_PRICE_LIMITS,
+  MARKET_SORT_OPTIONS,
+} from '../../features/market/filters/config'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useMarketCartStore, selectCartTotals } from '../../features/market/stores/cartStore'
@@ -45,25 +45,6 @@ interface MarketCollectionPageProps<T extends MarketResource> {
 type MarketCardComponent<T extends MarketResource> = ComponentType<{ item: MarketCollectionItemMap[T] }>
 
 const BANNER_AUTO_HIDE_MS = 12000
-
-const SORT_PARAM_MAP: Record<MarketResource, Record<string, string | undefined>> = {
-  recipes: {
-    relevance: undefined,
-    time_asc: 'time_minutes',
-    calories_asc: 'calories',
-  },
-  products: {
-    recommended: undefined,
-    price_asc: 'price',
-    price_desc: '-price',
-    discount: '-discount',
-  },
-  stores: {
-    top_rated: '-rating',
-    eta_asc: 'eta',
-    fresh: '-freshness',
-  },
-}
 
 const AVAILABILITY_MAP: Record<MarketResource, string> = {
   recipes: 'available',
@@ -293,7 +274,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     if (availability === 'available') {
       params[AVAILABILITY_MAP[resource]] = true
     }
-    const ordering = SORT_PARAM_MAP[resource][sortValue]
+    const ordering = MARKET_ORDERING_MAP[resource]?.[sortValue]
     if (ordering) {
       params.ordering = ordering
     }

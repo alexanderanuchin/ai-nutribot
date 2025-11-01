@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-12
+
+- Enabled marketplace ordering + rating/protein/price filters end-to-end, added JSONB metadata indexes, synced SPA filter config, and expanded backend/frontend coverage. See DIFF entry “2025-11-12 – commit TBD (market filters ordering + rating support)”.
+
 ## 2025-11-11
 
 - Flattened marketplace serializers/viewsets to expose enriched store/product/recipe metadata, refreshed SPA typings and cards to avoid NaN placeholders, and added regression tests across backend and frontend. See DIFF entry “2025-11-11 – commit TBD (market card flat fields)”.

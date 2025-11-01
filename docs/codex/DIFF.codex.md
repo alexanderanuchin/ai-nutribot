@@ -1,5 +1,26 @@
 # Codex Diff Journal
 
+## 2025-11-12 – commit TBD (market filters ordering + rating support)
+
+Summary: Enabled DRF ordering and rating/protein/price filters across marketplace APIs, added JSONB indexes for metadata lookups, aligned SPA filter configuration with backend capabilities, and expanded API/UI test coverage.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/market/filters.py | Centralize parsing and application of marketplace filter params reused by viewsets and search service. | backend | no |
+| modify | backend/apps/market/views.py | Wire DRF `OrderingFilter`, call shared filters, and expose rating/protein/price constraints on listings. | backend | no |
+| modify | backend/apps/market/services/search.py | Respect min rating/protein/max price filters and reuse shared coercion helpers. | backend | no |
+| modify | backend/apps/market/models.py | Declare JSONB GIN indexes for metadata-driven queries. | backend | yes – apply migration 0003 |
+| create | backend/apps/market/migrations/0003_market_metadata_indexes.py | Create metadata GIN indexes on Postgres while keeping sqlite-compatible state. | backend | yes – `python manage.py migrate apps.market 0003` |
+| modify | backend/nutribot/settings.py | Enable `django.contrib.postgres` for GIN index support. | backend | yes – reload app |
+| modify | backend/apps/market/tests/test_search_api.py | Cover rating/protein/price filters within the search endpoint. | backend | no |
+| create | backend/apps/market/tests/test_filters_api.py | Assert ordering/min-rating and protein/price filters on REST collections. | backend | no |
+| create | frontend/src/features/market/filters/config.ts | Provide shared filter/sort configuration and ordering map for the SPA. | frontend | no |
+| modify | frontend/src/features/market/components/MarketFilters.tsx | Consume shared config instead of local constants. | frontend | no |
+| modify | frontend/src/features/market/constants.ts | Re-export filter types/constants from the new config module. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Map sort options to backend ordering params and emit numeric filters. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.test.tsx | Verify quick filters/rating propagate to API calls. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Log this diff entry for traceability. | docs | no |
+
 ## 2025-11-11 – commit TBD (market card flat fields)
 
 Summary: Flattened marketplace serializers to expose store/product/recipe metadata, optimized queryset prefetching, refreshed SPA typings and card rendering to avoid NaN placeholders, and covered the new contract with backend and frontend tests.

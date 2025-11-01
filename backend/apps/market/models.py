@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils import timezone
@@ -32,6 +33,7 @@ class Store(models.Model):
         indexes = [
             models.Index(fields=["slug"], name="market_store_slug"),
             models.Index(fields=["owner", "is_active"], name="market_store_owner_active"),
+            GinIndex(fields=["metadata"], name="market_store_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
         permissions = [
             ("manage_market", "Can manage marketplace resources"),
@@ -79,6 +81,7 @@ class Product(models.Model):
             models.Index(fields=["slug"], name="market_product_slug"),
             models.Index(fields=["store", "is_published"], name="market_product_store_pub"),
             models.Index(fields=["is_published", "published_at"], name="market_product_published"),
+            GinIndex(fields=["metadata"], name="market_product_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
@@ -125,6 +128,7 @@ class Recipe(models.Model):
             models.Index(fields=["slug"], name="market_recipe_slug"),
             models.Index(fields=["store", "is_public"], name="market_recipe_store_public"),
             models.Index(fields=["published_at"], name="market_recipe_published"),
+            GinIndex(fields=["metadata"], name="market_recipe_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
 
     def __str__(self) -> str:  # pragma: no cover

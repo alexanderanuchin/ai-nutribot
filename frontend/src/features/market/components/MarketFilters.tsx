@@ -3,6 +3,7 @@ import { FilterIcon, SparklesIcon } from 'lucide-react'
 
 import type { MarketResource } from '../../../types/market'
 import type { MarketFilterDefinition } from '../constants'
+import { MARKET_PRICE_LIMITS, MARKET_SORT_OPTIONS } from '../filters/config'
 import {
   Badge,
   Button,
@@ -17,30 +18,7 @@ import {
   ToggleGroupRoot,
 } from '../../../components/ui'
 
-export const MARKET_SORT_OPTIONS: Record<MarketResource, Array<{ value: string; label: string }>> = {
-  recipes: [
-    { value: 'relevance', label: 'Актуальные' },
-    { value: 'time_asc', label: 'По времени' },
-    { value: 'calories_asc', label: 'Ккал' },
-  ],
-  products: [
-    { value: 'recommended', label: 'Реком.' },
-    { value: 'price_asc', label: 'Цена ↑' },
-    { value: 'price_desc', label: 'Цена ↓' },
-    { value: 'discount', label: 'Скидки' },
-  ],
-  stores: [
-    { value: 'top_rated', label: 'Лучшие' },
-    { value: 'eta_asc', label: 'Доставка' },
-    { value: 'fresh', label: 'Новые' },
-  ],
-}
-
-export const MARKET_PRICE_LIMITS: Record<MarketResource, [number, number]> = {
-  recipes: [0, 1200],
-  products: [0, 5000],
-  stores: [0, 1000],
-}
+export { MARKET_SORT_OPTIONS, MARKET_PRICE_LIMITS }
 
 export interface MarketFiltersProps {
   resource: MarketResource
