@@ -1,5 +1,15 @@
 # Codex Diff Journal
 
+## 2025-11-13 – commit TBD (market ordering stage6 prompt & RCA docs)
+
+Summary: Captured the stage 6 `/market` sorting & filtering task prompt, documented the 500 error root cause, and logged follow-up actions for backend/frontend teams.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | docs/backend/market-stage6-ordering.md | Persist the stage 6 ordering/filter prompt and RCA so future tickets/PRs can reference a single source. | docs | no |
+| modify | docs/codex/CHANGELOG.codex.md | Record the documentation update in the Codex changelog. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Add this diff entry for traceability. | docs | no |
+
 ## 2025-11-12 – commit TBD (market filters ordering + rating support)
 
 Summary: Enabled DRF ordering and rating/protein/price filters across marketplace APIs, added JSONB indexes for metadata lookups, aligned SPA filter configuration with backend capabilities, and expanded API/UI test coverage.

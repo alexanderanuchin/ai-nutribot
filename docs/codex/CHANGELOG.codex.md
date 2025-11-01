@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-13
+
+- Added a dedicated Stage 6 `/market` sorting & filtering prompt plus RCA for the ordering crash so future backend/frontend iterations share consistent context. See DIFF entry “2025-11-13 – commit TBD (market ordering stage6 prompt & RCA docs)”.
+
 ## 2025-11-12
 
 - Enabled marketplace ordering + rating/protein/price filters end-to-end, added JSONB metadata indexes, synced SPA filter config, and expanded backend/frontend coverage. See DIFF entry “2025-11-12 – commit TBD (market filters ordering + rating support)”.
