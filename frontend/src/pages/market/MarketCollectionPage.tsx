@@ -521,7 +521,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
       <div
         className={clsx(
           'relative flex flex-col gap-4 lg:gap-5 xl:gap-6',
-          isLaptopUp ? 'xl:sticky xl:top-16 xl:z-40 xl:pb-4' : '',
+          isLaptopUp ? 'xl:sticky xl:top-0 xl:z-40 xl:pb-4' : '',
         )}
       >
         <div className="relative xl:z-40">
