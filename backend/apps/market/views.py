@@ -194,7 +194,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsMarketOperatorOrReadOnly]
 
     def get_queryset(self):
-        qs = Recipe.objects.select_related("store", "author").prefetch_related("steps", "ingredients")
+        qs = (
+            Recipe.objects.select_related("store", "store__owner", "author")
+            .prefetch_related("steps", "ingredients", "ingredients__product")
+        )
         user = self.request.user
         if is_market_moderator(user):
             pass

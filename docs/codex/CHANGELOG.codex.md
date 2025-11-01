@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-11
+
+- Flattened marketplace serializers/viewsets to expose enriched store/product/recipe metadata, refreshed SPA typings and cards to avoid NaN placeholders, and added regression tests across backend and frontend. See DIFF entry “2025-11-11 – commit TBD (market card flat fields)”.
+
 ## 2025-11-10
 
 - Added the `/api/v1/market/events/` SSE proxy with JWT authentication, frontend hook rename, contract docs, and a local load sanity check. See DIFF entry “2025-11-10 – commit TBD (market events SSE proxy)”.

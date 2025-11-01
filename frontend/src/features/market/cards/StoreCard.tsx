@@ -18,21 +18,33 @@ function formatDeliveryEta(value?: number | null): string {
 
 function formatDeliveryPrice(value?: number | null, currency?: string | null): string | null {
   if (value == null) return null
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return null
+  }
+  if (numeric === 0) return 'бесплатно'
   try {
-    return value === 0
-      ? 'бесплатно'
-      : value.toLocaleString('ru-RU', {
-          style: 'currency',
-          currency: currency || 'RUB',
-        })
+    return numeric.toLocaleString('ru-RU', {
+      style: 'currency',
+      currency: currency || 'RUB',
+    })
   } catch (_error) {
-    return `${value} ${currency ?? '₽'}`
+    return `${numeric} ${currency ?? '₽'}`
   }
 }
 
 export function StoreCard({ item }: StoreCardProps) {
-  const deliveryEta = formatDeliveryEta(item.delivery_eta_minutes ?? undefined)
-  const deliveryPrice = formatDeliveryPrice(item.delivery_price ?? undefined, item.currency)
+  const deliveryEta = formatDeliveryEta(Number.isFinite(item.delivery_eta_minutes ?? Number.NaN)
+    ? Number(item.delivery_eta_minutes)
+    : undefined)
+  const deliveryPrice = formatDeliveryPrice(
+    Number.isFinite(item.delivery_price ?? Number.NaN) ? Number(item.delivery_price) : null,
+    item.currency,
+  )
+  const ratingValue = Number.isFinite(item.rating ?? Number.NaN) ? Number(item.rating) : null
+  const ratingCount = Number.isFinite(item.rating_count ?? Number.NaN)
+    ? Math.trunc(Number(item.rating_count))
+    : undefined
 
   return (
     <Card interactive elevation={2} className="flex flex-col gap-4 p-0 sm:flex-row">
@@ -60,7 +72,7 @@ export function StoreCard({ item }: StoreCardProps) {
               ))}
             </div>
           </div>
-          {item.rating ? <Rating value={item.rating} count={item.rating_count ?? undefined} size="sm" /> : null}
+          {ratingValue ? <Rating value={ratingValue} count={ratingCount} size="sm" /> : null}
         </div>
         {item.description ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.description}</p> : null}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">

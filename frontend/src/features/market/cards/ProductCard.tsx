@@ -24,17 +24,21 @@ export function ProductCard({ item }: ProductCardProps) {
   const [imageFailed, setImageFailed] = useState(false)
   const { notify } = useToast()
 
+  const safePrice = Number.isFinite(item.price) ? item.price : 0
+  const safeOriginalPrice = Number.isFinite(item.price_original ?? Number.NaN)
+    ? item.price_original
+    : null
   const base = useMemo(
     () => ({
       kind: 'product' as const,
       id: item.id,
       title: item.title,
-      price: item.price,
+      price: safePrice,
       currency: item.currency,
       imageUrl: item.image_url ?? null,
       unit: item.unit ?? null,
     }),
-    [item.currency, item.id, item.image_url, item.price, item.title, item.unit],
+    [item.currency, item.id, item.image_url, item.title, item.unit, safePrice],
   )
 
   const mutation = useMutation({
@@ -70,6 +74,13 @@ export function ProductCard({ item }: ProductCardProps) {
   }
 
   const displayImage = !imageFailed && item.image_url ? item.image_url : null
+  const discountPercent = Number.isFinite(item.discount_percent ?? Number.NaN)
+    ? Math.round(Number(item.discount_percent))
+    : null
+  const ratingValue = Number.isFinite(item.rating ?? Number.NaN) ? Number(item.rating) : null
+  const ratingCount = Number.isFinite(item.rating_count ?? Number.NaN)
+    ? Math.trunc(Number(item.rating_count))
+    : undefined
 
   return (
     <Card interactive elevation={2} className="flex h-full flex-col gap-4 p-0">
@@ -91,9 +102,7 @@ export function ProductCard({ item }: ProductCardProps) {
           )}
         </div>
         <div className="absolute inset-x-0 top-3 flex items-center justify-between px-3">
-          {item.discount_percent ? (
-            <Badge tone="primary">-{Number(item.discount_percent).toFixed(0)}%</Badge>
-          ) : null}
+          {discountPercent ? <Badge tone="primary">-{discountPercent}%</Badge> : null}
           {!item.available ? <Badge tone="warning">Нет в наличии</Badge> : null}
         </div>
       </div>
@@ -103,7 +112,7 @@ export function ProductCard({ item }: ProductCardProps) {
           {item.subtitle ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.subtitle}</p> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Price value={item.price} currency={item.currency} originalValue={item.price_original ?? null} />
+          <Price value={safePrice} currency={item.currency} originalValue={safeOriginalPrice ?? null} />
           {item.unit ? <span className="text-xs text-muted-foreground">/ {item.unit}</span> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -115,7 +124,11 @@ export function ProductCard({ item }: ProductCardProps) {
           ))}
         </div>
         <div className="flex items-center justify-between gap-3">
-          {item.rating ? <Rating value={item.rating} count={item.rating_count ?? undefined} size="sm" /> : <span className="text-xs text-muted-foreground">Рейтинг появится после продаж</span>}
+          {ratingValue ? (
+            <Rating value={ratingValue} count={ratingCount} size="sm" />
+          ) : (
+            <span className="text-xs text-muted-foreground">Рейтинг появится после продаж</span>
+          )}
           {quantity > 0 ? (
             <QuantityStepper
               value={quantity}

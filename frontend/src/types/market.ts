@@ -2,6 +2,11 @@ export type MarketResource = 'recipes' | 'products' | 'stores'
 
 export interface MarketRecipe {
   id: number
+  store: number
+  store_name: string
+  store_slug: string
+  store_city: string
+  store_logo_url?: string | null
   title: string
   subtitle?: string | null
   description?: string | null
@@ -19,10 +24,18 @@ export interface MarketRecipe {
   tags?: string[] | null
   is_premium?: boolean
   is_in_plan?: boolean
+  metadata?: Record<string, unknown>
 }
 
 export interface MarketProduct {
   id: number
+  store: number
+  store_name: string
+  store_slug: string
+  store_city: string
+  store_logo_url?: string | null
+  store_is_verified: boolean
+  store_owner_id: number
   title: string
   subtitle?: string | null
   description?: string | null
@@ -38,13 +51,25 @@ export interface MarketProduct {
   rating_count?: number | null
   is_in_cart?: boolean
   available?: boolean
+  inventory_available: number
+  inventory_quantity: number
+  inventory_reserved: number
+  metadata?: Record<string, unknown>
+  tags?: string[] | null
+  nutrition?: Record<string, unknown>
 }
 
 export interface MarketStore {
   id: number
+  slug: string
+  owner: number
+  owner_username: string
+  owner_full_name?: string | null
   name: string
   city: string
   description?: string | null
+  is_active: boolean
+  is_verified: boolean
   rating?: number | null
   rating_count?: number | null
   delivery_eta_minutes?: number | null
@@ -55,6 +80,7 @@ export interface MarketStore {
   logo_url?: string | null
   tags?: string[] | null
   link_url?: string | null
+  metadata?: Record<string, unknown>
 }
 
 export interface MarketPaginatedResponse<TItem> {

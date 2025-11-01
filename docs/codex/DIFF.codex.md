@@ -1,5 +1,21 @@
 # Codex Diff Journal
 
+## 2025-11-11 – commit TBD (market card flat fields)
+
+Summary: Flattened marketplace serializers to expose store/product/recipe metadata, optimized queryset prefetching, refreshed SPA typings and card rendering to avoid NaN placeholders, and covered the new contract with backend and frontend tests.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/serializers.py | Expose flattened metadata fields and numeric conversions for stores, products, and recipes. | backend | no |
+| modify | backend/apps/market/views.py | Prefetch related store/owner/inventory data to support the enriched serializers without N+1 queries. | backend | no |
+| create | backend/apps/market/tests/test_viewsets_serialization.py | Assert the flattened API payloads for stores, products, and recipes. | backend | no |
+| modify | frontend/src/types/market.ts | Align marketplace resource typings with the expanded backend payload. | frontend | no |
+| modify | frontend/src/features/market/cards/ProductCard.tsx | Guard against NaN display, use flattened fields, and surface reliable pricing data. | frontend | no |
+| modify | frontend/src/features/market/cards/RecipeCard.tsx | Normalize macro and price rendering using the flattened metadata fields. | frontend | no |
+| modify | frontend/src/features/market/cards/StoreCard.tsx | Harden delivery/rating formatting against invalid values. | frontend | no |
+| create | frontend/src/features/market/cards/CardComponents.test.tsx | Provide regression tests ensuring cards render without NaN artifacts. | frontend | no |
+| modify | docs/codex/DIFF.codex.md | Log this diff entry for traceability. | docs | no |
+
 ## 2025-11-10 – commit TBD (market events SSE proxy)
 
 Summary: Delivered a JWT-protected `/api/v1/market/events/` SSE proxy, renamed the frontend subscription hook, documented the contract, and captured local load-test metrics.

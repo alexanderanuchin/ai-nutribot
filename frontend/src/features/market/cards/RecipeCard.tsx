@@ -30,7 +30,7 @@ function formatMinutes(value: number): string {
 
 function formatCalories(value: number): string {
   if (!Number.isFinite(value)) return '—'
-  return `${Math.round(value)} ккал`
+  return `${Math.max(0, Math.round(value))} ккал`
 }
 
 export function RecipeCard({ item }: RecipeCardProps) {
@@ -77,14 +77,26 @@ export function RecipeCard({ item }: RecipeCardProps) {
     },
   })
 
+  const toMacro = (value: number | null | undefined) => {
+    if (!Number.isFinite(value ?? Number.NaN)) return 0
+    const rounded = Math.round(Number(value))
+    return Number.isNaN(rounded) ? 0 : Math.max(0, rounded)
+  }
+
   const macros = useMemo(
     () => [
-      { label: 'Б', value: Math.round(item.protein_g) },
-      { label: 'Ж', value: Math.round(item.fat_g) },
-      { label: 'У', value: Math.round(item.carbs_g) },
+      { label: 'Б', value: toMacro(item.protein_g) },
+      { label: 'Ж', value: toMacro(item.fat_g) },
+      { label: 'У', value: toMacro(item.carbs_g) },
     ],
     [item.carbs_g, item.fat_g, item.protein_g],
   )
+
+  const ratingValue = Number.isFinite(item.rating ?? Number.NaN) ? Number(item.rating) : null
+  const ratingCount = Number.isFinite(item.rating_count ?? Number.NaN)
+    ? Math.trunc(Number(item.rating_count))
+    : undefined
+  const priceValue = Number.isFinite(item.price ?? Number.NaN) ? Number(item.price) : null
 
   const handleTogglePlan = () => {
     if (!hydrated) return
@@ -126,7 +138,7 @@ export function RecipeCard({ item }: RecipeCardProps) {
             <h3 className="text-title font-semibold text-foreground [overflow-wrap:anywhere]">{item.title}</h3>
             {item.subtitle ? <p className="text-sm text-muted-foreground [overflow-wrap:anywhere]">{item.subtitle}</p> : null}
           </div>
-          {item.rating ? <Rating value={item.rating} count={item.rating_count ?? undefined} size="sm" /> : null}
+          {ratingValue ? <Rating value={ratingValue} count={ratingCount} size="sm" /> : null}
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 rounded-full bg-muted/30 px-2 py-1">
@@ -152,9 +164,9 @@ export function RecipeCard({ item }: RecipeCardProps) {
           ))}
         </div>
         <div className="mt-auto flex items-center justify-between gap-3">
-          {item.price ? (
+          {priceValue != null ? (
             <div className="text-sm font-semibold text-primary">
-              {item.price.toLocaleString('ru-RU', { style: 'currency', currency: item.currency || 'RUB' })}
+              {priceValue.toLocaleString('ru-RU', { style: 'currency', currency: item.currency || 'RUB' })}
             </div>
           ) : (
             <div className="text-sm font-semibold text-success">Бесплатно</div>
