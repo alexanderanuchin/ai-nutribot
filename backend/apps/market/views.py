@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import date
 import logging
 
-from django.db.models import Prefetch, Q
-from rest_framework import filters as drf_filters, permissions, status, viewsets
+from django.db.models import F, Prefetch, Q
+from rest_framework import permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,6 +25,12 @@ from .models import (
     RecipeIngredient,
     RecipeStep,
     Store,
+)
+from .ordering import (
+    MarketOrderingFilter,
+    coalesce_json_float,
+    json_float,
+    json_int,
 )
 from .pagination import MarketPagination
 from .permissions import (
@@ -59,12 +65,12 @@ logger = logging.getLogger(__name__)
 class StoreViewSet(viewsets.ModelViewSet):
     serializer_class = StoreSerializer
     pagination_class = MarketPagination
-    filter_backends = [drf_filters.OrderingFilter]
-    ordering_fields = {
-        "name": "name",
-        "rating": "metadata__rating",
-        "eta": "metadata__delivery_eta_minutes",
-        "freshness": "created_at",
+    filter_backends = [MarketOrderingFilter]
+    ordering_fields = ("name", "rating", "eta", "freshness", "created_at", "id")
+    ordering_aliases = {
+        "rating": json_float("metadata__rating"),
+        "eta": json_int("metadata__delivery_eta_minutes"),
+        "freshness": F("created_at"),
     }
     ordering = ("name", "id")
 
@@ -104,13 +110,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     pagination_class = MarketPagination
     permission_classes = [IsMarketOperatorOrReadOnly]
-    filter_backends = [drf_filters.OrderingFilter]
-    ordering_fields = {
-        "title": "title",
-        "price": "price",
-        "discount": "metadata__discount_percent",
-        "rating": "metadata__rating",
-        "created": "created_at",
+    filter_backends = [MarketOrderingFilter]
+    ordering_fields = ("title", "price", "discount", "rating", "created", "created_at", "id")
+    ordering_aliases = {
+        "discount": json_float("metadata__discount_percent"),
+        "rating": json_float("metadata__rating"),
+        "created": F("created_at"),
     }
     ordering = ("title", "id")
 
@@ -155,14 +160,23 @@ class RecipeViewSet(viewsets.ModelViewSet):
     serializer_class = RecipeSerializer
     pagination_class = MarketPagination
     permission_classes = [IsMarketOperatorOrReadOnly]
-    filter_backends = [drf_filters.OrderingFilter]
-    ordering_fields = {
-        "title": "title",
-        "time_minutes": "cooking_time_minutes",
-        "calories": "metadata__nutrition__calories",
-        "rating": "metadata__rating",
-        "price": "metadata__price__value",
-        "created": "created_at",
+    filter_backends = [MarketOrderingFilter]
+    ordering_fields = (
+        "title",
+        "time_minutes",
+        "calories",
+        "rating",
+        "price",
+        "created",
+        "created_at",
+        "id",
+    )
+    ordering_aliases = {
+        "time_minutes": F("cooking_time_minutes"),
+        "calories": json_float("metadata__nutrition__calories"),
+        "rating": json_float("metadata__rating"),
+        "price": coalesce_json_float(["metadata__price__value", "metadata__price"]),
+        "created": F("created_at"),
     }
     ordering = ("title", "id")
 

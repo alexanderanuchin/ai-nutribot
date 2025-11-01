@@ -167,4 +167,36 @@ describe('MarketCollectionPage desktop filters', () => {
     lastCall = fetchMock.mock.calls.at(-1)?.[0]
     expect(lastCall?.filters).toMatchObject({ min_protein: 25, max_price: 300, min_rating: 4 })
   })
+
+  test('sends ordering aliases for stores sort options', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+    const user = userEvent.setup()
+    const fetchMock = vi.mocked(fetchMarketCollection)
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <MarketCollectionPage resource="stores" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    let lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters?.ordering).toBe('-rating')
+
+    fetchMock.mockClear()
+    await user.click(screen.getByRole('radio', { name: 'Доставка' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters?.ordering).toBe('eta')
+
+    fetchMock.mockClear()
+    await user.click(screen.getByRole('radio', { name: 'Новые' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    lastCall = fetchMock.mock.calls.at(-1)?.[0]
+    expect(lastCall?.filters?.ordering).toBe('-freshness')
+  })
 })
