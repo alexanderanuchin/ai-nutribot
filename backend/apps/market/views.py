@@ -120,10 +120,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     ordering = ("title", "id")
 
     def get_queryset(self):
-        qs = (
-            Product.objects.select_related("store", "store__owner", "inventory")
-            .prefetch_related("ingredient_usages")
-        )
+        qs = Product.objects.select_related("store", "store__owner", "inventory")
         user = self.request.user
         if is_market_moderator(user):
             pass
@@ -181,9 +178,13 @@ class RecipeViewSet(viewsets.ModelViewSet):
     ordering = ("title", "id")
 
     def get_queryset(self):
-        qs = (
-            Recipe.objects.select_related("store", "store__owner", "author")
-            .prefetch_related("steps", "ingredients", "ingredients__product")
+        ingredients_prefetch = Prefetch(
+            "ingredients",
+            queryset=RecipeIngredient.objects.select_related("product"),
+        )
+        qs = Recipe.objects.select_related("store", "store__owner", "author").prefetch_related(
+            "steps",
+            ingredients_prefetch,
         )
         user = self.request.user
         if is_market_moderator(user):
@@ -325,10 +326,14 @@ class CartViewSet(viewsets.ModelViewSet):
     pagination_class = MarketPagination
 
     def get_queryset(self):
+        items_prefetch = Prefetch(
+            "items",
+            queryset=CartItem.objects.select_related("product"),
+        )
         return (
             Cart.objects.filter(user=self.request.user)
             .select_related("store")
-            .prefetch_related("items", "items__product")
+            .prefetch_related(items_prefetch)
             .order_by("-updated_at")
         )
 

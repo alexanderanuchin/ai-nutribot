@@ -33,6 +33,7 @@ class Store(models.Model):
         indexes = [
             models.Index(fields=["slug"], name="market_store_slug"),
             models.Index(fields=["owner", "is_active"], name="market_store_owner_active"),
+            models.Index(fields=["city"], name="market_store_city"),
             GinIndex(fields=["metadata"], name="market_store_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
         permissions = [
@@ -81,6 +82,7 @@ class Product(models.Model):
             models.Index(fields=["slug"], name="market_product_slug"),
             models.Index(fields=["store", "is_published"], name="market_product_store_pub"),
             models.Index(fields=["is_published", "published_at"], name="market_product_published"),
+            models.Index(fields=["price"], name="market_product_price"),
             GinIndex(fields=["metadata"], name="market_product_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
 
@@ -128,6 +130,7 @@ class Recipe(models.Model):
             models.Index(fields=["slug"], name="market_recipe_slug"),
             models.Index(fields=["store", "is_public"], name="market_recipe_store_public"),
             models.Index(fields=["published_at"], name="market_recipe_published"),
+            models.Index(fields=["cooking_time_minutes"], name="market_recipe_cook_time"),
             GinIndex(fields=["metadata"], name="market_recipe_metadata_gin", opclasses=["jsonb_path_ops"]),
         ]
 
@@ -255,6 +258,7 @@ class Cart(models.Model):
         ]
         indexes = [
             models.Index(fields=["user", "status"], name="market_cart_user_status"),
+            models.Index(fields=["user", "-updated_at"], name="market_cart_user_updated_desc"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
