@@ -1,5 +1,15 @@
 # Codex Diff Journal
 
+## 2025-11-08 – commit TBD (market stack baseline audit)
+
+Summary: Captured baseline gaps between marketplace implementations and issue templates, logged missing request-id propagation
+in logs, and recorded follow-up decisions for cart/plan endpoint alignment.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| modify | docs/codex/DIFF.codex.md | Record the audit findings and logging observations for traceability. | docs | no |
+| create | docs/codex/adr/2025-11-08-cart-plan-endpoints.md | Draft ADR covering cart/plan endpoint alignment options pending implementation. | docs | no |
+
 ## 2025-11-07 – commit TBD (market search sidebar placement)
 
 Summary: Embed the marketplace search control inside the desktop filter sidebar on laptop and monitor breakpoints so the layout
