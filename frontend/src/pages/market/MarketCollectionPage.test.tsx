@@ -13,8 +13,8 @@ vi.mock('../../api/market', () => ({
   }),
 }))
 
-vi.mock('../../features/market/hooks/useMarketRealtime', () => ({
-  useMarketRealtime: () => undefined,
+vi.mock('../../features/market/hooks/useMarketEvents', () => ({
+  useMarketEvents: () => undefined,
 }))
 
 const cartTotals = { count: 0, quantity: 0, amount: 0, currency: null }

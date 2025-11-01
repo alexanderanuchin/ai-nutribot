@@ -5,7 +5,7 @@ import { RefreshCwIcon, ShoppingCartIcon, SparklesIcon, UtensilsCrossedIcon } fr
 import clsx from 'clsx'
 
 import { fetchMarketCollection, type MarketCollectionItemMap, type MarketResource } from '../../api/market'
-import { useMarketRealtime } from '../../features/market/hooks/useMarketRealtime'
+import { useMarketEvents } from '../../features/market/hooks/useMarketEvents'
 import MarketListSkeleton from '../../features/market/components/MarketListSkeleton'
 import {
   MARKET_PRICE_LIMITS,
@@ -387,7 +387,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
     [filterDefinitions, resource],
   )
 
-  useMarketRealtime({
+  useMarketEvents({
     resource,
     onEvent: event => {
       const delta = event.payload.fresh_count && event.payload.fresh_count > 0 ? event.payload.fresh_count : 1

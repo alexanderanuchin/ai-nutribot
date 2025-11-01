@@ -1,5 +1,23 @@
 # Codex Diff Journal
 
+## 2025-11-10 – commit TBD (market events SSE proxy)
+
+Summary: Delivered a JWT-protected `/api/v1/market/events/` SSE proxy, renamed the frontend subscription hook, documented the contract, and captured local load-test metrics.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/market/api/events.py | Expose a dedicated SSE proxy that filters `market.*` events and forwards keepalives. | backend | no |
+| modify | backend/apps/market/api/__init__.py | Re-export the events view for URL wiring. | backend | no |
+| modify | backend/apps/market/urls.py | Register `/v1/market/events/` under the market namespace. | backend | no |
+| create | backend/apps/market/tests/test_events_api.py | Cover auth failures, resource validation, and SSE filtering. | backend | no |
+| move | frontend/src/features/market/hooks/useMarketRealtime.ts → frontend/src/features/market/hooks/useMarketEvents.ts | Rename and harden the client hook around the new endpoint. | frontend | no |
+| modify | frontend/src/features/market/hooks/useMarketEvents.ts | Improve reconnect logic, keepalive handling, and naming. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Point the marketplace page at the renamed hook. | frontend | no |
+| modify | frontend/src/pages/market/MarketCollectionPage.test.tsx | Update mocks to match the renamed hook. | frontend | no |
+| create | docs/frontend/market/market-events-contract.md | Describe the SSE contract, authentication, and sanity load metrics. | docs | no |
+| modify | docs/codex/CHANGELOG.codex.md | Record the realtime proxy milestone. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Log this diff entry. | docs | no |
+
 ## 2025-11-09 – commit TBD (market cart/plan submission endpoints)
 
 Summary: Delivered sugar cart/plan submission endpoints, aligned the SPA forms and stores with the new contract, and added backend/frontend tests plus decision records.

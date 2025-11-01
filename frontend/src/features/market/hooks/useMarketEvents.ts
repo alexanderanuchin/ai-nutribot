@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 
-import { tokenStore } from '../../../utils/storage'
 import type { MarketRealtimeEvent, MarketResource } from '../../../types/market'
 import { resolveRealtimeHttpBase } from '../../../utils/realtime'
+import { tokenStore } from '../../../utils/storage'
 
 const RESOURCE_TO_GROUP: Record<MarketResource, MarketRealtimeEvent['group']> = {
   recipes: 'market.recipes',
@@ -10,13 +10,15 @@ const RESOURCE_TO_GROUP: Record<MarketResource, MarketRealtimeEvent['group']> = 
   stores: 'market.stores',
 }
 
-export interface UseMarketRealtimeOptions {
+const KEEPALIVE_EVENT = 'market.keepalive'
+
+export interface UseMarketEventsOptions {
   resource: MarketResource
   onEvent: (event: MarketRealtimeEvent) => void
   enabled?: boolean
 }
 
-export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMarketRealtimeOptions): void {
+export function useMarketEvents({ resource, onEvent, enabled = true }: UseMarketEventsOptions): void {
   const handlerRef = useRef(onEvent)
   handlerRef.current = onEvent
 
@@ -26,7 +28,7 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
     const token = tokenStore.access
     if (!token) return undefined
 
-    let es: EventSource | null = null
+    let eventSource: EventSource | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
     let attempts = 0
@@ -38,26 +40,26 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
         clearTimeout(reconnectTimer)
         reconnectTimer = null
       }
-      if (es) {
-        es.onopen = null
-        es.onerror = null
+      if (eventSource) {
+        eventSource.onopen = null
+        eventSource.onerror = null
         listeners.forEach(({ type, handler }) => {
-          es?.removeEventListener(type, handler)
+          eventSource?.removeEventListener(type, handler)
         })
         listeners = []
-        es.close()
-        es = null
+        eventSource.close()
+        eventSource = null
       }
     }
 
-      const scheduleReconnect = () => {
-        if (closed) return
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer)
-        }
-        const delay = Math.min(1000 * 2 ** attempts, 30000)
-        reconnectTimer = setTimeout(connect, delay)
+    const scheduleReconnect = () => {
+      if (closed) return
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
       }
+      const delay = Math.min(1000 * 2 ** attempts, 30000)
+      reconnectTimer = setTimeout(connect, delay)
+    }
 
     const connect = () => {
       if (closed) return
@@ -65,7 +67,7 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
       const params = new URLSearchParams({ token, resource })
       const url = `${httpBase}/v1/market/events/?${params.toString()}`
 
-      es = new EventSource(url)
+      eventSource = new EventSource(url)
       const group = RESOURCE_TO_GROUP[resource]
       listeners = []
 
@@ -93,31 +95,32 @@ export function useMarketRealtime({ resource, onEvent, enabled = true }: UseMark
           const parsed = JSON.parse(event.data)
           handlePayload(parsed)
         } catch (error) {
-          console.warn('market realtime: invalid message', error)
+          console.warn('market events: invalid message payload', error)
         }
       }
 
-      es.onopen = () => {
+      eventSource.onopen = () => {
         attempts = 0
       }
 
-      es.onerror = () => {
+      eventSource.onerror = () => {
+        if (closed) return
         attempts += 1
-        es?.close()
-        es = null
+        eventSource?.close()
+        eventSource = null
         scheduleReconnect()
       }
 
       const addListener = (type: string, handler: EventListener) => {
-        es?.addEventListener(type, handler)
+        eventSource?.addEventListener(type, handler)
         listeners.push({ type, handler })
       }
 
       addListener(group, handleEvent)
       addListener('message', handleEvent)
-      addListener('market.keepalive', () => {
+      addListener(KEEPALIVE_EVENT, () => {
         if (import.meta.env.DEV) {
-          console.debug('market realtime: keepalive received')
+          console.debug('market events: keepalive received')
         }
       })
     }

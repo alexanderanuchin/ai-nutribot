@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-10
+
+- Added the `/api/v1/market/events/` SSE proxy with JWT authentication, frontend hook rename, contract docs, and a local load sanity check. See DIFF entry “2025-11-10 – commit TBD (market events SSE proxy)”.
+
 ## 2025-11-09
 
 - Added sugar endpoints for `/v1/market/cart/` and `/v1/market/plan/`, aligned the SPA forms/stores, and covered the new contract with backend/frontend tests. See DIFF entry “2025-11-09 – commit TBD (market cart/plan submission endpoints)”.
