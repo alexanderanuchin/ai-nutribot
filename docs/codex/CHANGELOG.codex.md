@@ -1,5 +1,9 @@
 # Codex Changelog
 
+## 2025-11-09
+
+- Added sugar endpoints for `/v1/market/cart/` and `/v1/market/plan/`, aligned the SPA forms/stores, and covered the new contract with backend/frontend tests. See DIFF entry “2025-11-09 – commit TBD (market cart/plan submission endpoints)”.
+
 ## 2025-11-08
 
 - Adopted page-number pagination for market listings across backend and frontend layers and covered the contract with unit

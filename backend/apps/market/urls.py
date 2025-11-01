@@ -1,6 +1,7 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from .api import CartSubmissionView, MealPlanSubmissionView
 from .views import (
     CartItemViewSet,
     CartViewSet,
@@ -30,6 +31,8 @@ router.register("meal-plans", MealPlanViewSet, basename="market-meal-plan")
 router.register("meal-plan-items", MealPlanItemViewSet, basename="market-meal-plan-item")
 
 urlpatterns = [
+    path("cart/", CartSubmissionView.as_view(), name="market-cart-submit"),
+    path("plan/", MealPlanSubmissionView.as_view(), name="market-plan-submit"),
     path("search/", MarketSearchView.as_view(), name="market-search"),
     path("", include(router.urls)),
 ]

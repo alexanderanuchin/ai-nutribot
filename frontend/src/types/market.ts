@@ -78,14 +78,50 @@ export interface MarketRealtimeEvent {
   payload: MarketRealtimePayload
 }
 
-export interface AddProductToCartPayload {
+export interface MarketCartSubmissionPayload {
   product_id: number
-  quantity: number
+  quantity?: number
 }
 
-export interface AddRecipeToPlanPayload {
+export interface MarketCartItemSummary {
+  id: number
+  product_id: number
+  quantity: number
+  price_snapshot: string
+}
+
+export interface MarketCartSubmissionResponse {
+  status: "created" | "updated" | "removed"
+  cart: {
+    id: number
+    store_id: number
+    currency: string
+    items_count: number
+    items_quantity: number
+  }
+  item: MarketCartItemSummary | null
+}
+
+export interface MarketPlanSubmissionPayload {
   recipe_id: number
   servings?: number
+}
+
+export interface MarketPlanItemSummary {
+  id: number
+  recipe_id: number
+  servings: number
+}
+
+export interface MarketPlanSubmissionResponse {
+  status: "created" | "updated" | "removed"
+  plan: {
+    id: number
+    title: string
+    items_count: number
+    total_servings: number
+  }
+  item: MarketPlanItemSummary | null
 }
 
 export interface MarketQuickFilter {

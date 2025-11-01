@@ -1,7 +1,5 @@
 import api from './client'
 import type {
-  AddProductToCartPayload,
-  AddRecipeToPlanPayload,
   MarketPaginatedResponse,
   MarketProduct,
   MarketRecipe,
@@ -85,14 +83,6 @@ export async function fetchMarketCollection<T extends MarketResource>({
     nextPage: extractPage(data.next ?? null),
     raw: data,
   }
-}
-
-export async function addProductToCart(payload: AddProductToCartPayload): Promise<void> {
-  await api.post('/v1/market/cart/', payload)
-}
-
-export async function addRecipeToPlan(payload: AddRecipeToPlanPayload): Promise<void> {
-  await api.post('/v1/market/plan/', payload)
 }
 
 export interface MarketSearchOptions {

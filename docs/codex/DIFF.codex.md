@@ -1,5 +1,29 @@
 # Codex Diff Journal
 
+## 2025-11-09 – commit TBD (market cart/plan submission endpoints)
+
+Summary: Delivered sugar cart/plan submission endpoints, aligned the SPA forms and stores with the new contract, and added backend/frontend tests plus decision records.
+
+| Action | Path | Reason | Impact | Restart/Migration |
+| --- | --- | --- | --- | --- |
+| create | docs/codex/DECISIONS.md | Capture the choice of variant B for cart/plan alignment. | docs | no |
+| create | backend/apps/market/api/__init__.py | Expose the new API submodules for cart and plan submissions. | backend | no |
+| create | backend/apps/market/api/cart.py | Implement the `/v1/market/cart/` sugar endpoint handling add/update/remove flows. | backend | no |
+| create | backend/apps/market/api/plan.py | Implement the `/v1/market/plan/` sugar endpoint orchestrating meal plan items. | backend | no |
+| modify | backend/apps/market/urls.py | Register the new cart/plan submission endpoints alongside existing routes. | backend | no |
+| create | backend/apps/market/tests/test_cart_plan_endpoints.py | Cover happy-path mutations and validation for the sugar endpoints. | backend | no |
+| modify | frontend/src/types/market.ts | Define payload/response types for cart and plan submissions. | frontend | no |
+| modify | frontend/src/api/market.ts | Delegate cart/plan mutations to feature-level clients. | frontend | no |
+| modify | frontend/src/features/market/cards/ProductCard.tsx | Call the new cart submission API and sync the Zustand store. | frontend | no |
+| modify | frontend/src/features/market/cards/RecipeCard.tsx | Call the plan submission API and align success handling. | frontend | no |
+| create | frontend/src/features/market/cart/api.ts | Provide a scoped HTTP client for cart submissions. | frontend | no |
+| create | frontend/src/features/market/cart/form.ts | Define the cart submission form schema and helpers. | frontend | no |
+| create | frontend/src/features/market/plan/api.ts | Provide a scoped HTTP client for plan submissions. | frontend | no |
+| create | frontend/src/features/market/plan/form.ts | Define the plan submission form schema and helpers. | frontend | no |
+| create | frontend/src/tests/marketCartPlan.test.ts | Assert API payload normalization and validation failures. | frontend | no |
+| modify | docs/codex/CHANGELOG.codex.md | Log the cart/plan endpoint integration milestone. | docs | no |
+| modify | docs/codex/DIFF.codex.md | Record the cart/plan submission diff entry. | docs | no |
+
 ## 2025-11-08 – commit TBD (market stack baseline audit)
 
 Summary: Captured baseline gaps between marketplace implementations and issue templates, logged missing request-id propagation

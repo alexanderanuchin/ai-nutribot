@@ -3,7 +3,8 @@ import { useMutation } from '@tanstack/react-query'
 import { CheckIcon, ShoppingBagIcon } from 'lucide-react'
 
 import type { MarketProduct } from '../../../types/market'
-import { addProductToCart } from '../../../api/market'
+import { submitCartItem } from '../cart/api'
+import { createCartSubmissionPayload } from '../cart/form'
 import {
   selectCartQuantity,
   useMarketCartStore,
@@ -38,25 +39,29 @@ export function ProductCard({ item }: ProductCardProps) {
 
   const mutation = useMutation({
     mutationFn: async (nextQuantity: number) => {
-      await addProductToCart({ product_id: item.id, quantity: Math.max(nextQuantity, 0) })
-      return Math.max(nextQuantity, 0)
+      const submission = createCartSubmissionPayload({
+        product_id: item.id,
+        quantity: Math.max(nextQuantity, 0),
+      })
+      return submitCartItem(submission)
     },
-    onSuccess: nextQuantity => {
-      if (nextQuantity <= 0) {
+    onSuccess: response => {
+      const updatedQuantity = response.item?.quantity ?? 0
+      if (response.status === 'removed' || updatedQuantity <= 0) {
         removeItem('product', item.id)
         return
       }
       if (!hydrated) return
       if (quantity <= 0) {
-        addItem({ ...base, quantity: nextQuantity })
+        addItem({ ...base, quantity: updatedQuantity })
         notify({
           title: 'Добавлено в корзину',
-          description: `${item.title} × ${nextQuantity}`,
+          description: `${item.title} × ${updatedQuantity}`,
           tone: 'success',
         })
         return
       }
-      setQuantity(base, nextQuantity)
+      setQuantity(base, updatedQuantity)
     },
   })
 

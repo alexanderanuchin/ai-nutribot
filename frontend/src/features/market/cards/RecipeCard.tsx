@@ -3,7 +3,8 @@ import { useMutation } from '@tanstack/react-query'
 import { Clock3Icon, FlameIcon, SparklesIcon } from 'lucide-react'
 
 import type { MarketRecipe } from '../../../types/market'
-import { addRecipeToPlan } from '../../../api/market'
+import { submitPlanItem } from '../plan/api'
+import { createPlanSubmissionPayload } from '../plan/form'
 import { selectPlanItem, useMarketPlanStore } from '../stores/planStore'
 import {
   Badge,
@@ -50,11 +51,15 @@ export function RecipeCard({ item }: RecipeCardProps) {
 
   const mutation = useMutation({
     mutationFn: async (nextServings: number) => {
-      await addRecipeToPlan({ recipe_id: item.id, servings: Math.max(nextServings, 0) })
-      return Math.max(nextServings, 0)
+      const submission = createPlanSubmissionPayload({
+        recipe_id: item.id,
+        servings: Math.max(nextServings, 0),
+      })
+      return submitPlanItem(submission)
     },
-    onSuccess: nextServings => {
-      if (nextServings <= 0) {
+    onSuccess: response => {
+      const updatedServings = response.item?.servings ?? 0
+      if (response.status === 'removed' || updatedServings <= 0) {
         removeItem(item.id)
         notify({ title: 'Удалено из плана', description: item.title, tone: 'warning' })
         return
@@ -62,13 +67,13 @@ export function RecipeCard({ item }: RecipeCardProps) {
       upsertItem({
         id: item.id,
         title: item.title,
-        servings: nextServings,
+        servings: updatedServings,
         calories: item.calories,
         cookTimeMinutes: item.cook_time_minutes,
         imageUrl: item.preview_image_url || item.hero_image_url || null,
         tags: item.tags ?? null,
       })
-      notify({ title: 'В плане питания', description: `${item.title} · ${nextServings} порций`, tone: 'success' })
+      notify({ title: 'В плане питания', description: `${item.title} · ${updatedServings} порций`, tone: 'success' })
     },
   })
 
