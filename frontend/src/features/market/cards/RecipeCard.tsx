@@ -69,7 +69,7 @@ export function RecipeCard({ item }: RecipeCardProps) {
         title: item.title,
         servings: updatedServings,
         calories: item.calories,
-        cookTimeMinutes: item.cook_time_minutes,
+        cookTimeMinutes: item.cooking_time_minutes,
         imageUrl: item.preview_image_url || item.hero_image_url || null,
         tags: item.tags ?? null,
       })
@@ -143,7 +143,7 @@ export function RecipeCard({ item }: RecipeCardProps) {
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 rounded-full bg-muted/30 px-2 py-1">
             <Clock3Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            {formatMinutes(item.cook_time_minutes)}
+            {formatMinutes(item.cooking_time_minutes)}
           </span>
           <span className="inline-flex items-center gap-1 rounded-full bg-muted/30 px-2 py-1">
             <FlameIcon className="h-3.5 w-3.5" aria-hidden="true" />

@@ -104,10 +104,19 @@ USE_SQLITE=1 python manage.py shell -c "from django.contrib.auth import get_user
 
 ## Marketplace API
 
-* Base path: `/api/v1/market/` (JWT required).
-* Resources: stores, products, recipes, inventory, carts, meal plans. Each endpoint honours pagination via `page`/`page_size` and simple query filters (e.g. `?search=`, `?store=`).
-* SSE notifications are published to the `market.*` channel via the existing feed event stream. Actions include `created`, `updated`, `published`, `verified` and `status_changed`.
-* Marketplace permissions: vendors manage their own stores/products; moderators (group `market_moderator`) moderate any payload.
+* Base path: `/api/v1/market/` (JWT required). All collection endpoints accept `page` and `page_size` (default 20, max 100) and return `count`, `page`, `page_size`, `next`, `previous`, and `results` payloads.
+* Search: `?search=` applies case-insensitive filtering to human-readable fields (name/description/tags) across stores, products, and recipes.
+* Ordering (`?ordering=`) aliases:
+  * **Stores:** `name`, `rating` → JSON `metadata.rating`, `eta` → `metadata.delivery_eta_minutes`, `freshness` → `created_at`. Multiple fields can be comma-separated, prefixed with `-` for descending. Unsupported aliases yield HTTP 400 instead of 500.
+  * **Products:** `title`, `price`, `discount` → `metadata.discount_percent`, `rating` → `metadata.rating`, `created` → `created_at`.
+  * **Recipes:** `title`, `time_minutes` → `cooking_time_minutes`, `calories` → `metadata.nutrition.calories`, `rating` → `metadata.rating`, `price` → coalesced `metadata.price.value` / `metadata.price`, `created` → `created_at`.
+* Filters:
+  * **Stores:** `city`, `tag`, `max_eta`, `free_delivery`, `is_online`, `min_rating`.
+  * **Products:** `store` (id or slug), `tag`, `origin`, `discount_only`, `available`, `min_price`, `max_price`, `published`, `min_rating`.
+  * **Recipes:** `store`, `max_time`, `difficulty`, `tag`, `min_rating`, `min_protein`, `max_price` (supports number or JSON object with `value`).
+* Serialization: responses expose flattened metadata — e.g. stores include `rating`, `delivery_eta_minutes`, `delivery_price`, `is_online`; products embed store snapshot, inventory availability, discount/original price, and badges; recipes expose macros (`calories`, `protein_g`, `fat_g`, `carbs_g`), pricing, flags (`is_premium`, `is_in_plan`), and nested `steps`/`ingredients`.
+* SSE notifications are streamed from `/api/v1/market/events/` (Server-Sent Events). Subscribe with a valid access token and optional `resource` query to receive `market.{stores|products|recipes}` events containing `action` (`created`, `updated`, `status_changed`, etc.) and full entity payloads for real-time UI updates.
+* Marketplace permissions: vendors manage their own stores/products; moderators (group `market_moderator`) moderate any payload. Non-operators only see active stores and public recipes.
 
 ## Marketplace demo data
 

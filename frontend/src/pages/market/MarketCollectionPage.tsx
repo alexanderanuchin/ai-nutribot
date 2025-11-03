@@ -20,6 +20,7 @@ import {
   MARKET_RESOURCE_TITLE,
 } from '../../features/market/constants'
 import {
+  MARKET_AVAILABILITY_PARAMS,
   MARKET_ORDERING_MAP,
   MARKET_PRICE_LIMITS,
   MARKET_SORT_OPTIONS,
@@ -46,11 +47,7 @@ type MarketCardComponent<T extends MarketResource> = ComponentType<{ item: Marke
 
 const BANNER_AUTO_HIDE_MS = 12000
 
-const AVAILABILITY_MAP: Record<MarketResource, string> = {
-  recipes: 'available',
-  products: 'available',
-  stores: 'open',
-}
+const FALLBACK_PRICE_RANGE: [number, number] = [0, 0]
 
 interface FreshBannerProps {
   visible: boolean
@@ -205,7 +202,9 @@ function MobileSummaryBar({
 export function MarketCollectionPage<T extends MarketResource>({ resource }: MarketCollectionPageProps<T>) {
   const filterDefinitions = MARKET_FILTERS[resource] ?? []
   const [chipFilters, setChipFilters] = useState<Record<string, boolean>>({})
-  const [priceRange, setPriceRange] = useState<[number, number]>(MARKET_PRICE_LIMITS[resource])
+  const [priceRange, setPriceRange] = useState<[number, number]>(
+    MARKET_PRICE_LIMITS[resource] ?? FALLBACK_PRICE_RANGE,
+  )
   const [ratingValue, setRatingValue] = useState(0)
   const [availability, setAvailability] = useState<'all' | 'available'>('all')
   const [sortValue, setSortValue] = useState(() => MARKET_SORT_OPTIONS[resource][0]?.value ?? 'relevance')
@@ -231,7 +230,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
 
   useEffect(() => {
     setChipFilters({})
-    setPriceRange(MARKET_PRICE_LIMITS[resource])
+    setPriceRange(MARKET_PRICE_LIMITS[resource] ?? FALLBACK_PRICE_RANGE)
     setRatingValue(0)
     setAvailability('all')
     setSortValue(MARKET_SORT_OPTIONS[resource][0]?.value ?? 'relevance')
@@ -252,6 +251,8 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
 
   const filterParams = useMemo(() => {
     const params: Record<string, string | number | boolean> = {}
+    const availabilityParam = MARKET_AVAILABILITY_PARAMS[resource]
+    const priceLimits = MARKET_PRICE_LIMITS[resource]
     filterDefinitions.forEach(definition => {
       if (!chipFilters[definition.id]) return
       const existing = params[definition.param]
@@ -261,18 +262,20 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
       }
       params[definition.param] = `${String(existing)},${String(definition.value)}`
     })
-    const [minPrice, maxPrice] = MARKET_PRICE_LIMITS[resource]
-    if (priceRange[0] > minPrice) {
-      params.min_price = priceRange[0]
-    }
-    if (priceRange[1] < maxPrice) {
-      params.max_price = priceRange[1]
+    if (priceLimits) {
+      const [minPrice, maxPrice] = priceLimits
+      if (priceRange[0] > minPrice) {
+        params.min_price = priceRange[0]
+      }
+      if (priceRange[1] < maxPrice) {
+        params.max_price = priceRange[1]
+      }
     }
     if (ratingValue > 0) {
       params.min_rating = ratingValue
     }
-    if (availability === 'available') {
-      params[AVAILABILITY_MAP[resource]] = true
+    if (availability === 'available' && availabilityParam) {
+      params[availabilityParam] = true
     }
     const ordering = MARKET_ORDERING_MAP[resource]?.[sortValue]
     if (ordering) {
@@ -352,7 +355,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
 
   const handleResetFilters = useCallback(() => {
     setChipFilters({})
-    setPriceRange(MARKET_PRICE_LIMITS[resource])
+    setPriceRange(MARKET_PRICE_LIMITS[resource] ?? FALLBACK_PRICE_RANGE)
     setRatingValue(0)
     setAvailability('all')
     setSortValue(MARKET_SORT_OPTIONS[resource][0]?.value ?? 'relevance')
@@ -433,6 +436,7 @@ export function MarketCollectionPage<T extends MarketResource>({ resource }: Mar
       onRatingChange: setRatingValue,
       availability,
       onAvailabilityChange: setAvailability,
+      availabilityEnabled: Boolean(MARKET_AVAILABILITY_PARAMS[resource]),
     }),
     [
       resource,

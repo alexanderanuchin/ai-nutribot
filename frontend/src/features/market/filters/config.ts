@@ -138,8 +138,14 @@ export const MARKET_ORDERING_MAP: Record<MarketResource, Record<string, string |
   ]),
 ) as Record<MarketResource, Record<string, string | undefined>>
 
-export const MARKET_PRICE_LIMITS: Record<MarketResource, [number, number]> = {
+export const MARKET_PRICE_LIMITS: Record<MarketResource, [number, number] | null> = {
   recipes: [0, 1200],
   products: [0, 5000],
-  stores: [0, 1000],
+  stores: null,
+}
+
+export const MARKET_AVAILABILITY_PARAMS: Record<MarketResource, string | null> = {
+  recipes: null,
+  products: 'available',
+  stores: null,
 }

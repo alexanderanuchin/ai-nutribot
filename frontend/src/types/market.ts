@@ -1,5 +1,34 @@
 export type MarketResource = 'recipes' | 'products' | 'stores'
 
+export interface MarketInventory {
+  id: number
+  product: number
+  quantity: number
+  reserved: number
+  reorder_threshold: number
+  available: number
+  updated_at: string
+}
+
+export interface MarketRecipeStep {
+  id: number
+  recipe: number
+  order: number
+  title: string
+  instructions: string
+  media_url?: string | null
+}
+
+export interface MarketRecipeIngredient {
+  id: number
+  recipe: number
+  product: number | null
+  name: string
+  quantity?: number | null
+  unit?: string | null
+  notes?: string | null
+}
+
 export interface MarketRecipe {
   id: number
   store: number
@@ -7,24 +36,35 @@ export interface MarketRecipe {
   store_slug: string
   store_city: string
   store_logo_url?: string | null
+  author?: number | null
   title: string
+  slug: string
+  summary?: string | null
   subtitle?: string | null
   description?: string | null
+  cooking_time_minutes: number
+  servings: number
+  difficulty?: string | null
+  hero_image_url?: string | null
+  preview_image_url?: string | null
   calories: number
   protein_g: number
   fat_g: number
   carbs_g: number
-  cook_time_minutes: number
   price?: number | null
   currency?: string | null
   rating?: number | null
   rating_count?: number | null
-  hero_image_url?: string | null
-  preview_image_url?: string | null
   tags?: string[] | null
   is_premium?: boolean
   is_in_plan?: boolean
+  is_public: boolean
+  published_at?: string | null
   metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
+  steps: MarketRecipeStep[]
+  ingredients: MarketRecipeIngredient[]
 }
 
 export interface MarketProduct {
@@ -37,10 +77,12 @@ export interface MarketProduct {
   store_is_verified: boolean
   store_owner_id: number
   title: string
-  subtitle?: string | null
+  slug: string
   description?: string | null
+  subtitle?: string | null
   price: number
   currency: string
+  weight_grams?: number | null
   unit?: string | null
   price_original?: number | null
   discount_percent?: number | null
@@ -51,12 +93,19 @@ export interface MarketProduct {
   rating_count?: number | null
   is_in_cart?: boolean
   available?: boolean
+  is_published: boolean
+  published_at?: string | null
+  available_from?: string | null
+  available_until?: string | null
+  created_at: string
+  updated_at: string
+  tags?: string[] | null
+  nutrition?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  inventory?: MarketInventory | null
   inventory_available: number
   inventory_quantity: number
   inventory_reserved: number
-  metadata?: Record<string, unknown>
-  tags?: string[] | null
-  nutrition?: Record<string, unknown>
 }
 
 export interface MarketStore {
@@ -81,6 +130,8 @@ export interface MarketStore {
   tags?: string[] | null
   link_url?: string | null
   metadata?: Record<string, unknown>
+  created_at: string
+  updated_at: string
 }
 
 export interface MarketPaginatedResponse<TItem> {

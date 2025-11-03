@@ -34,6 +34,7 @@ export interface MarketFiltersProps {
   onRatingChange: (value: number) => void
   availability: 'all' | 'available'
   onAvailabilityChange: (value: 'all' | 'available') => void
+  availabilityEnabled?: boolean
 }
 
 const RATING_CHOICES = [0, 3, 4, 4.5]
@@ -49,7 +50,9 @@ export const MarketFiltersSidebar = forwardRef<HTMLDivElement, MarketFiltersSide
 ) {
   const { resource, filters, chipValue, onToggleChip, onReset, searchControl } = props
   const sortOptions = MARKET_SORT_OPTIONS[resource]
-  const [minPrice, maxPrice] = MARKET_PRICE_LIMITS[resource]
+  const priceLimits = MARKET_PRICE_LIMITS[resource]
+  const showPriceRange = Array.isArray(priceLimits)
+  const [minPrice, maxPrice] = priceLimits ?? [0, 0]
   const priceFormatter = useMemo(
     () =>
       new Intl.NumberFormat('ru-RU', {
@@ -98,19 +101,21 @@ export const MarketFiltersSidebar = forwardRef<HTMLDivElement, MarketFiltersSide
             options={sortOptions}
           />
         </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-foreground">Диапазон цены</span>
-          <span className="text-xs text-muted-foreground">
-            {priceFormatter.format(props.priceRange[0])} — {priceFormatter.format(props.priceRange[1])}
-          </span>
-          <RangeSlider
-            value={props.priceRange}
-            onValueChange={props.onPriceRangeChange}
-            min={minPrice}
-            max={maxPrice}
-            step={50}
-          />
-        </div>
+        {showPriceRange ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-foreground">Диапазон цены</span>
+            <span className="text-xs text-muted-foreground">
+              {priceFormatter.format(props.priceRange[0])} — {priceFormatter.format(props.priceRange[1])}
+            </span>
+            <RangeSlider
+              value={props.priceRange}
+              onValueChange={props.onPriceRangeChange}
+              min={minPrice}
+              max={maxPrice}
+              step={50}
+            />
+          </div>
+        ) : null}
         <div className="flex flex-col gap-2">
           <span className="text-sm font-semibold text-foreground">Рейтинг</span>
           <ToggleGroupRoot
@@ -126,18 +131,20 @@ export const MarketFiltersSidebar = forwardRef<HTMLDivElement, MarketFiltersSide
             ))}
           </ToggleGroupRoot>
         </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold text-foreground">Доступность</span>
-          <ToggleGroupRoot
-            type="single"
-            value={props.availability}
-            onValueChange={value => value && props.onAvailabilityChange(value as 'all' | 'available')}
-            className="inline-flex flex-wrap gap-1 rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
-          >
-            <ToggleGroupItem value="all">Все</ToggleGroupItem>
-            <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
-          </ToggleGroupRoot>
-        </div>
+        {props.availabilityEnabled ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-semibold text-foreground">Доступность</span>
+            <ToggleGroupRoot
+              type="single"
+              value={props.availability}
+              onValueChange={value => value && props.onAvailabilityChange(value as 'all' | 'available')}
+              className="inline-flex flex-wrap gap-1 rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
+            >
+              <ToggleGroupItem value="all">Все</ToggleGroupItem>
+              <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
+            </ToggleGroupRoot>
+          </div>
+        ) : null}
       </div>
     </div>
   )
@@ -159,7 +166,9 @@ export const MarketFiltersMobileSheet = forwardRef<HTMLButtonElement, MarketFilt
   const open = isControlled ? Boolean(props.open) : internalOpen
   const setOpen = props.onOpenChange ?? setInternalOpen
   const sortOptions = MARKET_SORT_OPTIONS[props.resource]
-  const [minPrice, maxPrice] = MARKET_PRICE_LIMITS[props.resource]
+  const priceLimits = MARKET_PRICE_LIMITS[props.resource]
+  const showPriceRange = Array.isArray(priceLimits)
+  const [minPrice, maxPrice] = priceLimits ?? [0, 0]
   const priceFormatter = useMemo(
     () =>
       new Intl.NumberFormat('ru-RU', {
@@ -174,13 +183,14 @@ export const MarketFiltersMobileSheet = forwardRef<HTMLButtonElement, MarketFilt
     const chips = Object.values(props.chipValue).filter(Boolean).length
     const extras = [
       props.sortValue !== MARKET_SORT_OPTIONS[props.resource][0]?.value,
-      props.priceRange[0] !== minPrice || props.priceRange[1] !== maxPrice,
+      showPriceRange && (props.priceRange[0] !== minPrice || props.priceRange[1] !== maxPrice),
       props.ratingValue > 0,
-      props.availability === 'available',
+      props.availabilityEnabled && props.availability === 'available',
     ].filter(Boolean).length
     return chips + extras
   }, [
     props.availability,
+    props.availabilityEnabled,
     props.chipValue,
     props.priceRange,
     props.ratingValue,
@@ -188,6 +198,7 @@ export const MarketFiltersMobileSheet = forwardRef<HTMLButtonElement, MarketFilt
     props.sortValue,
     maxPrice,
     minPrice,
+    showPriceRange,
   ])
 
   return (
@@ -212,15 +223,23 @@ export const MarketFiltersMobileSheet = forwardRef<HTMLButtonElement, MarketFilt
             <h3 className="text-sm font-semibold text-foreground">Сортировка</h3>
             <SegmentedControl value={props.sortValue} onValueChange={value => value && props.onSortChange(value)} options={sortOptions} />
           </section>
-          <section className="flex flex-col gap-3">
-            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
-              <span>Диапазон</span>
-              <span>
-                {priceFormatter.format(props.priceRange[0])} — {priceFormatter.format(props.priceRange[1])}
-              </span>
-            </div>
-            <RangeSlider value={props.priceRange} onValueChange={props.onPriceRangeChange} min={minPrice} max={maxPrice} step={50} />
-          </section>
+          {showPriceRange ? (
+            <section className="flex flex-col gap-3">
+              <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">
+                <span>Диапазон</span>
+                <span>
+                  {priceFormatter.format(props.priceRange[0])} — {priceFormatter.format(props.priceRange[1])}
+                </span>
+              </div>
+              <RangeSlider
+                value={props.priceRange}
+                onValueChange={props.onPriceRangeChange}
+                min={minPrice}
+                max={maxPrice}
+                step={50}
+              />
+            </section>
+          ) : null}
           <section className="flex flex-col gap-2">
             <h3 className="text-sm font-semibold text-foreground">Рейтинг</h3>
             <ToggleGroupRoot
@@ -236,18 +255,20 @@ export const MarketFiltersMobileSheet = forwardRef<HTMLButtonElement, MarketFilt
               ))}
             </ToggleGroupRoot>
           </section>
-          <section className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-foreground">Доступность</h3>
-            <ToggleGroupRoot
-              type="single"
-              value={props.availability}
-              onValueChange={value => value && props.onAvailabilityChange(value as 'all' | 'available')}
-              className="inline-flex rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
-            >
-              <ToggleGroupItem value="all">Все</ToggleGroupItem>
-              <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
-            </ToggleGroupRoot>
-          </section>
+          {props.availabilityEnabled ? (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-foreground">Доступность</h3>
+              <ToggleGroupRoot
+                type="single"
+                value={props.availability}
+                onValueChange={value => value && props.onAvailabilityChange(value as 'all' | 'available')}
+                className="inline-flex rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1"
+              >
+                <ToggleGroupItem value="all">Все</ToggleGroupItem>
+                <ToggleGroupItem value="available">В наличии</ToggleGroupItem>
+              </ToggleGroupRoot>
+            </section>
+          ) : null}
           {props.filters.length ? (
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-semibold text-foreground">Теги</h3>
