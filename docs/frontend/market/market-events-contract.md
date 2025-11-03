@@ -26,18 +26,61 @@ The proxy keeps long-lived HTTP connections open and sets the SSE-specific heade
 
 ## Event payloads
 
-Events are proxied from the feed broker. The SSE `event` field always starts with `market.` (or `market.keepalive` for ping messages). The JSON payload surface matches the feed contract:
+Events are proxied from the feed broker. The SSE `event` field always starts with `market.` (or `market.keepalive` for ping messages). Payloads contain both incremental counters and serialized entities. Typical envelopes:
 
-```json
-{
-  "fresh_count": 2,
-  "highlight_ids": [12, 42],
-  "generated_at": "2025-11-01T10:05:00Z",
-  "meta": {
-    "rid": "..."
+- `market.products`
+
+  ```jsonc
+  {
+    "action": "published",
+    "generated_at": "2025-11-03T10:05:00Z",
+    "product": {
+      "id": 4815,
+      "title": "Органический тофу",
+      "price": 279,
+      "currency": "RUB",
+      "store_name": "Vegan Lab",
+      "store_slug": "vegan-lab",
+      "inventory_available": 42,
+      "tags": ["vegan", "protein"],
+      "metadata": { "rid": "9c3e..." }
+    },
+    "meta": {
+      "rid": "9c3e..."
+    }
   }
-}
-```
+  ```
+
+- `market.recipes`
+
+  ```jsonc
+  {
+    "action": "created",
+    "recipe": {
+      "id": 17,
+      "title": "Шакшука с нутом",
+      "calories": 540,
+      "store_name": "Brunch Lab"
+    },
+    "highlight_ids": [17]
+  }
+  ```
+
+- `market.stores`
+
+  ```jsonc
+  {
+    "action": "verified",
+    "store": {
+      "id": 9,
+      "name": "Северное сияние",
+      "city": "Мурманск",
+      "is_verified": true
+    }
+  }
+  ```
+
+Legacy aggregations may still send `fresh_count` counters; the hook normalises them alongside structured payloads.
 
 The hook listens for both the named event (`market.recipes`, etc.) and the default `message` channel so downstream consumers receive updates even if upstream publishers omit the `event` field.
 

@@ -92,16 +92,44 @@ export interface MarketPaginatedResponse<TItem> {
   results: TItem[]
 }
 
-export interface MarketRealtimePayload {
+export type MarketRealtimeAction =
+  | 'created'
+  | 'updated'
+  | 'published'
+  | 'verified'
+  | 'status_changed'
+  | string
+
+export interface MarketRealtimePayloadBase {
+  action?: MarketRealtimeAction
   fresh_count?: number
   highlight_ids?: number[]
   generated_at?: string
+  meta?: Record<string, unknown>
 }
 
-export interface MarketRealtimeEvent {
-  group: `market.${MarketResource}`
-  resource: MarketResource
-  payload: MarketRealtimePayload
+export interface MarketProductRealtimePayload extends MarketRealtimePayloadBase {
+  product?: MarketProduct
+}
+
+export interface MarketRecipeRealtimePayload extends MarketRealtimePayloadBase {
+  recipe?: MarketRecipe
+}
+
+export interface MarketStoreRealtimePayload extends MarketRealtimePayloadBase {
+  store?: MarketStore
+}
+
+export interface MarketRealtimePayloadMap {
+  products: MarketProductRealtimePayload
+  recipes: MarketRecipeRealtimePayload
+  stores: MarketStoreRealtimePayload
+}
+
+export type MarketRealtimeEvent<T extends MarketResource = MarketResource> = {
+  group: `market.${T}`
+  resource: T
+  payload: MarketRealtimePayloadMap[T]
 }
 
 export interface MarketCartSubmissionPayload {

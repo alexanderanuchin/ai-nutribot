@@ -14,9 +14,12 @@ import FeedSkeleton from '../features/feed/components/FeedSkeleton'
 import { useFeedRealtime } from '../features/feed/hooks/useFeedRealtime'
 import { FEED_TABS } from '../features/feed/constants'
 import type { FeedRealtimeEvent, FeedTab } from '../types/feed'
+import type { MarketRealtimeEvent } from '../types/market'
 import SearchBox from '../components/nav/SearchBox'
 import { useAuth } from '../hooks/useAuth'
 import { useTouchDevice } from '../hooks/useTouchDevice'
+import { useMarketEvents } from '../features/market/hooks/useMarketEvents'
+import MarketUpdatesPanel, { type MarketUpdateEntry } from '../features/feed/components/MarketUpdatesPanel'
 
 function buildDefaultScroll(): Record<FeedTab, number> {
   return {
@@ -48,6 +51,7 @@ const SETTLING_DURATION_MS = 280
 const FEEDBACK_DURATION_MS = 2000
 const BANNER_AUTO_HIDE_MS = 10_000
 const SAFE_AREA_TOP = 'calc(env(safe-area-inset-top, 0px) + 0.75rem)'
+const MARKET_UPDATES_LIMIT = 5
 
 const FILTER_PRESETS = {
   recipes: [
@@ -156,6 +160,8 @@ export default function Feed() {
   })
   const [newsSearch, setNewsSearch] = useState('')
   const [pendingCounts, setPendingCounts] = useState<Record<FeedTab, number>>(() => buildZeroCounts())
+  const [marketUpdates, setMarketUpdates] = useState<MarketUpdateEntry[]>([])
+  const [marketUpdatesHidden, setMarketUpdatesHidden] = useState(false)
   const [scrollPositions, setScrollPositions] = useState<Record<FeedTab, number>>(() => {
     if (locationState?.tab) {
       return { ...buildDefaultScroll(), [locationState.tab]: locationState.scrollY ?? 0 }
@@ -214,6 +220,7 @@ export default function Feed() {
 
   // ===== вычисления, используемые в эффектах (объявлены ДО эффектов)
   const badgeCounts = pendingCounts
+  const showMarketUpdates = !marketUpdatesHidden && marketUpdates.length > 0
   const activePendingCount = badgeCounts[activeTab] ?? 0
   const indicatorVisible = pullToRefreshEnabled && (pullFeedback !== 'none' || pullState !== 'idle')
   const showProgressBar = pullToRefreshEnabled && (pullState === 'dragging' || pullState === 'armed')
@@ -542,6 +549,54 @@ export default function Feed() {
 
   useFeedRealtime({ feed: activeTab, onEvent: handleRealtime })
 
+  const handleMarketRealtime = useCallback(
+    (event: MarketRealtimeEvent) => {
+      let entity: { id?: number | string } | undefined
+      if (event.resource === 'products') {
+        entity = event.payload.product
+      } else if (event.resource === 'recipes') {
+        entity = event.payload.recipe
+      } else {
+        entity = event.payload.store
+      }
+      if (!entity || entity.id == null) {
+        return
+      }
+      const key = `${event.resource}-${entity.id}`
+      const occurredAt = event.payload.generated_at ?? new Date().toISOString()
+      setMarketUpdates(prev => {
+        const nextEntry: MarketUpdateEntry = {
+          id: key,
+          resource: event.resource,
+          action: event.payload.action,
+          occurredAt,
+          product: event.resource === 'products' ? event.payload.product : undefined,
+          recipe: event.resource === 'recipes' ? event.payload.recipe : undefined,
+          store: event.resource === 'stores' ? event.payload.store : undefined,
+        }
+        const withoutCurrent = prev.filter(item => item.id !== key)
+        return [nextEntry, ...withoutCurrent].slice(0, MARKET_UPDATES_LIMIT)
+      })
+      setMarketUpdatesHidden(false)
+    },
+    [],
+  )
+
+  useMarketEvents({
+    resources: ['products', 'recipes', 'stores'],
+    enabled: Boolean(profile),
+    onEvent: handleMarketRealtime,
+  })
+
+  const handleClearMarketUpdates = useCallback(() => {
+    setMarketUpdates([])
+    setMarketUpdatesHidden(true)
+  }, [])
+
+  const handleDismissMarketUpdates = useCallback(() => {
+    setMarketUpdatesHidden(true)
+  }, [])
+
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
     const handleOnline = () => setIsOnline(true)
@@ -838,6 +893,13 @@ export default function Feed() {
             <div className="flex w-full flex-col gap-6 px-4">
               <div className="flex w-full flex-col gap-4">
                 <FeedTabs active={activeTab} onChange={handleChangeTab} badges={badgeCounts} />
+                {showMarketUpdates ? (
+                  <MarketUpdatesPanel
+                    updates={marketUpdates}
+                    onClear={handleClearMarketUpdates}
+                    onDismiss={handleDismissMarketUpdates}
+                  />
+                ) : null}
                 {showManualRefreshButton ? (
                   <div className="flex w-full justify-end">
                     <button
