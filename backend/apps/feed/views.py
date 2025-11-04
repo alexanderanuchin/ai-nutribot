@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from nutribot.middleware import get_request_id
 
+from apps.common.renderers import EventStreamRenderer
 from .authentication import authenticate_access_token, authenticate_integration_key, extract_token_from_request
 from .events import format_sse, get_event_broker, publish_news_article_event
 from .filters import filter_deals, filter_news, filter_recipes
@@ -198,6 +199,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 class FeedEventStreamView(APIView):
     permission_classes = [permissions.AllowAny]
+    renderer_classes = [EventStreamRenderer]
 
     def get(self, request, *args, **kwargs):
         token = extract_token_from_request(request)

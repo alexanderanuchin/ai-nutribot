@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from apps.feed.authentication import authenticate_access_token, extract_token_from_request
 from apps.feed.events import FeedEvent, format_sse, get_event_broker
+from apps.common.renderers import EventStreamRenderer
 from nutribot.middleware import get_request_id
 
 logger = logging.getLogger("market.api.events")
@@ -26,6 +27,7 @@ class MarketEventStreamView(APIView):
 
     permission_classes = [permissions.AllowAny]
     authentication_classes: list[type] = []
+    renderer_classes = [EventStreamRenderer]
 
     def get(self, request, *args, **kwargs):
         token = extract_token_from_request(request)

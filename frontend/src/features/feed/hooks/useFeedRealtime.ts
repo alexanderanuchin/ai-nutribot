@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import { tokenStore } from '../../../utils/storage'
+import { ensureFreshAccessToken } from '../../../utils/auth'
 import type { FeedRealtimeEvent, FeedTab } from '../../../types/feed'
 import { resolveRealtimeHttpBase, resolveRealtimeWsBase } from '../../../utils/realtime'
 import { GROUP_TO_TAB } from '../constants'
@@ -27,12 +27,6 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
-    const token = tokenStore.access
-    if (!token) return undefined
-
-    const httpBase = resolveRealtimeHttpBase()
-    const wsBase = resolveRealtimeWsBase()
-    const params = new URLSearchParams({ token, type: feed })
 
     let ws: WebSocket | null = null
     let es: EventSource | null = null
@@ -47,47 +41,49 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
     type RecipeEvent = Extract<FeedRealtimeEvent, { group: 'feed.recipes' }>
     type DealEvent = Extract<FeedRealtimeEvent, { group: 'feed.deals' }>
 
-    const cleanup = () => {
-      closed = true
+    const clearReconnectTimer = () => {
       if (reconnectTimer) {
         clearTimeout(reconnectTimer)
         reconnectTimer = null
-      }
-      if (ws) {
-        ws.onopen = null
-        ws.onmessage = null
-        ws.onerror = null
-        ws.onclose = null
-        ws.close()
-        ws = null
-      }
-      if (es) {
-        es.onopen = null
-        es.onerror = null
-        for (const { type, listener } of sseHandlers) {
-          es.removeEventListener(type, listener)
-        }
-        sseHandlers = []
-        es.close()
-        es = null
       }
     }
 
-    const scheduleReconnect = (transport: 'ws' | 'sse') => {
-      if (closed) return
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer)
-        reconnectTimer = null
+    const detachSseHandlers = () => {
+      if (!es) return
+      for (const { type, listener } of sseHandlers) {
+        es.removeEventListener(type, listener)
       }
-      const attempt = transport === 'ws' ? wsFailures : sseFailures
-      const delay = Math.min(1000 * 2 ** attempt, 30000)
-      reconnectTimer = window.setTimeout(() => {
-        if (transport === 'ws') {
-          connectWebSocket()
-        } else {
-          connectSse()
-        }
-      }, delay)
+      sseHandlers = []
+    }
+
+    const disposeSse = (shouldClose = true) => {
+      if (!es) return
+      es.onopen = null
+      es.onerror = null
+      detachSseHandlers()
+      if (shouldClose) {
+        es.close()
+      }
+      es = null
+    }
+
+    const disposeWs = (shouldClose = true) => {
+      if (!ws) return
+      ws.onopen = null
+      ws.onmessage = null
+      ws.onerror = null
+      ws.onclose = null
+      if (shouldClose) {
+        ws.close()
+      }
+      ws = null
+    }
+
+    const cleanup = () => {
+      closed = true
+      clearReconnectTimer()
+      disposeWs()
+      disposeSse()
     }
 
     const handleEvent = (group: FeedRealtimeEvent['group'], payload: unknown) => {
@@ -116,9 +112,15 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       })
     }
 
-    const connectSse = () => {
+    const connectSse = async () => {
       if (closed) return
+      const token = await ensureFreshAccessToken()
+      if (!token || closed) return
+      const httpBase = resolveRealtimeHttpBase()
+      const params = new URLSearchParams({ token, type: feed })
       const url = `${httpBase}/v1/feed/events/?${params.toString()}`
+
+      disposeSse()
       es = new EventSource(url)
       es.onopen = () => {
         sseFailures = 0
@@ -168,19 +170,12 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         }
       })
       es.onerror = () => {
-        if (es) {
-          for (const { type, listener } of sseHandlers) {
-            es.removeEventListener(type, listener)
-          }
-          es.close()
-        }
-        es = null
-        sseHandlers = []
+        disposeSse()
         if (!closed) {
           sseFailures += 1
           if (sseFailures >= 4) {
             wsFailures = 0
-            scheduleReconnect('ws')
+            void connectWebSocket()
           } else {
             scheduleReconnect('sse')
           }
@@ -188,15 +183,21 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       }
     }
 
-    const connectWebSocket = () => {
+    const connectWebSocket = async () => {
       if (closed) return
+      const token = await ensureFreshAccessToken()
+      if (!token || closed) return
+      const wsBase = resolveRealtimeWsBase()
+      const params = new URLSearchParams({ token, type: feed })
       const url = `${wsBase}/ws/feed/?${params.toString()}`
+
+      disposeWs()
       try {
         ws = new WebSocket(url)
       } catch (_error) {
         wsFailures += 1
         sseFailures = 0
-        connectSse()
+        void connectSse()
         return
       }
       ws.onopen = () => {
@@ -216,12 +217,12 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         }
       }
       ws.onclose = () => {
-        ws = null
+        disposeWs(false)
         if (!closed) {
           wsFailures += 1
           if (wsFailures >= 3) {
             sseFailures = 0
-            connectSse()
+            void connectSse()
           } else {
             scheduleReconnect('ws')
           }
@@ -232,7 +233,21 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       }
     }
 
-    connectWebSocket()
+    const scheduleReconnect = (transport: 'ws' | 'sse') => {
+      if (closed) return
+      clearReconnectTimer()
+      const attempt = transport === 'ws' ? wsFailures : sseFailures
+      const delay = Math.min(1000 * 2 ** attempt, 30000)
+      reconnectTimer = window.setTimeout(() => {
+        if (transport === 'ws') {
+          void connectWebSocket()
+        } else {
+          void connectSse()
+        }
+      }, delay)
+    }
+
+    void connectWebSocket()
 
     return cleanup
   }, [feed])

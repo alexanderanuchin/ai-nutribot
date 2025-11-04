@@ -1,5 +1,8 @@
 from collections.abc import Iterable
 
+import json
+from typing import Iterable
+
 import pytest
 from django.urls import reverse
 from rest_framework import status
@@ -33,7 +36,20 @@ class DummyBroker:
 
 @pytest.mark.django_db
 def test_market_events_requires_token(api_client):
-    response = api_client.get(reverse("market:market-events"))
+    response = api_client.get(
+        reverse("market:market-events"),
+        HTTP_ACCEPT="text/event-stream",
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_market_events_rejects_invalid_token(api_client):
+    response = api_client.get(
+        reverse("market:market-events"),
+        {"token": "invalid"},
+        HTTP_ACCEPT="text/event-stream",
+    )
     assert response.status_code == status.HTTP_403_FORBIDDEN
 
 
@@ -45,10 +61,11 @@ def test_market_events_rejects_unknown_resource(api_client, django_user_model):
     response = api_client.get(
         reverse("market:market-events"),
         {"resource": "invalid", "token": str(token)},
+        HTTP_ACCEPT="text/event-stream",
     )
 
     assert response.status_code == status.HTTP_400_BAD_REQUEST
-    payload = response.json()
+    payload = json.loads(response.content.decode("utf-8"))
     assert payload["resource"] == "Unsupported resource"
 
 
@@ -69,6 +86,7 @@ def test_market_events_stream_filters_groups(monkeypatch, api_client, django_use
     response = api_client.get(
         reverse("market:market-events"),
         {"resource": "recipes", "token": str(token)},
+        HTTP_ACCEPT="text/event-stream",
     )
 
     assert response.status_code == status.HTTP_200_OK

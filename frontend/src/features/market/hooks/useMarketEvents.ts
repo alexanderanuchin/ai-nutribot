@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import type { MarketRealtimeEvent, MarketRealtimePayloadMap, MarketResource } from '../../../types/market'
 import { resolveRealtimeHttpBase } from '../../../utils/realtime'
-import { tokenStore } from '../../../utils/storage'
+import { ensureFreshAccessToken } from '../../../utils/auth'
 
 const RESOURCE_TO_GROUP: Record<MarketResource, MarketRealtimeEvent['group']> = {
   recipes: 'market.recipes',
@@ -39,8 +39,6 @@ export function useMarketEvents({
   useEffect(() => {
     if (!enabled) return undefined
     if (typeof window === 'undefined') return undefined
-    const token = tokenStore.access
-    if (!token) return undefined
 
     let eventSource: EventSource | null = null
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -48,31 +46,34 @@ export function useMarketEvents({
     let attempts = 0
     let listeners: Array<{ type: string; handler: EventListener }> = []
 
-    const cleanup = () => {
-      closed = true
+    const clearReconnectTimer = () => {
       if (reconnectTimer) {
         clearTimeout(reconnectTimer)
         reconnectTimer = null
       }
-      if (eventSource) {
-        eventSource.onopen = null
-        eventSource.onerror = null
-        listeners.forEach(({ type, handler }) => {
-          eventSource?.removeEventListener(type, handler)
-        })
-        listeners = []
-        eventSource.close()
-        eventSource = null
-      }
     }
 
-    const scheduleReconnect = () => {
-      if (closed) return
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer)
+    const detachListeners = () => {
+      if (!eventSource) return
+      for (const { type, handler } of listeners) {
+        eventSource.removeEventListener(type, handler)
       }
-      const delay = Math.min(1000 * 2 ** attempts, 30000)
-      reconnectTimer = setTimeout(connect, delay)
+      listeners = []
+    }
+
+    const closeEventSource = () => {
+      if (!eventSource) return
+      eventSource.onopen = null
+      eventSource.onerror = null
+      detachListeners()
+      eventSource.close()
+      eventSource = null
+    }
+
+    const cleanup = () => {
+      closed = true
+      clearReconnectTimer()
+      closeEventSource()
     }
 
     const normalizedResources = (() => {
@@ -96,8 +97,12 @@ export function useMarketEvents({
         ? [RESOURCE_TO_GROUP[queryResource]]
         : normalizedResources.map(item => RESOURCE_TO_GROUP[item])
 
-    const connect = () => {
+    const connect = async () => {
       if (closed) return
+      const token = await ensureFreshAccessToken()
+      if (!token || closed) {
+        return
+      }
       const httpBase = resolveRealtimeHttpBase()
       const params = new URLSearchParams({ token })
       if (queryResource) {
@@ -105,8 +110,9 @@ export function useMarketEvents({
       }
       const url = `${httpBase}/v1/market/events/?${params.toString()}`
 
-      eventSource = new EventSource(url)
+      closeEventSource()
       listeners = []
+      eventSource = new EventSource(url)
 
       const buildPayload = <T extends MarketResource>(
         targetResource: T,
@@ -171,8 +177,7 @@ export function useMarketEvents({
       eventSource.onerror = () => {
         if (closed) return
         attempts += 1
-        eventSource?.close()
-        eventSource = null
+        closeEventSource()
         scheduleReconnect()
       }
 
@@ -213,7 +218,16 @@ export function useMarketEvents({
       })
     }
 
-    connect()
+    const scheduleReconnect = () => {
+      if (closed) return
+      clearReconnectTimer()
+      const delay = Math.min(1000 * 2 ** attempts, 30000)
+      reconnectTimer = window.setTimeout(() => {
+        void connect()
+      }, delay)
+    }
+
+    void connect()
 
     return cleanup
   }, [enabled, resource, resources])
