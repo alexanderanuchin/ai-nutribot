@@ -74,14 +74,21 @@ def _quant_for_currency(currency: str) -> Decimal:
 
 
 def _normalize_amount(currency: str, amount: Any) -> Decimal:
-    normalized_currency = _normalize_currency_code(currency)
+    code = str(currency or "").upper()
+    if code == Order.Currency.RUB:
+        normalized_currency = Order.Currency.RUB
+    else:
+        normalized_currency = _normalize_currency_code(currency)
     if isinstance(amount, Decimal):
         value = amount
     else:
         value = Decimal(str(amount))
     if value <= 0:
         raise ValueError("Amount must be positive")
-    quant = _quant_for_currency(normalized_currency)
+    if normalized_currency == Order.Currency.RUB:
+        quant = Decimal("0.01")
+    else:
+        quant = _quant_for_currency(normalized_currency)
     return value.quantize(quant, rounding=ROUND_HALF_UP)
 
 
@@ -409,8 +416,12 @@ def create_order(
         metadata: Dict[str, Any] | None = None,
         status: str | None = None,
 ) -> Order:
-    normalized_currency = _normalize_currency_code(currency)
-    normalized_amount = _normalize_amount(normalized_currency, amount)
+    if str(currency or "").upper() == Order.Currency.RUB:
+        normalized_currency = Order.Currency.RUB
+        normalized_amount = _normalize_amount(normalized_currency, amount)
+    else:
+        normalized_currency = _normalize_currency_code(currency)
+        normalized_amount = _normalize_amount(normalized_currency, amount)
     meta = metadata or {}
     order = Order.objects.create(
         user=profile.user,

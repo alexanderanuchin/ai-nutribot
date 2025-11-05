@@ -5,7 +5,8 @@ import logging
 
 from django.db.models import F, Prefetch, Q
 from rest_framework import permissions, status, viewsets
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -43,6 +44,7 @@ from .permissions import (
     is_market_operator,
 )
 from .serializers import (
+    CartCheckoutSerializer,
     CartItemSerializer,
     CartSerializer,
     InventorySerializer,
@@ -55,7 +57,17 @@ from .serializers import (
     StoreSerializer,
 )
 from .serializers import MarketSearchQuerySerializer, MarketSearchResponseSerializer
+from .services import (
+    CartCheckoutError,
+    CartEmptyError,
+    CartInactiveError,
+    InventoryInsufficientError,
+    checkout_cart,
+)
 from .services.search import MarketSearchService
+from apps.orders.serializers import OrderSerializer
+from apps.orders.services.wallet import WalletInsufficientFunds
+from apps.users.models import Profile
 from nutribot.middleware import get_request_id
 
 
@@ -339,6 +351,55 @@ class CartViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def checkout(self, request, *args, **kwargs):
+        cart = self.get_object()
+        serializer = CartCheckoutSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        rid = getattr(request, "request_id", get_request_id())
+
+        try:
+            result = checkout_cart(
+                cart,
+                profile=profile,
+                pay_with_wallet=serializer.validated_data.get("pay_with_wallet", False),
+                wallet_currency=serializer.validated_data.get("wallet_currency"),
+                metadata=serializer.validated_data.get("metadata"),
+                rid=rid,
+            )
+        except WalletInsufficientFunds as exc:
+            raise ValidationError({"pay_with_wallet": str(exc)}) from exc
+        except InventoryInsufficientError as exc:
+            raise ValidationError(
+                {
+                    "detail": "Недостаточно остатка на складе",
+                    "inventory": {
+                        "product_id": exc.product_id,
+                        "requested": exc.requested,
+                        "available": exc.available,
+                    },
+                }
+            ) from exc
+        except (CartInactiveError, CartEmptyError) as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+        except CartCheckoutError as exc:
+            raise ValidationError({"detail": str(exc)}) from exc
+
+        order_data = OrderSerializer(result.order).data
+        cart_payload = CartSerializer(
+            result.cart,
+            context=self.get_serializer_context(),
+        ).data
+        response_status = status.HTTP_201_CREATED
+        payload = {
+            "order": order_data,
+            "cart": cart_payload,
+            "paid": result.was_paid,
+        }
+        return Response(payload, status=response_status)
 
 
 class CartItemViewSet(viewsets.ModelViewSet):

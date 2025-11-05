@@ -33,6 +33,8 @@ services:
         condition: service_started
     ports:
       - "8000:8000"
+    mem_limit: 4g
+    memswap_limit: 4g
 
   celery:
     build: ../backend

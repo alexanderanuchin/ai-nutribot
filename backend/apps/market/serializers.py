@@ -5,6 +5,7 @@ from typing import Any, Iterable, Optional
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from apps.orders.models import Order
 
 from .models import (
     Cart,
@@ -572,6 +573,42 @@ class CartSerializer(serializers.ModelSerializer):
             "items",
         ]
         read_only_fields = ["id", "user", "created_at", "updated_at", "items"]
+
+
+class CartCheckoutSerializer(serializers.Serializer):
+    pay_with_wallet = serializers.BooleanField(required=False, default=False)
+    wallet_currency = serializers.CharField(required=False, allow_blank=False)
+    metadata = serializers.JSONField(required=False)
+
+    def validate_wallet_currency(self, value: str) -> str:
+        normalized = value.upper()
+        allowed = {
+            Order.Currency.TELEGRAM_STARS,
+            Order.Currency.CALOCOIN,
+        }
+        if normalized not in allowed:
+            raise serializers.ValidationError("Доступны только кошельки Stars или CaloCoin")
+        return normalized
+
+    def validate_metadata(self, value: Any) -> dict[str, Any]:
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Метаданные должны быть объектом")
+        return value
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        pay_with_wallet = attrs.get("pay_with_wallet", False)
+        wallet_currency = attrs.get("wallet_currency")
+        if pay_with_wallet and not wallet_currency:
+            raise serializers.ValidationError(
+                {"wallet_currency": "Укажите валюту кошелька для моментальной оплаты"}
+            )
+        if not pay_with_wallet and wallet_currency:
+            raise serializers.ValidationError(
+                {"wallet_currency": "Валюта кошелька используется только при оплате из кошелька"}
+            )
+        return attrs
 
 
 class MealPlanItemSerializer(serializers.ModelSerializer):
