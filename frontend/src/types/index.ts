@@ -106,6 +106,15 @@ export interface WalletOrderRecord {
   created_at: string
 }
 
+export interface WalletCurrencyOverview {
+  currency: WalletCurrency
+  balance: number
+  rate_rub?: number
+  rub_equivalent?: number
+  approximate_market_orders?: number
+  reference_purchase_rub?: number
+}
+
 export interface WalletSummary {
   flags: {
     stars_purchase_blocked: boolean
@@ -117,6 +126,10 @@ export interface WalletSummary {
   }
   recent_transactions: WalletTransactionRecord[]
   recent_orders: WalletOrderRecord[]
+  overview?: {
+    stars?: WalletCurrencyOverview
+    calo?: WalletCurrencyOverview
+  }
 }
 
 export interface ProfileSidebarWalletMeta {
@@ -128,6 +141,7 @@ export interface ProfileSidebarWalletMeta {
   targets?: WalletSummary['targets']
   recent_transactions?: WalletTransactionRecord[]
   recent_orders?: WalletOrderRecord[]
+  overview?: WalletSummary['overview']
 }
 
 export interface ProfileSidebarMeta {

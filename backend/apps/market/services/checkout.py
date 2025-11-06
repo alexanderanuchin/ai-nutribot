@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import logging
 from typing import Iterable, Mapping
 
@@ -121,10 +121,34 @@ def _apply_inventory_adjustments(items: list[CartItem]) -> list[Product]:
     return products
 
 
+def _quantize_money(value: Decimal, *, places: str = "0.01") -> Decimal:
+    return value.quantize(Decimal(places), rounding=ROUND_HALF_UP)
+
+
+def _resolve_calocoin_conversion(
+        *,
+        profile: Profile,
+        total_rub: Decimal,
+        base_currency: str,
+) -> tuple[Decimal, dict[str, str]]:
+    rate = Decimal(profile.calocoin_rate_rub or 0)
+    if rate <= 0:
+        raise CartCheckoutError("Курс CaloCoin не настроен. Обратитесь в поддержку.")
+    normalized_rate = _quantize_money(rate)
+    amount_calo = _quantize_money(total_rub / normalized_rate)
+    conversion = {
+        "base_currency": base_currency,
+        "base_amount": str(_quantize_money(total_rub)),
+        "amount_calo": str(amount_calo),
+        "rate_rub_per_calo": str(normalized_rate),
+    }
+    return amount_calo, conversion
+
+
 def checkout_cart(
-    cart: Cart,
-    *,
-    profile: Profile,
+        cart: Cart,
+        *,
+        profile: Profile,
     pay_with_wallet: bool,
     wallet_currency: str | None = None,
     metadata: Mapping[str, object] | None = None,
@@ -155,6 +179,7 @@ def checkout_cart(
         total_quantity = sum(item.quantity for item in cart_items)
         requested_wallet = wallet_currency.upper() if isinstance(wallet_currency, str) else None
         currency = _ensure_currency(requested_wallet, locked_cart.currency)
+        base_currency = locked_cart.currency or Order.Currency.RUB
         description = _build_order_description(
             (item.product.title for item in cart_items if item.product),
             total_quantity,
@@ -171,15 +196,39 @@ def checkout_cart(
         if metadata:
             order_metadata["checkout"] = dict(metadata)
 
+        conversion_payload: dict[str, str] | None = None
+        effective_amount = total_amount
+        if currency == Order.Currency.CALOCOIN:
+            effective_amount, conversion_payload = _resolve_calocoin_conversion(
+                profile=profile,
+                total_rub=total_amount,
+                base_currency=base_currency,
+            )
+            rate_display = Decimal(profile.calocoin_rate_rub or 0)
+            hint = (
+                f"Цена в рублях: {_quantize_money(total_amount)} {base_currency}"
+                f" · Курс {_quantize_money(rate_display)} ₽/CALO"
+            )
+            description = f"{description}. {hint}"[:255]
+        pricing_metadata = {
+            "total": str(_quantize_money(effective_amount)),
+            "currency": currency,
+            "base_total": str(_quantize_money(total_amount)),
+            "base_currency": base_currency,
+        }
+        if conversion_payload:
+            pricing_metadata["conversion"] = conversion_payload
+            order_metadata.setdefault("payment", {})["conversion"] = conversion_payload
+
         order = create_order(
             profile,
             title="Покупка товаров на маркетплейсе",
             currency=currency,
-            amount=total_amount,
+            amount=effective_amount,
             description=description,
             kind=Order.Kind.DIGITAL_PRODUCT,
             reference=str(locked_cart.pk),
-            metadata=order_metadata,
+            metadata={**order_metadata, "pricing": pricing_metadata},
         )
         order.items_count = total_quantity
         order.save(update_fields=["items_count", "updated_at"])
@@ -203,6 +252,8 @@ def checkout_cart(
                     "cart_id": locked_cart.pk,
                     "currency": currency,
                     "amount": str(order.total_price),
+                    "base_amount": str(_quantize_money(total_amount)),
+                    "base_currency": base_currency,
                 },
             )
             raise
@@ -275,6 +326,9 @@ def checkout_cart(
                 "amount": str(order.total_price),
                 "wallet_currency": order.wallet_currency,
                 "items_count": total_quantity,
+                "base_amount": str(_quantize_money(total_amount)),
+                "base_currency": base_currency,
+                "conversion": conversion_payload,
             },
         )
 

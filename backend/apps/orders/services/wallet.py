@@ -24,6 +24,7 @@ class WalletInsufficientFunds(Exception):
 
 STARS_CONSULTATION_TARGET = Decimal("500")
 CALO_PRO_TARGET = Decimal("1200")
+MARKET_REFERENCE_PURCHASE_RUB = Decimal("500")
 
 _DEFAULT_WALLET_PERKS = [
     "Эксклюзивные планы питания с адаптацией под ваши тренировки",
@@ -64,6 +65,17 @@ def _normalize_currency_code(currency: str) -> str:
     if code in {WalletTransaction.Currency.CALOCOIN, "CALO", "CALOCOIN"}:
         return WalletTransaction.Currency.CALOCOIN
     raise ValueError(f"Unsupported currency: {currency}")
+
+
+def _safe_decimal(value: Any, *, default: Decimal = Decimal("0")) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if value in (None, ""):
+        return default
+    try:
+        return Decimal(str(value))
+    except (ArithmeticError, ValueError):
+        return default
 
 
 def _quant_for_currency(currency: str) -> Decimal:
@@ -694,6 +706,37 @@ def build_wallet_summary(
         [:orders_limit]
     )
 
+    rub_quant = Decimal("0.01")
+    stars_balance = balances[WalletTransaction.Currency.TELEGRAM_STARS]
+    calo_balance = balances[WalletTransaction.Currency.CALOCOIN]
+
+    stars_overview: Dict[str, Any] = {
+        "currency": WalletTransaction.Currency.TELEGRAM_STARS.lower(),
+        "balance": int(stars_balance),
+    }
+    stars_rate = _safe_decimal(getattr(profile, "telegram_stars_rate_rub", None))
+    if stars_rate > 0:
+        stars_overview["rate_rub"] = float(stars_rate.quantize(rub_quant, rounding=ROUND_HALF_UP))
+        rub_equivalent = (stars_balance * stars_rate).quantize(rub_quant, rounding=ROUND_HALF_UP)
+        stars_overview["rub_equivalent"] = float(rub_equivalent)
+
+    calo_overview: Dict[str, Any] = {
+        "currency": WalletTransaction.Currency.CALOCOIN.lower(),
+        "balance": _format_decimal(calo_balance, WalletTransaction.Currency.CALOCOIN),
+    }
+    calo_rate = _safe_decimal(getattr(profile, "calocoin_rate_rub", None))
+    if calo_rate > 0:
+        normalized_rate = calo_rate.quantize(rub_quant, rounding=ROUND_HALF_UP)
+        calo_overview["rate_rub"] = float(normalized_rate)
+        rub_equivalent = (calo_balance * calo_rate).quantize(rub_quant, rounding=ROUND_HALF_UP)
+        calo_overview["rub_equivalent"] = float(rub_equivalent)
+        if MARKET_REFERENCE_PURCHASE_RUB > 0:
+            approx_orders = (rub_equivalent / MARKET_REFERENCE_PURCHASE_RUB).quantize(
+                Decimal("0.1"), rounding=ROUND_HALF_UP
+            )
+            calo_overview["approximate_market_orders"] = float(approx_orders)
+            calo_overview["reference_purchase_rub"] = float(MARKET_REFERENCE_PURCHASE_RUB)
+
     return {
         "flags": {
             "stars_purchase_blocked": bool(getattr(profile, "stars_purchase_blocked", False)),
@@ -702,6 +745,10 @@ def build_wallet_summary(
         "targets": targets_payload,
         "recent_transactions": [_serialize_transaction(tx) for tx in transactions],
         "recent_orders": [_serialize_order(order) for order in orders],
+        "overview": {
+            "stars": stars_overview,
+            "calo": calo_overview,
+        },
     }
 
 

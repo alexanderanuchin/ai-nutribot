@@ -17,6 +17,7 @@ export interface MarketCartItem {
 export interface MarketCartState {
   items: Record<string, MarketCartItem>
   hydrated: boolean
+  serverCart: { id: number; storeId: number; currency: string } | null
   addItem: (item: Omit<MarketCartItem, 'quantity'> & { quantity?: number }) => void
   increment: (kind: MarketCartItemKind, id: number) => void
   decrement: (kind: MarketCartItemKind, id: number) => void
@@ -24,6 +25,7 @@ export interface MarketCartState {
   setQuantity: (item: Omit<MarketCartItem, 'quantity'>, quantity: number) => void
   clear: () => void
   setHydrated: () => void
+  setServerCart: (cart: MarketCartState['serverCart']) => void
 }
 
 function makeKey(kind: MarketCartItemKind, id: number): string {
@@ -49,6 +51,7 @@ export const useMarketCartStore = create<MarketCartState>()(
     set => ({
       items: {},
       hydrated: false,
+      serverCart: null,
       addItem: item => {
         const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1
         const key = makeKey(item.kind, item.id)
@@ -134,13 +137,14 @@ export const useMarketCartStore = create<MarketCartState>()(
           }
         })
       },
-      clear: () => set({ items: {} }),
+      clear: () => set({ items: {}, serverCart: null }),
       setHydrated: () => set({ hydrated: true }),
+      setServerCart: cart => set({ serverCart: cart }),
     }),
     {
       name: 'market-cart-v1',
       storage: createJSONStorage(getStorage),
-      partialize: state => ({ items: state.items }),
+      partialize: state => ({ items: state.items, serverCart: state.serverCart }),
       onRehydrateStorage: () => state => {
         const markHydrated = () => state?.setHydrated()
         if (typeof queueMicrotask === 'function') {

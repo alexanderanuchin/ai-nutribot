@@ -59,6 +59,7 @@ const FALLBACK_RESPONSE: MeResponse = {
     exclusions: ['sugar'],
     telegram_stars_balance: 4280,
     calocoin_balance: 17650,
+    calocoin_rate_rub: 100,
     experience_level: 'legend',
     experience_level_display: 'Легенда',
     metrics: {

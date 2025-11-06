@@ -160,6 +160,10 @@ def test_checkout_wallet_insufficient_funds_returns_error(api_client, django_use
     )
 
     api_client.force_authenticate(user=user)
+    profile = user.profile
+    profile.calocoin_rate_rub = Decimal("100")
+    profile.save(update_fields=["calocoin_rate_rub"])
+
     response = api_client.post(
         reverse("market:market-cart-checkout", args=[cart.id]),
         {"pay_with_wallet": True, "wallet_currency": "CALO"},
@@ -174,3 +178,67 @@ def test_checkout_wallet_insufficient_funds_returns_error(api_client, django_use
     assert cart.status == Cart.Status.ACTIVE
     assert "order_id" not in cart.metadata
     assert Order.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_checkout_calocoin_payment_converts_amount(api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="buyer_calo", password="secret123")
+    profile = user.profile
+    profile.calocoin_rate_rub = Decimal("100")
+    profile.save(update_fields=["calocoin_rate_rub"])
+    store = Store.objects.create(
+        owner=user,
+        name="Calo Shop",
+        slug="calo-shop",
+        city="Казань",
+        description="",
+        metadata={},
+        is_active=True,
+    )
+    product = Product.objects.create(
+        store=store,
+        title="Смарт-шейк",
+        slug="smart-shake",
+        description="",
+        price=Decimal("500.00"),
+        currency="RUB",
+        weight_grams=400,
+        is_published=True,
+    )
+    Inventory.objects.create(product=product, quantity=12, reserved=0)
+    cart = Cart.objects.create(user=user, store=store, status=Cart.Status.ACTIVE)
+    CartItem.objects.create(
+        cart=cart,
+        product=product,
+        quantity=2,
+        price_snapshot=product.price,
+    )
+
+    wallet_topup(profile, currency="CALO", amount=Decimal("15"), description="calo topup")
+
+    api_client.force_authenticate(user=user)
+    response = api_client.post(
+        reverse("market:market-cart-checkout", args=[cart.id]),
+        {"pay_with_wallet": True, "wallet_currency": "CALO"},
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    payload = response.json()
+    assert payload["paid"] is True
+    order_data = payload["order"]
+    assert order_data["currency"] == "calo"
+    assert order_data["amount"] == pytest.approx(10.0)
+
+    order = Order.objects.get(pk=order_data["id"])
+    assert order.total_price == Decimal("10.00")
+    assert order.wallet_currency == Order.Currency.CALOCOIN
+    pricing_meta = order.metadata.get("pricing")
+    assert pricing_meta["currency"] == Order.Currency.CALOCOIN
+    assert pricing_meta["base_currency"] == "RUB"
+    assert pricing_meta["base_total"] == "1000.00"
+    assert pricing_meta["conversion"]["rate_rub_per_calo"] == "100.00"
+    assert "Цена в рублях" in order.description
+
+    profile.refresh_from_db()
+    assert profile.calocoin_balance == Decimal("5.00")

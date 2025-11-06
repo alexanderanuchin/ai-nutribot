@@ -1,3 +1,5 @@
+import type { WalletOrderRecord } from './index'
+
 export type MarketResource = 'recipes' | 'products' | 'stores'
 
 export interface MarketInventory {
@@ -205,6 +207,18 @@ export interface MarketCartSubmissionResponse {
     items_quantity: number
   }
   item: MarketCartItemSummary | null
+}
+
+export interface MarketCartCheckoutPayload {
+  pay_with_wallet?: boolean
+  wallet_currency?: 'STARS' | 'CALO'
+  metadata?: Record<string, unknown>
+}
+
+export interface MarketCartCheckoutResponse {
+  order: WalletOrderRecord
+  cart: MarketCartSubmissionResponse['cart']
+  paid: boolean
 }
 
 export interface MarketPlanSubmissionPayload {

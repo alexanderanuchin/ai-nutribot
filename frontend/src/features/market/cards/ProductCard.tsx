@@ -10,6 +10,7 @@ import {
   useMarketCartStore,
 } from '../stores/cartStore'
 import { Badge, Button, Card, Price, QuantityStepper, Rating, useToast } from '../../../components/ui'
+import { useAuth } from '../../../hooks/useAuth'
 
 export interface ProductCardProps {
   item: MarketProduct
@@ -20,9 +21,11 @@ export function ProductCard({ item }: ProductCardProps) {
   const addItem = useMarketCartStore(state => state.addItem)
   const removeItem = useMarketCartStore(state => state.removeItem)
   const setQuantity = useMarketCartStore(state => state.setQuantity)
+  const setServerCart = useMarketCartStore(state => state.setServerCart)
   const quantity = useMarketCartStore(selectCartQuantity('product', item.id))
   const [imageFailed, setImageFailed] = useState(false)
   const { notify } = useToast()
+  const { profile } = useAuth()
 
   const safePrice = Number.isFinite(item.price) ? item.price : 0
   const safeOriginalPrice = Number.isFinite(item.price_original ?? Number.NaN)
@@ -51,6 +54,17 @@ export function ProductCard({ item }: ProductCardProps) {
     },
     onSuccess: response => {
       const updatedQuantity = response.item?.quantity ?? 0
+      if (response.cart) {
+        if (response.cart.items_count > 0) {
+          setServerCart({
+            id: response.cart.id,
+            storeId: response.cart.store_id,
+            currency: response.cart.currency,
+          })
+        } else {
+          setServerCart(null)
+        }
+      }
       if (response.status === 'removed' || updatedQuantity <= 0) {
         removeItem('product', item.id)
         return
@@ -81,6 +95,19 @@ export function ProductCard({ item }: ProductCardProps) {
   const ratingCount = Number.isFinite(item.rating_count ?? Number.NaN)
     ? Math.trunc(Number(item.rating_count))
     : undefined
+  const caloRateRaw = profile?.calocoin_rate_rub
+  const caloRate = typeof caloRateRaw === 'number' ? caloRateRaw : Number.parseFloat(String(caloRateRaw ?? ''))
+  const hasCaloRate = Number.isFinite(caloRate) && caloRate > 0
+  const caloAmount = hasCaloRate && caloRate ? safePrice / caloRate : null
+  const caloFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat('ru-RU', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    [],
+  )
+  const caloDisplay = caloAmount && caloAmount > 0 ? caloFormatter.format(caloAmount) : null
 
   return (
     <Card interactive elevation={2} className="flex h-full flex-col gap-4 p-0">
@@ -113,6 +140,9 @@ export function ProductCard({ item }: ProductCardProps) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Price value={safePrice} currency={item.currency} originalValue={safeOriginalPrice ?? null} />
+          {caloDisplay ? (
+            <span className="text-xs text-muted-foreground">≈ {caloDisplay} CALO</span>
+          ) : null}
           {item.unit ? <span className="text-xs text-muted-foreground">/ {item.unit}</span> : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

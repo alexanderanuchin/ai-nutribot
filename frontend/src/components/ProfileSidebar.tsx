@@ -455,13 +455,21 @@ export default function ProfileSidebar({
   const starsBalanceRaw = parseNumber(profile.telegram_stars_balance)
   const starsBalance = starsBalanceRaw !== null ? Math.max(0, Math.floor(starsBalanceRaw)) : 0
   const starsRate = parseNumber(profile.telegram_stars_rate_rub)
-  const caloBalance = parseNumber(profile.calocoin_balance)
-  const caloRate = parseNumber(profile.calocoin_rate_rub)
+  const caloBalanceRaw = parseNumber(profile.calocoin_balance)
+  const caloRateRaw = parseNumber(profile.calocoin_rate_rub)
+  const overviewStars = walletSummary?.overview?.stars ?? walletMeta?.overview?.stars ?? null
+  const overviewCalo = walletSummary?.overview?.calo ?? walletMeta?.overview?.calo ?? null
   const hasStarsRate = typeof starsRate === 'number' && starsRate > 0
-  const hasCaloRate = typeof caloRate === 'number' && caloRate > 0
   const starsRateValue = hasStarsRate ? (starsRate as number) : 0
-  const caloBalanceValue = caloBalance ?? 0
-  const caloRateValue = hasCaloRate ? (caloRate as number) : 0
+  const caloRateValue = typeof overviewCalo?.rate_rub === 'number'
+    ? overviewCalo.rate_rub
+    : typeof caloRateRaw === 'number' && caloRateRaw > 0
+      ? caloRateRaw
+      : 0
+  const hasCaloRate = caloRateValue > 0
+  const caloBalanceValue = typeof overviewCalo?.balance === 'number'
+    ? overviewCalo.balance
+    : Math.max(0, caloBalanceRaw ?? 0)
   const caloBalanceDisplay = caloBalanceValue.toLocaleString('ru-RU', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -480,8 +488,35 @@ export default function ProfileSidebar({
   const avatarImageSrc = getAvatarImageSrc(avatarState)
   const avatarClassName = `profile-sidebar__avatar${avatarImageSrc ? ' profile-sidebar__avatar--with-image' : ''}`
   const hasTelegramLink = Boolean(profile.telegram_id || user?.telegram_id)
-  const starsRubEquivalent = hasStarsRate ? starsBalance * starsRateValue : null
-  const caloRubEquivalent = hasCaloRate ? caloBalanceValue * caloRateValue : null
+  const starsRubEquivalent = hasStarsRate
+    ? starsBalance * starsRateValue
+    : typeof overviewStars?.rub_equivalent === 'number'
+      ? overviewStars.rub_equivalent
+      : null
+  const caloRubEquivalent = typeof overviewCalo?.rub_equivalent === 'number'
+    ? overviewCalo.rub_equivalent
+    : hasCaloRate
+      ? caloBalanceValue * caloRateValue
+      : null
+  const caloApproxPurchases = typeof overviewCalo?.approximate_market_orders === 'number'
+    ? overviewCalo.approximate_market_orders
+    : null
+  const caloReferencePurchase = typeof overviewCalo?.reference_purchase_rub === 'number'
+    ? overviewCalo.reference_purchase_rub
+    : null
+  const caloBalanceHintText = hasCaloRate && caloRubEquivalent !== null
+    ? [
+        `≈ ${rubRateFormatter.format(caloRubEquivalent)}`,
+        `${rubRateFormatter.format(caloRateValue)} за 1`,
+        caloApproxPurchases && caloReferencePurchase
+          ? `~${caloApproxPurchases.toFixed(1)} покупок (~${rubRateFormatter.format(caloReferencePurchase)} ₽)`
+          : caloApproxPurchases
+          ? `~${caloApproxPurchases.toFixed(1)} покупок`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : 'Настройте курс CaloCoin, чтобы видеть рублевый эквивалент'
   const dailyBudgetDisplay = hasDailyBudget ? rubFormatter.format(dailyBudgetValue) : null
   const highlightMessages = Array.from(
     new Set(
@@ -1133,11 +1168,7 @@ export default function ProfileSidebar({
                       <div>
                         <div className="profile-sidebar__wallet-balance-label">CaloCoin</div>
                         <div className="profile-sidebar__wallet-balance-value">{caloBalanceDisplay}</div>
-                        <div className="profile-sidebar__wallet-balance-hint small">
-                          {hasCaloRate && caloRubEquivalent !== null
-                            ? `≈ ${rubRateFormatter.format(caloRubEquivalent)} · ${rubRateFormatter.format(caloRateValue)} за 1`
-                            : 'Настройте курс CaloCoin, чтобы видеть рублевый эквивалент'}
-                        </div>
+                        <div className="profile-sidebar__wallet-balance-hint small">{caloBalanceHintText}</div>
                       </div>
                     </div>
                     <a

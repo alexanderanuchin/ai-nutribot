@@ -20,11 +20,19 @@ vi.mock('../../features/market/hooks/useMarketEvents', () => ({
 }))
 
 const cartTotals = { count: 0, quantity: 0, amount: 0, currency: null }
+const cartStoreState = {
+  ...cartTotals,
+  items: {},
+  hydrated: true,
+  serverCart: null as { id: number; storeId: number; currency: string } | null,
+  clear: vi.fn(),
+  setServerCart: vi.fn(),
+}
 const planTotals = { count: 0, servings: 0, calories: 0 }
 
 vi.mock('../../features/market/stores/cartStore', () => ({
-  useMarketCartStore: (selector?: (state: typeof cartTotals) => unknown) => {
-    return selector ? selector(cartTotals) : cartTotals
+  useMarketCartStore: (selector?: (state: typeof cartStoreState) => unknown) => {
+    return selector ? selector(cartStoreState) : cartStoreState
   },
   selectCartTotals: () => cartTotals,
 }))

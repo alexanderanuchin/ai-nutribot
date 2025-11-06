@@ -82,6 +82,7 @@ def stub_invoice_service(monkeypatch, settings):
     orders_views.WalletTopUpView.payment_service = PaymentService()
     orders_views.TelegramStarsInvoiceView.payment_service = PaymentService()
     orders_views.TelegramBotPaymentReportView.payment_service = PaymentService()
+    orders_views.CheckoutView.payment_service = PaymentService()
 
 
 @pytest.fixture
@@ -91,7 +92,7 @@ def auth_client(api_client: APIClient, user: User) -> APIClient:
 
 
 @pytest.fixture
-def payment_service() -> PaymentService:
+def payment_service(stub_invoice_service: None) -> PaymentService:
     return PaymentService()
 
 
@@ -305,6 +306,11 @@ def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient
         priority=1,
     )
 
+    profile = user.profile
+    if not profile.calocoin_rate_rub:
+        profile.calocoin_rate_rub = Decimal("100")
+        profile.save(update_fields=["calocoin_rate_rub", "updated_at"])
+
     auth_client.post(
         "/api/orders/wallet/transactions/topup/",
         {"currency": "calo", "amount": "450.50", "description": "Первый платёж"},
@@ -321,6 +327,14 @@ def test_wallet_summary_contains_targets_and_transactions(auth_client: APIClient
     assert calo_target.get("label") == "До расширенного PRO"
     assert calo_target.get("progress_message").startswith("Осталось")
     assert calo_target.get("completed_message").startswith("CaloCoin достаточно")
+    overview = data.get("overview", {})
+    calo_overview = overview.get("calo")
+    assert calo_overview is not None
+    assert calo_overview["currency"] == "calo"
+    assert calo_overview["balance"] >= 450
+    assert calo_overview.get("rub_equivalent") is not None
+    assert calo_overview.get("rate_rub") is not None
+    assert calo_overview.get("approximate_market_orders") is not None
 
 
 @pytest.mark.django_db
