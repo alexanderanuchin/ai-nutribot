@@ -4,6 +4,8 @@ import clsx from 'clsx'
 import { Badge, Card, Skeleton } from '../../../components/ui'
 import type { MealPlan, MealPlanDailyTotals } from '../../../types/meal-plan'
 import { computeCoverage, extractPlanTargets, formatNutritionValue } from '../utils'
+import { PLAN_GOAL_PRESETS, formatCalorieDelta } from '../goals'
+import type { Goal } from '../../../types'
 
 interface PlanSummaryCardProps {
   plan?: MealPlan | null
@@ -63,6 +65,10 @@ export function PlanSummaryCard({ plan, isLoading = false }: PlanSummaryCardProp
   const targets = extractPlanTargets(plan)
   const totals = plan?.nutrition_totals ?? targets
   const coverage = computeCoverage(totals, targets)
+  const rawGoal = plan?.metadata?.goal
+  const planGoal =
+    typeof rawGoal === 'string' && rawGoal in PLAN_GOAL_PRESETS ? (rawGoal as Goal) : undefined
+  const goalPreset = planGoal ? PLAN_GOAL_PRESETS[planGoal] : undefined
 
   if (isLoading) {
     return (
@@ -83,6 +89,11 @@ export function PlanSummaryCard({ plan, isLoading = false }: PlanSummaryCardProp
             {formatNutritionValue(totals.calories, 0)}
             <span className="text-base font-medium text-muted-foreground">ккал / день</span>
           </div>
+          {goalPreset && (
+            <div className="text-xs text-muted-foreground">
+              Цель: {goalPreset.label} ({formatCalorieDelta(goalPreset.calorieMultiplier)})
+            </div>
+          )}
         </div>
         <Badge variant="outline" className="gap-1 text-xs">
           <FlameKindlingIcon className="h-4 w-4" />

@@ -34,6 +34,9 @@ import {
   useUpdateMealPlanMutation,
 } from '../hooks'
 import type { MealPlanItemPayload } from '../../../types/meal-plan'
+import type { Goal } from '../../../types'
+import { useAuthContext } from '../../../providers/AuthProvider'
+import { recommendTargetsForGoal } from '../goals'
 
 interface ActiveDragState {
   type: 'recipe' | 'product' | 'plan-item'
@@ -55,6 +58,7 @@ function buildSlot(date: string | null, mealType: string | null): PlanSlot {
 
 export function MealPlanBuilder() {
   const { notify } = useToast()
+  const { profile } = useAuthContext()
   const params = useMemo(() => ({ scope: 'owned' as const, page_size: 50 }), [])
   const plansQuery = useMealPlansQuery(params, { keepPreviousData: true })
   const plans = plansQuery.data?.results ?? []
@@ -136,12 +140,15 @@ export function MealPlanBuilder() {
     })
   }, [plan, weekStart])
 
+  const defaultGoal = (profile?.goal as Goal | undefined) ?? 'maintain'
+  const recommendedDefaults = recommendTargetsForGoal({ goal: defaultGoal, profile, fallback: DEFAULT_TARGETS })
+
   const handleCreatePlan = () => {
     const today = format(weekStart, 'yyyy-MM-dd')
     createPlanMutation.mutate({
       title: `План ${new Date().toLocaleDateString('ru-RU')}`,
       start_date: today,
-      metadata: { targets: DEFAULT_TARGETS },
+      metadata: { goal: defaultGoal, targets: recommendedDefaults },
     })
   }
 
@@ -149,9 +156,9 @@ export function MealPlanBuilder() {
     deletePlanMutation.mutate(planId)
   }
 
-  const handleUpdateTargets = (targets: typeof DEFAULT_TARGETS) => {
+  const handleUpdateTargets = ({ goal, targets }: { goal: Goal; targets: typeof DEFAULT_TARGETS }) => {
     if (!plan) return
-    updatePlanMutation.mutate({ metadata: { ...plan.metadata, targets } })
+    updatePlanMutation.mutate({ metadata: { ...plan.metadata, goal, targets } })
   }
 
   const handleTitleCommit = () => {
@@ -352,7 +359,12 @@ export function MealPlanBuilder() {
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
         <div className="space-y-6">
           <PlanSummaryCard plan={plan} isLoading={planQuery.isLoading} />
-          <PlanGoalsCard plan={plan} isSaving={updatePlanMutation.isPending} onSave={handleUpdateTargets} />
+          <PlanGoalsCard
+            plan={plan}
+            profile={profile}
+            isSaving={updatePlanMutation.isPending}
+            onSave={handleUpdateTargets}
+          />
           <PlanListCard
             plans={plans}
             selectedPlanId={selectedPlanId}
