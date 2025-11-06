@@ -312,6 +312,14 @@ class MealPlan(models.Model):
     end_date = models.DateField(null=True, blank=True)
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
+    price_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    price_currency = models.CharField(max_length=3, default="RUB")
     metadata = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -323,6 +331,7 @@ class MealPlan(models.Model):
         indexes = [
             models.Index(fields=["user", "start_date"], name="market_mealplan_user_start"),
             models.Index(fields=["is_published", "published_at"], name="market_mealplan_published"),
+            models.Index(fields=["is_published", "price_amount"], name="market_plan_price_pub"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover

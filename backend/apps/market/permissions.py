@@ -53,10 +53,25 @@ class IsCartOwner(permissions.BasePermission):
 
 class IsMealPlanOwner(permissions.BasePermission):
     def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
         return request.user and request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
-        return getattr(obj, "user_id", None) == getattr(request.user, "id", None)
+        user_id = getattr(request.user, "id", None)
+        owner_id = getattr(obj, "user_id", None)
+        if owner_id is None:
+            meal_plan = getattr(obj, "meal_plan", None)
+            owner_id = getattr(meal_plan, "user_id", None) if meal_plan else None
+        if owner_id and owner_id == user_id:
+            return True
+        if request.method in permissions.SAFE_METHODS:
+            if getattr(obj, "is_published", False):
+                return True
+            meal_plan = getattr(obj, "meal_plan", None)
+            if meal_plan and getattr(meal_plan, "is_published", False):
+                return True
+        return False
 
 
 class IsMarketOperator(permissions.BasePermission):

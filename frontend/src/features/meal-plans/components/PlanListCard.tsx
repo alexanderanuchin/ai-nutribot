@@ -1,0 +1,117 @@
+import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, Trash2Icon } from 'lucide-react'
+import clsx from 'clsx'
+
+import { Badge, Button, Card, IconButton, Skeleton } from '../../../components/ui'
+import type { MealPlan } from '../../../types/meal-plan'
+import { formatNutritionValue } from '../utils'
+
+interface PlanListCardProps {
+  plans: MealPlan[]
+  selectedPlanId: number | null
+  onSelectPlan: (planId: number) => void
+  onCreatePlan: () => void
+  onDeletePlan: (planId: number) => void
+  isLoading?: boolean
+  isCreating?: boolean
+  deletingPlanId?: number | null
+  isDeleting?: boolean
+}
+
+export function PlanListCard({
+  plans,
+  selectedPlanId,
+  onSelectPlan,
+  onCreatePlan,
+  onDeletePlan,
+  isLoading = false,
+  isCreating = false,
+  deletingPlanId = null,
+  isDeleting = false,
+}: PlanListCardProps) {
+  return (
+    <Card className="space-y-4 border-border/70 bg-background/60 p-5 shadow-level-1">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-muted-foreground">Мои планы</div>
+          <div className="text-foreground">Управляйте вариантами питания</div>
+        </div>
+        <Button
+          variant="primary"
+          size="sm"
+          leadingIcon={<PlusCircleIcon className="h-4 w-4" aria-hidden="true" />}
+          onClick={onCreatePlan}
+          loading={isCreating}
+        >
+          Новый план
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : plans.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">
+          У вас пока нет сохранённых планов. Создайте первый, чтобы приступить к настройке.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {plans.map(plan => {
+            const isActive = plan.id === selectedPlanId
+            const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
+            return (
+              <button
+                key={plan.id}
+                type="button"
+                onClick={() => onSelectPlan(plan.id)}
+                className={clsx(
+                  'flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 px-4 py-3 text-left shadow-level-1 transition hover:border-primary/60 hover:shadow-level-2',
+                  isActive && 'border-primary/70 shadow-level-3'
+                )}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="truncate text-sm font-semibold text-foreground">{plan.title}</div>
+                    <Badge variant={plan.is_published ? 'outline' : 'secondary'} className="gap-1 text-[10px] uppercase">
+                      {plan.is_published ? (
+                        <GlobeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      ) : (
+                        <LockIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      {plan.is_published ? 'Публичный' : 'Черновик'}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      <CalendarIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      {new Date(plan.start_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <span>{price}</span>
+                    <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
+                  </div>
+                </div>
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Удалить план"
+                  onClick={event => {
+                    event.stopPropagation()
+                    if (confirm(`Удалить план «${plan.title}»?`)) {
+                      onDeletePlan(plan.id)
+                    }
+                  }}
+                  disabled={isDeleting && deletingPlanId === plan.id}
+                >
+                  <Trash2Icon className="h-4 w-4" aria-hidden="true" />
+                </IconButton>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+export default PlanListCard

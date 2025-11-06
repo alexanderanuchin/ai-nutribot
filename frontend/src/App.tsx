@@ -17,6 +17,7 @@ import MarketHubPage from './pages/market/MarketHubPage'
 import MarketRecipesPage from './pages/market/MarketRecipesPage'
 import MarketProductsPage from './pages/market/MarketProductsPage'
 import MarketStoresPage from './pages/market/MarketStoresPage'
+import MealPlanBuilderPage from './pages/nutrition/MealPlanBuilderPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 import GridShimmerCanvas from './components/GridShimmerCanvas'
@@ -67,6 +68,7 @@ export default function App(){
                   <Route path="/plan" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                   <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
                   <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />
+                  <Route path="/nutrition/builder" element={<ProtectedRoute><MealPlanBuilderPage /></ProtectedRoute>} />
                   <Route
                     path="/market/*"
                     element={(

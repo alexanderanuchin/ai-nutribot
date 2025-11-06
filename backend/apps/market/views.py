@@ -441,30 +441,58 @@ class MealPlanViewSet(viewsets.ModelViewSet):
     pagination_class = MarketPagination
 
     def get_queryset(self):
-        qs = MealPlan.objects.filter(user=self.request.user).prefetch_related(
-            Prefetch("items", queryset=MealPlanItem.objects.select_related("recipe", "product"))
+        items_prefetch = Prefetch(
+            "items",
+            queryset=MealPlanItem.objects.select_related(
+                "recipe",
+                "recipe__store",
+                "product",
+                "product__store",
+            ),
         )
-        date_from = self.request.query_params.get("from")
-        if date_from:
-            try:
-                parsed = date.fromisoformat(date_from)
-            except ValueError:
-                parsed = None
-            if parsed:
-                qs = qs.filter(start_date__gte=parsed)
-        date_to = self.request.query_params.get("to")
-        if date_to:
-            try:
-                parsed = date.fromisoformat(date_to)
-            except ValueError:
-                parsed = None
-            if parsed:
-                qs = qs.filter(Q(end_date__lte=parsed) | Q(end_date__isnull=True))
-        published = self.request.query_params.get("published")
-        if published in {"true", "1"}:
-            qs = qs.filter(is_published=True)
-        elif published in {"false", "0"}:
-            qs = qs.filter(is_published=False)
+        qs = MealPlan.objects.all().select_related("user").prefetch_related(items_prefetch)
+
+        user = self.request.user if getattr(self.request.user, "is_authenticated", False) else None
+        scope = (self.request.query_params.get("scope") or "").lower()
+        action = getattr(self, "action", None)
+
+        if action == "retrieve":
+            filters = Q(is_published=True)
+            if user:
+                filters |= Q(user=user)
+            qs = qs.filter(filters)
+        else:
+            if scope == "public":
+                qs = qs.filter(is_published=True)
+            elif user:
+                qs = qs.filter(user=user)
+            else:
+                qs = qs.none()
+
+        if action != "retrieve":
+            date_from = self.request.query_params.get("from")
+            if date_from:
+                try:
+                    parsed = date.fromisoformat(date_from)
+                except ValueError:
+                    parsed = None
+                if parsed:
+                    qs = qs.filter(start_date__gte=parsed)
+            date_to = self.request.query_params.get("to")
+            if date_to:
+                try:
+                    parsed = date.fromisoformat(date_to)
+                except ValueError:
+                    parsed = None
+                if parsed:
+                    qs = qs.filter(Q(end_date__lte=parsed) | Q(end_date__isnull=True))
+            if scope != "public" and user:
+                published = self.request.query_params.get("published")
+                if published in {"true", "1"}:
+                    qs = qs.filter(is_published=True)
+                elif published in {"false", "0"}:
+                    qs = qs.filter(is_published=False)
+
         return qs.order_by("-start_date", "-id")
 
     def perform_create(self, serializer):
@@ -476,11 +504,25 @@ class MealPlanItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsMealPlanOwner]
 
     def get_queryset(self):
-        return (
-            MealPlanItem.objects.select_related("meal_plan", "recipe", "product", "meal_plan__user")
-            .filter(meal_plan__user=self.request.user)
-            .order_by("scheduled_for", "meal_plan_id")
+        qs = MealPlanItem.objects.select_related(
+            "meal_plan",
+            "meal_plan__user",
+            "recipe",
+            "recipe__store",
+            "product",
+            "product__store",
         )
+        user = self.request.user if getattr(self.request.user, "is_authenticated", False) else None
+        if self.request.method in permissions.SAFE_METHODS:
+            if user:
+                qs = qs.filter(Q(meal_plan__user=user) | Q(meal_plan__is_published=True))
+            else:
+                qs = qs.filter(meal_plan__is_published=True)
+        else:
+            if not user:
+                return MealPlanItem.objects.none()
+            qs = qs.filter(meal_plan__user=user)
+        return qs.order_by("scheduled_for", "meal_plan_id")
 
     def perform_create(self, serializer):
         meal_plan: MealPlan = serializer.validated_data["meal_plan"]

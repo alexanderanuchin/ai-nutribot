@@ -41,6 +41,95 @@ def _ensure_number(value: Any) -> Optional[float]:
     return number
 
 
+def _normalize_nutrition_payload(raw: Any) -> dict[str, float]:
+    if isinstance(raw, dict):
+        source = raw
+    else:
+        source = {}
+    calories = _ensure_number(source.get("calories")) or 0.0
+    protein = _ensure_number(source.get("protein")) or 0.0
+    fat = _ensure_number(source.get("fat")) or 0.0
+    carbs = _ensure_number(source.get("carbs")) or 0.0
+    if "protein_g" in source:
+        protein = _ensure_number(source.get("protein_g")) or protein
+    if "fat_g" in source:
+        fat = _ensure_number(source.get("fat_g")) or fat
+    if "carbs_g" in source:
+        carbs = _ensure_number(source.get("carbs_g")) or carbs
+    return {
+        "calories": calories,
+        "protein_g": protein,
+        "fat_g": fat,
+        "carbs_g": carbs,
+    }
+
+
+def _recipe_nutrition(recipe: "Recipe") -> dict[str, float]:
+    metadata = recipe.metadata or {}
+    nutrition = metadata.get("nutrition")
+    return _normalize_nutrition_payload(nutrition)
+
+
+def _product_nutrition(product: "Product") -> dict[str, float]:
+    nutrition = product.nutrition or {}
+    return _normalize_nutrition_payload(nutrition)
+
+
+def _recipe_metadata(recipe: "Recipe") -> dict[str, Any]:
+    metadata = recipe.metadata or {}
+    if isinstance(metadata, dict):
+        return metadata
+    return {}
+
+
+def _product_metadata(product: "Product") -> dict[str, Any]:
+    metadata = product.metadata or {}
+    if isinstance(metadata, dict):
+        return metadata
+    return {}
+
+
+def _empty_nutrition() -> dict[str, float]:
+    return {"calories": 0.0, "protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0}
+
+
+def _add_nutrition(lhs: dict[str, float], rhs: dict[str, float]) -> dict[str, float]:
+    return {
+        "calories": lhs.get("calories", 0.0) + rhs.get("calories", 0.0),
+        "protein_g": lhs.get("protein_g", 0.0) + rhs.get("protein_g", 0.0),
+        "fat_g": lhs.get("fat_g", 0.0) + rhs.get("fat_g", 0.0),
+        "carbs_g": lhs.get("carbs_g", 0.0) + rhs.get("carbs_g", 0.0),
+    }
+
+
+def _format_nutrition(payload: dict[str, float]) -> dict[str, float]:
+    return {
+        "calories": round(payload.get("calories", 0.0), 2),
+        "protein_g": round(payload.get("protein_g", 0.0), 2),
+        "fat_g": round(payload.get("fat_g", 0.0), 2),
+        "carbs_g": round(payload.get("carbs_g", 0.0), 2),
+    }
+
+
+def _item_base_nutrition(item: "MealPlanItem") -> dict[str, float]:
+    if item.recipe:
+        return _recipe_nutrition(item.recipe)
+    if item.product:
+        return _product_nutrition(item.product)
+    return _empty_nutrition()
+
+
+def _item_total_nutrition(item: "MealPlanItem") -> dict[str, float]:
+    base = _item_base_nutrition(item)
+    servings = float(item.servings or 0)
+    return {
+        "calories": base["calories"] * servings,
+        "protein_g": base["protein_g"] * servings,
+        "fat_g": base["fat_g"] * servings,
+        "carbs_g": base["carbs_g"] * servings,
+    }
+
+
 class StoreSerializer(serializers.ModelSerializer):
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
     owner_username = serializers.CharField(source="owner.username", read_only=True)
@@ -612,6 +701,11 @@ class CartCheckoutSerializer(serializers.Serializer):
 
 
 class MealPlanItemSerializer(serializers.ModelSerializer):
+    recipe_snapshot = serializers.SerializerMethodField()
+    product_snapshot = serializers.SerializerMethodField()
+    nutrition = serializers.SerializerMethodField()
+    total_nutrition = serializers.SerializerMethodField()
+
     class Meta:
         model = MealPlanItem
         fields = [
@@ -619,12 +713,92 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
             "meal_plan",
             "recipe",
             "product",
+            "recipe_snapshot",
+            "product_snapshot",
             "servings",
             "scheduled_for",
             "meal_type",
             "notes",
+            "nutrition",
+            "total_nutrition",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = [
+            "id",
+            "recipe_snapshot",
+            "product_snapshot",
+            "nutrition",
+            "total_nutrition",
+        ]
+
+    def get_recipe_snapshot(self, obj: MealPlanItem) -> Optional[dict[str, Any]]:
+        recipe = obj.recipe
+        if not recipe:
+            return None
+        metadata = _recipe_metadata(recipe)
+        preview = metadata.get("preview_image_url") or metadata.get("hero_image_url")
+        hero = metadata.get("hero_image_url") or preview
+        price_data = metadata.get("price") if isinstance(metadata.get("price"), dict) else None
+        price = None
+        currency = None
+        if price_data:
+            price = _ensure_number(price_data.get("value"))
+            currency_val = price_data.get("currency")
+            currency = str(currency_val) if currency_val else None
+        elif metadata.get("price") is not None:
+            price = _ensure_number(metadata.get("price"))
+        if not currency:
+            currency_val = metadata.get("currency")
+            currency = str(currency_val) if currency_val else None
+        nutrition = _recipe_nutrition(recipe)
+        return {
+            "id": recipe.id,
+            "title": recipe.title,
+            "slug": recipe.slug,
+            "store_id": recipe.store_id,
+            "store_name": getattr(recipe.store, "name", None),
+            "store_slug": getattr(recipe.store, "slug", None),
+            "hero_image_url": str(hero) if hero else None,
+            "preview_image_url": str(preview) if preview else None,
+            "servings": recipe.servings,
+            "cooking_time_minutes": recipe.cooking_time_minutes,
+            "calories": nutrition["calories"],
+            "protein_g": nutrition["protein_g"],
+            "fat_g": nutrition["fat_g"],
+            "carbs_g": nutrition["carbs_g"],
+            "price": price,
+            "currency": currency,
+        }
+
+    def get_product_snapshot(self, obj: MealPlanItem) -> Optional[dict[str, Any]]:
+        product = obj.product
+        if not product:
+            return None
+        metadata = _product_metadata(product)
+        image = metadata.get("image_url")
+        if not image and product.metadata:
+            image = product.metadata.get("image")
+        nutrition = _product_nutrition(product)
+        return {
+            "id": product.id,
+            "title": product.title,
+            "slug": product.slug,
+            "store_id": product.store_id,
+            "store_name": getattr(product.store, "name", None),
+            "store_slug": getattr(product.store, "slug", None),
+            "price": float(product.price),
+            "currency": product.currency,
+            "image_url": str(image) if image else None,
+            "calories": nutrition["calories"],
+            "protein_g": nutrition["protein_g"],
+            "fat_g": nutrition["fat_g"],
+            "carbs_g": nutrition["carbs_g"],
+        }
+
+    def get_nutrition(self, obj: MealPlanItem) -> dict[str, float]:
+        return _format_nutrition(_item_base_nutrition(obj))
+
+    def get_total_nutrition(self, obj: MealPlanItem) -> dict[str, float]:
+        return _format_nutrition(_item_total_nutrition(obj))
 
 
 class MarketSearchResultSerializer(serializers.Serializer):
@@ -668,6 +842,8 @@ class MarketSearchQuerySerializer(serializers.Serializer):
 class MealPlanSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True)
     items = MealPlanItemSerializer(many=True, read_only=True)
+    nutrition_totals = serializers.SerializerMethodField()
+    daily_breakdown = serializers.SerializerMethodField()
 
     class Meta:
         model = MealPlan
@@ -680,10 +856,14 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "end_date",
             "is_published",
             "published_at",
+            "price_amount",
+            "price_currency",
             "metadata",
             "created_at",
             "updated_at",
             "items",
+            "nutrition_totals",
+            "daily_breakdown",
         ]
         read_only_fields = [
             "id",
@@ -692,4 +872,50 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "items",
+            "nutrition_totals",
+            "daily_breakdown",
         ]
+
+    def _get_items(self, obj: MealPlan) -> Iterable[MealPlanItem]:
+        if hasattr(obj, "_prefetched_objects_cache") and "items" in obj._prefetched_objects_cache:
+            return obj._prefetched_objects_cache["items"]  # type: ignore[index]
+        return obj.items.all()
+
+    def _get_aggregate(self, obj: MealPlan) -> tuple[dict[str, float], dict[str, dict[str, float]]]:
+        cached = getattr(obj, "_nutrition_aggregate", None)
+        if cached is not None:
+            return cached
+        totals = _empty_nutrition()
+        daily: dict[str, dict[str, float]] = {}
+        for item in self._get_items(obj):
+            item_total = _item_total_nutrition(item)
+            totals = _add_nutrition(totals, item_total)
+            key = item.scheduled_for.isoformat() if item.scheduled_for else "unscheduled"
+            daily[key] = _add_nutrition(daily.get(key, _empty_nutrition()), item_total)
+        aggregate = (totals, daily)
+        setattr(obj, "_nutrition_aggregate", aggregate)
+        return aggregate
+
+    def get_nutrition_totals(self, obj: MealPlan) -> dict[str, float]:
+        totals, _ = self._get_aggregate(obj)
+        return _format_nutrition(totals)
+
+    def get_daily_breakdown(self, obj: MealPlan) -> list[dict[str, Any]]:
+        _, daily = self._get_aggregate(obj)
+
+        def sort_key(item: tuple[str, dict[str, float]]):
+            key, _payload = item
+            if key == "unscheduled":
+                return (1, "")
+            return (0, key)
+
+        breakdown: list[dict[str, Any]] = []
+        for key, payload in sorted(daily.items(), key=sort_key):
+            breakdown.append(
+                {
+                    "date": key if key != "unscheduled" else None,
+                    "is_unscheduled": key == "unscheduled",
+                    "totals": _format_nutrition(payload),
+                }
+            )
+        return breakdown
