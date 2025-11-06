@@ -22,6 +22,7 @@ import MealPlanCalendar from './MealPlanCalendar'
 import PlanGoalsCard from './PlanGoalsCard'
 import PlanListCard from './PlanListCard'
 import PlanSummaryCard from './PlanSummaryCard'
+import ComparisonModal from './ComparisonModal'
 import RecipeLibrary from './RecipeLibrary'
 import {
   useCreateMealPlanItemMutation,
@@ -67,10 +68,13 @@ export function MealPlanBuilder() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [activeSlot, setActiveSlot] = useState<PlanSlot | null>(null)
   const [activeDrag, setActiveDrag] = useState<ActiveDragState | null>(null)
+  const [comparisonSelection, setComparisonSelection] = useState<number[]>([])
+  const [comparisonOpen, setComparisonOpen] = useState(false)
 
   useEffect(() => {
     if (plans.length === 0) {
       setSelectedPlanId(null)
+      setComparisonSelection([])
       return
     }
     if (selectedPlanId == null) {
@@ -81,6 +85,10 @@ export function MealPlanBuilder() {
       setSelectedPlanId(plans[0].id)
     }
   }, [plans, selectedPlanId])
+
+  useEffect(() => {
+    setComparisonSelection(prev => prev.filter(id => plans.some(plan => plan.id === id)))
+  }, [plans])
 
   const planQuery = useMealPlanQuery(selectedPlanId, {
     enabled: Boolean(selectedPlanId),
@@ -153,7 +161,38 @@ export function MealPlanBuilder() {
   }
 
   const handleDeletePlan = (planId: number) => {
+    setComparisonSelection(prev => prev.filter(id => id !== planId))
     deletePlanMutation.mutate(planId)
+  }
+
+  const handleTogglePlanComparison = (planId: number) => {
+    setComparisonSelection(prev => {
+      if (prev.includes(planId)) {
+        return prev.filter(id => id !== planId)
+      }
+      if (prev.length >= 2) {
+        notify({
+          title: 'Сравнение максимум двух планов',
+          description: 'Снимите отметку, чтобы выбрать другой план',
+          tone: 'warning',
+        })
+        return prev
+      }
+      return [...prev, planId]
+    })
+  }
+
+  const handleCompareSelectedPlans = () => {
+    if (comparisonSelection.length === 2) {
+      setComparisonOpen(true)
+    }
+  }
+
+  const handleComparisonOpenChange = (open: boolean) => {
+    setComparisonOpen(open)
+    if (!open) {
+      setComparisonSelection([])
+    }
   }
 
   const handleUpdateTargets = ({ goal, targets }: { goal: Goal; targets: typeof DEFAULT_TARGETS }) => {
@@ -297,12 +336,13 @@ export function MealPlanBuilder() {
   const targets = extractPlanTargets(plan)
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card className="space-y-4 border-border/70 bg-background/70 p-5 shadow-level-2">
-        {planQuery.isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-8 w-1/2" />
-            <Skeleton className="h-5 w-1/3" />
+    <>
+      <div className="flex flex-col gap-6">
+        <Card className="space-y-4 border-border/70 bg-background/70 p-5 shadow-level-2">
+          {planQuery.isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-8 w-1/2" />
+              <Skeleton className="h-5 w-1/3" />
           </div>
         ) : plan ? (
           <div className="flex flex-col gap-4">
@@ -371,6 +411,9 @@ export function MealPlanBuilder() {
             onSelectPlan={setSelectedPlanId}
             onCreatePlan={handleCreatePlan}
             onDeletePlan={handleDeletePlan}
+            selectedPlans={comparisonSelection}
+            onToggleSelectPlan={handleTogglePlanComparison}
+            onCompareSelected={handleCompareSelectedPlans}
             isLoading={plansQuery.isLoading}
             isCreating={createPlanMutation.isPending}
             deletingPlanId={deletePlanMutation.variables ?? null}
@@ -400,7 +443,13 @@ export function MealPlanBuilder() {
           <RecipeLibrary activeSlot={activeSlot} onAddItem={handleAddLibraryItem} />
         </div>
       </div>
-    </div>
+      </div>
+      <ComparisonModal
+        open={comparisonOpen && comparisonSelection.length === 2}
+        onOpenChange={handleComparisonOpenChange}
+        planIds={comparisonSelection.slice(0, 2)}
+      />
+    </>
   )
 }
 

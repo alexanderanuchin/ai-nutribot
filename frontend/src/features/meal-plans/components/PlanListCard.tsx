@@ -11,6 +11,9 @@ interface PlanListCardProps {
   onSelectPlan: (planId: number) => void
   onCreatePlan: () => void
   onDeletePlan: (planId: number) => void
+  selectedPlans: number[]
+  onToggleSelectPlan: (planId: number) => void
+  onCompareSelected: () => void
   isLoading?: boolean
   isCreating?: boolean
   deletingPlanId?: number | null
@@ -23,6 +26,9 @@ export function PlanListCard({
   onSelectPlan,
   onCreatePlan,
   onDeletePlan,
+  selectedPlans,
+  onToggleSelectPlan,
+  onCompareSelected,
   isLoading = false,
   isCreating = false,
   deletingPlanId = null,
@@ -56,10 +62,13 @@ export function PlanListCard({
           У вас пока нет сохранённых планов. Создайте первый, чтобы приступить к настройке.
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {plans.map(plan => {
+        <>
+          <div className="flex flex-col gap-3">
+            {plans.map(plan => {
             const isActive = plan.id === selectedPlanId
             const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
+            const isSelectedForCompare = selectedPlans.includes(plan.id)
+            const selectionDisabled = !isSelectedForCompare && selectedPlans.length >= 2
             return (
               <div
                 key={plan.id}
@@ -70,25 +79,43 @@ export function PlanListCard({
                   isActive && 'border-primary/70 shadow-level-3'
                 )}
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="truncate text-sm font-semibold text-foreground">{plan.title}</div>
-                    <Badge variant={plan.is_published ? 'outline' : 'secondary'} className="gap-1 text-[10px] uppercase">
-                      {plan.is_published ? (
-                        <GlobeIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                      ) : (
-                        <LockIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                      )}
-                      {plan.is_published ? 'Публичный' : 'Черновик'}
-                    </Badge>
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className="pt-1">
+                    <input
+                      type="checkbox"
+                      checked={isSelectedForCompare}
+                      disabled={selectionDisabled}
+                      onChange={event => {
+                        event.stopPropagation()
+                        onToggleSelectPlan(plan.id)
+                      }}
+                      onClick={event => event.stopPropagation()}
+                      className="h-4 w-4 accent-primary"
+                      aria-label={
+                        isSelectedForCompare ? 'Исключить план из сравнения' : 'Добавить план к сравнению'
+                      }
+                    />
                   </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                      {new Date(plan.start_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                    </span>
-                    <span>{price}</span>
-                    <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className="truncate text-sm font-semibold text-foreground">{plan.title}</div>
+                      <Badge variant={plan.is_published ? 'outline' : 'secondary'} className="gap-1 text-[10px] uppercase">
+                        {plan.is_published ? (
+                          <GlobeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : (
+                          <LockIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {plan.is_published ? 'Публичный' : 'Черновик'}
+                      </Badge>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {new Date(plan.start_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <span>{price}</span>
+                      <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
+                    </div>
                   </div>
                 </div>
                 <IconButton
@@ -107,8 +134,16 @@ export function PlanListCard({
                 </IconButton>
               </div>
             )
-          })}
-        </div>
+            })}
+          </div>
+          {selectedPlans.length === 2 ? (
+            <div className="flex justify-end border-t border-border/60 pt-3">
+              <Button type="button" variant="primary" size="sm" onClick={() => onCompareSelected()}>
+                Сравнить планы
+              </Button>
+            </div>
+          ) : null}
+        </>
       )}
     </Card>
   )
