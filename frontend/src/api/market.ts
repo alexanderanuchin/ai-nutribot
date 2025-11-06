@@ -85,6 +85,22 @@ export async function fetchMarketCollection<T extends MarketResource>({
   }
 }
 
+export interface CreateRecipeInput {
+  store: number
+  title: string
+  slug: string
+  summary?: string
+  cooking_time_minutes?: number
+  servings?: number
+  is_public?: boolean
+  metadata?: Record<string, unknown>
+}
+
+export async function createRecipe(payload: CreateRecipeInput): Promise<MarketRecipe> {
+  const { data } = await api.post<MarketRecipe>('/v1/market/recipes/', payload)
+  return data
+}
+
 export interface MarketSearchOptions {
   query?: string
   resource?: 'all' | MarketResource

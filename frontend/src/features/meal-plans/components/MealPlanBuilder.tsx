@@ -36,8 +36,9 @@ import {
 import type { MealPlanItemPayload } from '../../../types/meal-plan'
 
 interface ActiveDragState {
-  type: 'recipe' | 'plan-item'
+  type: 'recipe' | 'product' | 'plan-item'
   recipeId?: number
+  productId?: number
   itemId?: number
 }
 
@@ -185,21 +186,40 @@ export function MealPlanBuilder() {
     setWeekStart(prev => (direction === 'prev' ? subWeeks(prev, 1) : addWeeks(prev, 1)))
   }
 
-  const handleAddRecipe = (recipeId: number) => {
+  const handleAddLibraryItem = (item: { recipeId?: number; productId?: number }) => {
     if (!plan) {
-      notify({ title: 'Выберите план', description: 'Создайте или откройте план, чтобы добавлять блюда', tone: 'destructive' })
+      notify({
+        title: 'Выберите план',
+        description: 'Создайте или откройте план, чтобы добавлять элементы',
+        tone: 'destructive',
+      })
       return
     }
     if (!activeSlot) {
-      notify({ title: 'Выберите ячейку', description: 'Нажмите на ячейку календаря перед добавлением рецепта', tone: 'warning' })
+      notify({
+        title: 'Выберите ячейку',
+        description: 'Нажмите на ячейку календаря перед добавлением элемента',
+        tone: 'warning',
+      })
       return
     }
-    createItemMutation.mutate({
+    if (!item.recipeId && !item.productId) {
+      return
+    }
+    const payload: MealPlanItemPayload = {
       meal_plan: plan.id,
-      recipe: recipeId,
       servings: 1,
       scheduled_for: activeSlot.date ?? undefined,
       meal_type: activeSlot.mealType ?? undefined,
+    }
+    if (item.recipeId) {
+      payload.recipe = item.recipeId
+    }
+    if (item.productId) {
+      payload.product = item.productId
+    }
+    createItemMutation.mutate({
+      ...payload,
     })
   }
 
@@ -208,6 +228,8 @@ export function MealPlanBuilder() {
     if (!data) return
     if (data.type === 'recipe') {
       setActiveDrag({ type: 'recipe', recipeId: data.recipeId })
+    } else if (data.type === 'product') {
+      setActiveDrag({ type: 'product', productId: data.productId })
     } else if (data.type === 'plan-item') {
       setActiveDrag({ type: 'plan-item', itemId: data.itemId })
     }
@@ -227,6 +249,16 @@ export function MealPlanBuilder() {
       createItemMutation.mutate({
         meal_plan: plan.id,
         recipe: data.recipeId,
+        servings: 1,
+        scheduled_for: droppable.date ?? undefined,
+        meal_type: droppable.mealType ?? undefined,
+      })
+      return
+    }
+    if (data.type === 'product' && data.productId) {
+      createItemMutation.mutate({
+        meal_plan: plan.id,
+        product: data.productId,
         servings: 1,
         scheduled_for: droppable.date ?? undefined,
         meal_type: droppable.mealType ?? undefined,
@@ -353,7 +385,7 @@ export function MealPlanBuilder() {
               onRemoveItem={handleRemoveItem}
             />
           </DndContext>
-          <RecipeLibrary activeSlot={activeSlot} onAddRecipe={handleAddRecipe} />
+          <RecipeLibrary activeSlot={activeSlot} onAddItem={handleAddLibraryItem} />
         </div>
       </div>
     </div>

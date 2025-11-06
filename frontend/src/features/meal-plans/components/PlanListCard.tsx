@@ -61,9 +61,9 @@ export function PlanListCard({
             const isActive = plan.id === selectedPlanId
             const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
             return (
-              <button
+              <div
                 key={plan.id}
-                type="button"
+                role="button"
                 onClick={() => onSelectPlan(plan.id)}
                 className={clsx(
                   'flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/80 px-4 py-3 text-left shadow-level-1 transition hover:border-primary/60 hover:shadow-level-2',
@@ -105,7 +105,7 @@ export function PlanListCard({
                 >
                   <Trash2Icon className="h-4 w-4" aria-hidden="true" />
                 </IconButton>
-              </button>
+              </div>
             )
           })}
         </div>

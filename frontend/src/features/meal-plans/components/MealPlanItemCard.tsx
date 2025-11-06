@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { GripVerticalIcon, Trash2Icon } from 'lucide-react'
+import { GripVerticalIcon, PackageIcon, Trash2Icon, UtensilsCrossedIcon } from 'lucide-react'
 import clsx from 'clsx'
 
 import { IconButton, QuantityStepper, Tooltip } from '../../../components/ui'
@@ -33,6 +33,7 @@ export function MealPlanItemCard({ item, onChangeServings, onRemove, isDisabled 
   }
 
   const title = item.recipe_snapshot?.title ?? item.product_snapshot?.title ?? 'Элемент плана'
+  const isProduct = Boolean(item.product_snapshot)
   const subtitle = item.recipe_snapshot
     ? `${formatNutritionValue(item.recipe_snapshot.calories, 0)} ккал · ${item.recipe_snapshot.cooking_time_minutes} мин`
     : item.product_snapshot
@@ -63,9 +64,17 @@ export function MealPlanItemCard({ item, onChangeServings, onRemove, isDisabled 
             <div className="truncate text-sm font-semibold text-foreground">{title}</div>
             {subtitle ? <div className="truncate text-xs text-muted-foreground">{subtitle}</div> : null}
           </div>
+          <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
+            {isProduct ? (
+              <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <UtensilsCrossedIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {isProduct ? 'Продукт' : 'Рецепт'}
+          </span>
           <Tooltip content="Удалить из плана">
             <IconButton
-              aria-label="Удалить блюдо"
+              aria-label="Удалить элемент"
               variant="ghost"
               size="sm"
               className="text-muted-foreground"

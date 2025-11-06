@@ -101,7 +101,7 @@ function CalendarCell({
       <div className="flex flex-col gap-3">
         {items.length === 0 ? (
           <div className="flex flex-1 items-center justify-center rounded-xl border border-border/50 bg-muted/20 p-4 text-xs text-muted-foreground">
-            Перетащите рецепт или нажмите «Добавить»
+            Перетащите рецепт или продукт либо нажмите «Добавить»
           </div>
         ) : (
           items.map(item => (
@@ -182,7 +182,7 @@ export function MealPlanCalendar({
             dateKey={null}
             mealType={null}
             label="Незапланировано"
-            description="Ингредиенты и блюда без даты"
+            description="Продукты и блюда без даты"
             items={unscheduledItems}
             isActive={!activeSlot?.date}
             onSelect={() => onSelectSlot({ date: null, mealType: null })}
