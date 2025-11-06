@@ -1,3 +1,9 @@
+from datetime import timedelta
+
+import csv
+import io
+import json
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
@@ -290,3 +296,111 @@ def test_plan_product_items_count_in_totals(api_client, django_user_model):
     item = data["items"][0]
     assert item["product_snapshot"]["title"] == "Протеиновый батончик"
     assert item["total_nutrition"]["calories"] == pytest.approx(315)
+
+
+@pytest.mark.django_db
+def test_meal_plan_export_variants(api_client, django_user_model):
+    owner = django_user_model.objects.create_user(username="exporter", password="secret123")
+    store = _create_store(owner, name="Clinic Kitchen")
+    recipe = _create_recipe(store, title="Овсяная каша")
+    today = timezone.now().date()
+    review_date = today + timedelta(days=14)
+    description = {
+        "format": "ncp-adime-v1",
+        "language": "ru",
+        "sections": {
+            "intervention_goal": "Стабилизировать гликемию через контроль углеводов",
+            "rationale": "Диагноз: предиабет, избыток простых сахаров.",
+            "dietary_principles": "DASH + низкий ГИ, дробное питание",
+            "client_recommendations": "Добавьте овощи в каждый приём, шаги ≥ 8к",
+            "monitoring_plan": "Еженедельный отчёт в приложении, контроль АД",
+            "follow_up_requirements": [
+                "Вес и талия",
+                "3-дневный дневник питания",
+                "Фото ужинов",
+            ],
+            "next_review_date": review_date.isoformat(),
+            "communication_tone": "поддерживающий профессиональный",
+        },
+    }
+    plan = MealPlan.objects.create(
+        user=owner,
+        title="План предиабет",
+        start_date=today,
+        end_date=today + timedelta(days=6),
+        description=json.dumps(description, ensure_ascii=False),
+        metadata={"targets": {"calories": 1900, "protein_g": 120, "fat_g": 65, "carbs_g": 220}},
+        price_amount="1990.00",
+    )
+    MealPlanItem.objects.create(
+        meal_plan=plan,
+        recipe=recipe,
+        servings="1.0",
+        scheduled_for=today,
+        meal_type="breakfast",
+    )
+
+    api_client.force_authenticate(user=owner)
+
+    html_response = api_client.get(
+        reverse("market:market-meal-plan-export", args=[plan.id]),
+        {"type": "client"},
+    )
+    assert html_response.status_code == status.HTTP_200_OK
+    assert html_response["Content-Type"].startswith("text/html")
+    html = html_response.content.decode("utf-8")
+    assert "Цель вмешательства" in html
+    assert "Что прислать к следующей встрече" in html
+
+    specialist_response = api_client.get(
+        reverse("market:market-meal-plan-export", args=[plan.id]),
+        {"type": "specialist"},
+    )
+    assert specialist_response.status_code == status.HTTP_200_OK
+    payload = json.loads(specialist_response.content.decode("utf-8"))
+    assert payload["plan"]["title"] == "План предиабет"
+    assert payload["ncp"]["assessment"]["goal"].startswith("Стабилизировать")
+    assert payload["ncp"]["monitoring_evaluation"]["follow_up_requirements"][0] == "Вес и талия"
+    assert payload["ncp"]["monitoring_evaluation"]["next_review_date"] == review_date.isoformat()
+    assert payload["items"][0]["reference"]["title"] == "Овсяная каша"
+
+    csv_response = api_client.get(
+        reverse("market:market-meal-plan-export", args=[plan.id]),
+        {"type": "table"},
+    )
+    assert csv_response.status_code == status.HTTP_200_OK
+    rows = list(csv.reader(io.StringIO(csv_response.content.decode("utf-8"))))
+    meta_rows: dict[str, str] = {}
+    data_start_index = 0
+    for index, row in enumerate(rows):
+        if not row:
+            data_start_index = index + 1
+            break
+        key = row[0]
+        meta_rows[key] = row[1] if len(row) > 1 else ""
+    assert meta_rows["plan_id"] == str(plan.id)
+    assert meta_rows["intervention_goal"].startswith("Стабилизировать")
+    assert meta_rows["next_review_date"] == review_date.isoformat()
+    assert meta_rows["communication_tone"] == "поддерживающий профессиональный"
+    assert meta_rows["follow_up_requirements"].startswith("Вес и талия")
+
+    data_rows = rows[data_start_index + 1 :]
+    assert data_rows[-1][0] == today.isoformat()
+    assert data_rows[-1][3] == "Овсяная каша"
+
+
+@pytest.mark.django_db
+def test_meal_plan_export_denied_for_other_user(api_client, django_user_model):
+    owner = django_user_model.objects.create_user(username="export-owner", password="secret123")
+    stranger = django_user_model.objects.create_user(username="export-stranger", password="secret123")
+    store = _create_store(owner, name="Clinic Lab")
+    recipe = _create_recipe(store, title="Смузи детокс")
+    plan = MealPlan.objects.create(user=owner, title="Private export", start_date=timezone.now().date())
+    MealPlanItem.objects.create(meal_plan=plan, recipe=recipe, servings="1.0")
+
+    api_client.force_authenticate(user=stranger)
+    response = api_client.get(
+        reverse("market:market-meal-plan-export", args=[plan.id]),
+        {"type": "client"},
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND

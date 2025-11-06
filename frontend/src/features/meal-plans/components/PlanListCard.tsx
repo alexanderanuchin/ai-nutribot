@@ -1,9 +1,11 @@
 import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, Trash2Icon } from 'lucide-react'
 import clsx from 'clsx'
+import type { ReactNode } from 'react'
 
 import { Badge, Button, Card, IconButton, Skeleton } from '../../../components/ui'
 import type { MealPlan } from '../../../types/meal-plan'
 import { formatNutritionValue } from '../utils'
+import { computeDaysUntilReview, parsePlanDescription } from '../planDescription'
 
 interface PlanListCardProps {
   plans: MealPlan[]
@@ -65,10 +67,34 @@ export function PlanListCard({
         <>
           <div className="flex flex-col gap-3">
             {plans.map(plan => {
-            const isActive = plan.id === selectedPlanId
-            const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
-            const isSelectedForCompare = selectedPlans.includes(plan.id)
-            const selectionDisabled = !isSelectedForCompare && selectedPlans.length >= 2
+              const isActive = plan.id === selectedPlanId
+              const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
+              const isSelectedForCompare = selectedPlans.includes(plan.id)
+              const selectionDisabled = !isSelectedForCompare && selectedPlans.length >= 2
+              const descriptionSchema = parsePlanDescription(plan.description)
+              const daysToReview = computeDaysUntilReview(descriptionSchema.sections.nextReviewDate)
+              let reviewBadge: ReactNode = null
+              if (typeof daysToReview === 'number') {
+                if (daysToReview < 0) {
+                  reviewBadge = (
+                    <Badge variant="destructive" className="gap-1 text-[10px] uppercase">
+                      Просрочен {Math.abs(daysToReview)} дн.
+                    </Badge>
+                  )
+                } else if (daysToReview <= 3) {
+                  reviewBadge = (
+                    <Badge variant="secondary" className="gap-1 text-[10px] uppercase">
+                      Пересмотр через {daysToReview} дн.
+                    </Badge>
+                  )
+                } else {
+                  reviewBadge = (
+                    <Badge variant="outline" className="gap-1 text-[10px] uppercase">
+                      Контроль {descriptionSchema.sections.nextReviewDate}
+                    </Badge>
+                  )
+                }
+              }
             return (
               <div
                 key={plan.id}
@@ -115,6 +141,7 @@ export function PlanListCard({
                       </span>
                       <span>{price}</span>
                       <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
+                      {reviewBadge}
                     </div>
                   </div>
                 </div>

@@ -64,6 +64,7 @@ from .services import (
     InventoryInsufficientError,
     checkout_cart,
 )
+from .services.meal_plan_export import MealPlanExportError, export_meal_plan
 from .services.search import MarketSearchService
 from apps.orders.serializers import OrderSerializer
 from apps.orders.services.wallet import WalletInsufficientFunds
@@ -456,7 +457,7 @@ class MealPlanViewSet(viewsets.ModelViewSet):
         scope = (self.request.query_params.get("scope") or "").lower()
         action = getattr(self, "action", None)
 
-        if action == "retrieve":
+        if action in {"retrieve", "export"}:
             filters = Q(is_published=True)
             if user:
                 filters |= Q(user=user)
@@ -469,7 +470,7 @@ class MealPlanViewSet(viewsets.ModelViewSet):
             else:
                 qs = qs.none()
 
-        if action != "retrieve":
+        if action not in {"retrieve", "export"}:
             date_from = self.request.query_params.get("from")
             if date_from:
                 try:
@@ -497,6 +498,20 @@ class MealPlanViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=["get"], url_path="export")
+    def export(self, request, *args, **kwargs):
+        plan = self.get_object()
+        format_name = (
+            request.query_params.get("type")
+            or request.query_params.get("format")
+            or "client"
+        )
+        try:
+            response = export_meal_plan(plan, format_name)
+        except MealPlanExportError as exc:
+            raise ValidationError({"type": str(exc)}) from exc
+        return response
 
 
 class MealPlanItemViewSet(viewsets.ModelViewSet):

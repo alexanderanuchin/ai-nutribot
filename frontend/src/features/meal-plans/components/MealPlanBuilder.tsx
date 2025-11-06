@@ -24,6 +24,8 @@ import PlanListCard from './PlanListCard'
 import PlanSummaryCard from './PlanSummaryCard'
 import ComparisonModal from './ComparisonModal'
 import RecipeLibrary from './RecipeLibrary'
+import PlanDescriptionCard from './PlanDescriptionCard'
+import PlanDescriptionEditor from './PlanDescriptionEditor'
 import {
   useCreateMealPlanItemMutation,
   useCreateMealPlanMutation,
@@ -38,6 +40,12 @@ import type { MealPlanItemPayload } from '../../../types/meal-plan'
 import type { Goal } from '../../../types'
 import { useAuthContext } from '../../../providers/AuthProvider'
 import { recommendTargetsForGoal } from '../goals'
+import { exportMealPlan } from '../api'
+import {
+  parsePlanDescription,
+  type MealPlanExportFormat,
+  type PlanDescriptionSchema,
+} from '../planDescription'
 
 interface ActiveDragState {
   type: 'recipe' | 'product' | 'plan-item'
@@ -70,6 +78,8 @@ export function MealPlanBuilder() {
   const [activeDrag, setActiveDrag] = useState<ActiveDragState | null>(null)
   const [comparisonSelection, setComparisonSelection] = useState<number[]>([])
   const [comparisonOpen, setComparisonOpen] = useState(false)
+  const [descriptionOpen, setDescriptionOpen] = useState(false)
+  const [exportingFormat, setExportingFormat] = useState<MealPlanExportFormat | null>(null)
 
   useEffect(() => {
     if (plans.length === 0) {
@@ -97,6 +107,26 @@ export function MealPlanBuilder() {
 
   const [titleDraft, setTitleDraft] = useState('')
   const [priceDraft, setPriceDraft] = useState('')
+
+  const parsedDescription = useMemo(() => {
+    if (!plan) return null
+    return parsePlanDescription(plan.description)
+  }, [plan?.id, plan?.description])
+
+  const hasDescriptionContent = useMemo(() => {
+    if (!parsedDescription) return false
+    const { sections } = parsedDescription
+    if (sections.followUpRequirements.length > 0) {
+      return true
+    }
+    return [
+      sections.interventionGoal,
+      sections.rationale,
+      sections.dietaryPrinciples,
+      sections.clientRecommendations,
+      sections.monitoringPlan,
+    ].some(value => Boolean(value && value.trim()))
+  }, [parsedDescription])
 
   useEffect(() => {
     if (!plan) {
@@ -198,6 +228,84 @@ export function MealPlanBuilder() {
   const handleUpdateTargets = ({ goal, targets }: { goal: Goal; targets: typeof DEFAULT_TARGETS }) => {
     if (!plan) return
     updatePlanMutation.mutate({ metadata: { ...plan.metadata, goal, targets } })
+  }
+
+  const handleSaveDescription = (nextSchema: PlanDescriptionSchema, serialized: string) => {
+    if (!plan) {
+      notify({
+        title: 'Выберите план',
+        description: 'Откройте или создайте план перед сохранением описания.',
+        tone: 'warning',
+      })
+      return
+    }
+    const nextMetadata: Record<string, unknown> = { ...(plan.metadata ?? {}) }
+    if (nextSchema.sections.nextReviewDate) {
+      nextMetadata.review = {
+        next_review_date: nextSchema.sections.nextReviewDate,
+        template_slug: nextSchema.templateSlug ?? null,
+      }
+    } else if ('review' in nextMetadata) {
+      delete nextMetadata.review
+    }
+    updatePlanMutation.mutate(
+      { description: serialized, metadata: nextMetadata },
+      {
+        onSuccess: () => {
+          notify({
+            title: 'Описание обновлено',
+            description: 'Структура вмешательства сохранена для экспорта и мониторинга.',
+            tone: 'success',
+          })
+          setDescriptionOpen(false)
+        },
+        onError: error => {
+          const message = error instanceof Error ? error.message : 'Не удалось сохранить описание.'
+          notify({
+            title: 'Ошибка сохранения',
+            description: message,
+            tone: 'destructive',
+          })
+        },
+      },
+    )
+  }
+
+  const handleExportPlan = async (format: MealPlanExportFormat) => {
+    if (!plan) {
+      notify({
+        title: 'Выберите план',
+        description: 'Создайте или откройте план, чтобы экспортировать файлы.',
+        tone: 'warning',
+      })
+      return
+    }
+    setExportingFormat(format)
+    try {
+      const { blob, filename } = await exportMealPlan(plan.id, format)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      notify({
+        title: 'Экспорт готов',
+        description: `Файл ${filename} сохранён`,
+        tone: 'success',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Попробуйте ещё раз позже.'
+      notify({
+        title: 'Экспорт не выполнен',
+        description: message,
+        tone: 'destructive',
+      })
+    } finally {
+      setExportingFormat(null)
+    }
   }
 
   const handleTitleCommit = () => {
@@ -358,6 +466,15 @@ export function MealPlanBuilder() {
                   {plan.is_published ? <GlobeIcon className="h-4 w-4" aria-hidden="true" /> : <LockIcon className="h-4 w-4" aria-hidden="true" />}
                   {plan.is_published ? 'Опубликован' : 'Черновик'}
                 </Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  leadingIcon={<span aria-hidden="true">🖉</span>}
+                  onClick={() => setDescriptionOpen(true)}
+                >
+                  {hasDescriptionContent ? 'Править описание' : 'Добавить описание'}
+                </Button>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -398,6 +515,12 @@ export function MealPlanBuilder() {
 
       <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
         <div className="space-y-6">
+          <PlanDescriptionCard
+            plan={plan}
+            onEdit={() => setDescriptionOpen(true)}
+            onExport={handleExportPlan}
+            isExporting={exportingFormat}
+          />
           <PlanSummaryCard plan={plan} isLoading={planQuery.isLoading} />
           <PlanGoalsCard
             plan={plan}
@@ -445,9 +568,15 @@ export function MealPlanBuilder() {
       </div>
       </div>
       <ComparisonModal
-        open={comparisonOpen && comparisonSelection.length === 2}
+        open={comparisonOpen}
         onOpenChange={handleComparisonOpenChange}
-        planIds={comparisonSelection.slice(0, 2)}
+        planIds={comparisonSelection}
+      />
+      <PlanDescriptionEditor
+        plan={plan}
+        open={descriptionOpen}
+        onOpenChange={setDescriptionOpen}
+        onSave={handleSaveDescription}
       />
     </>
   )
