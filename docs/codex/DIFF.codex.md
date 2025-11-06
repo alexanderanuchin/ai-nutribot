@@ -1,3 +1,12 @@
+## 2025-11-10 – codex/frontend-bot/meal-plan-preferences (pending)
+
+**Summary:** Respect user allergies/exclusions in the recipe library UI with opt-out controls and propagate the same normalization to bot plan generation.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/features/meal-plans/components/RecipeLibrary.tsx | Filter recipe search results using profile allergies/exclusions, surface toggleable preference banner, and flag risky recipes when filters are disabled. | Frontend UX | No |
+| modify | bot/services/planner.py | Normalize allergy/exclusion terms and apply substring matching when building auto-generated menus. | Bot logic | No |
+
 ## 2025-11-09 – codex/frontend/meal-plan-goals (pending)
 
 **Summary:** Wire meal plan goal presets with automatic calorie/macronutrient recommendations and surface goal context in the planner UI.
