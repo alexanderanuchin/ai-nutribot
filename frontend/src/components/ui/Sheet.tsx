@@ -25,8 +25,9 @@ export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(functi
   return (
     <Dialog.Portal>
       <AnimatePresence initial={false}>
-        <Dialog.Overlay asChild>
+        <Dialog.Overlay asChild forceMount>
           <motion.div
+            key="sheet-overlay"
             className="fixed inset-0 z-40 bg-black/45 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: { duration: 0.18 } }}
@@ -34,6 +35,8 @@ export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(functi
           />
         </Dialog.Overlay>
         <MotionContent
+          key="sheet-content"
+          forceMount
           ref={ref}
           className={clsx(
             'fixed z-50 flex max-h-[92vh] w-full flex-col gap-4 rounded-t-3xl border border-border/60 bg-card/98 p-6 shadow-level-3 backdrop-blur-xl focus:outline-none md:w-[480px]',

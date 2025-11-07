@@ -263,7 +263,7 @@ export function CreateRecipeDialog({ open, onOpenChange, onRecipeCreated }: Crea
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 24 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="fixed inset-x-0 top-[10vh] z-50 mx-auto w-[min(640px,92%)] rounded-3xl border border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur-xl"
+                className="fixed inset-x-0 top-[10vh] z-50 mx-auto flex max-h-[80vh] w-[min(640px,92%)] flex-col overflow-y-auto rounded-3xl border border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur-xl"
                 role="dialog"
                 aria-modal="true"
               >
