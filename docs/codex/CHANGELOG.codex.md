@@ -1,3 +1,7 @@
+## 2025-11-08 – Security & quality audit baseline (pending)
+
+- Published `CODEX_AUDIT_REPORT.md` and captured actionable findings. See [DIFF 2025-11-08](./DIFF.codex.md#2025-11-08--codexdocsfull-audit-pending).
+
 ## 2025-11-14 – Marketplace meal plan polish (pending)
 
 - Refined marketplace programs hub placement and responsive filters on the meal plan listing. See [DIFF 2025-11-14](./DIFF.codex.md#2025-11-14--codexfrontendmarket-mealplans-polish-pending).

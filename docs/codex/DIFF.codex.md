@@ -1,3 +1,14 @@
+## 2025-11-08 – codex/docs/full-audit (pending)
+
+**Summary:** Recorded repository-wide security & quality audit baseline and published CODEX_AUDIT_REPORT.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | CODEX_AUDIT_REPORT.md | Publish reproducible audit report and findings register. | Cross-cutting | No |
+| modify | docs/codex/DIFF.codex.md | Log audit artefact creation per Codex journal requirements. | Docs | No |
+| modify | docs/codex/CHANGELOG.codex.md | Reference audit milestone for future PRs. | Docs | No |
+
+
 ## 2025-11-14 – codex/frontend/market-mealplans-polish (pending)
 
 **Summary:** Surface marketplace meal plan programs on the hub page and tighten the mobile experience of the dedicated listing with responsive filters.
