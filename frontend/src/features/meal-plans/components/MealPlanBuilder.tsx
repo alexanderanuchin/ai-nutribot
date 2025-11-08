@@ -14,9 +14,19 @@ import { addDays, addWeeks, format, startOfWeek, subWeeks } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import { ArrowLeft, ArrowRight, GlobeIcon, LockIcon } from 'lucide-react'
 
-import { Badge, Button, Card, IconButton, Skeleton, useToast } from '../../../components/ui'
+import {
+  Badge,
+  Button,
+  Card,
+  IconButton,
+  Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  useToast,
+} from '../../../components/ui'
 import { DEFAULT_WEEK_DAYS } from '../constants'
-import { extractPlanTargets } from '../utils'
 import { PlanSlot } from '../types'
 import MealPlanCalendar from './MealPlanCalendar'
 import PlanGoalsCard from './PlanGoalsCard'
@@ -39,6 +49,7 @@ import {
 import type { MealPlanItemPayload } from '../../../types/meal-plan'
 import type { Goal } from '../../../types'
 import { useAuthContext } from '../../../providers/AuthProvider'
+import { useMediaQuery } from '../../../hooks/useMediaQuery'
 import { recommendTargetsForGoal } from '../goals'
 import { exportMealPlan } from '../api'
 import {
@@ -65,6 +76,8 @@ function buildSlot(date: string | null, mealType: string | null): PlanSlot {
   return { date, mealType: mealType as PlanSlot['mealType'] }
 }
 
+type WorkspaceTab = 'schedule' | 'library'
+
 export function MealPlanBuilder() {
   const { notify } = useToast()
   const { profile } = useAuthContext()
@@ -80,6 +93,7 @@ export function MealPlanBuilder() {
   const [comparisonOpen, setComparisonOpen] = useState(false)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [exportingFormat, setExportingFormat] = useState<MealPlanExportFormat | null>(null)
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('schedule')
 
   useEffect(() => {
     if (plans.length === 0) {
@@ -441,7 +455,31 @@ export function MealPlanBuilder() {
     deleteItemMutation.mutate(itemId)
   }
 
-  const targets = extractPlanTargets(plan)
+  const isDesktop = useMediaQuery('(min-width: 1280px)')
+
+  const plannerWorkspace = (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <MealPlanCalendar
+        weekStart={weekStart}
+        daysCount={DEFAULT_WEEK_DAYS}
+        items={displayedItems}
+        activeSlot={activeSlot}
+        onSelectSlot={slot => setActiveSlot(slot)}
+        onAddRequest={slot => {
+          setActiveSlot(slot)
+        }}
+        onChangeServings={handleChangeServings}
+        onRemoveItem={handleRemoveItem}
+      />
+    </DndContext>
+  )
+
+  const libraryWorkspace = <RecipeLibrary activeSlot={activeSlot} onAddItem={handleAddLibraryItem} />
 
   return (
     <>
@@ -451,121 +489,141 @@ export function MealPlanBuilder() {
             <div className="space-y-3">
               <Skeleton className="h-8 w-1/2" />
               <Skeleton className="h-5 w-1/3" />
-          </div>
-        ) : plan ? (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <input
-                  className="min-w-[12rem] rounded-2xl border border-border/60 bg-card/80 px-4 py-2 text-lg font-semibold text-foreground shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  value={titleDraft}
-                  onChange={event => setTitleDraft(event.target.value)}
-                  onBlur={handleTitleCommit}
-                />
-                <Badge variant={plan.is_published ? 'outline' : 'secondary'} className="gap-1 text-xs uppercase">
-                  {plan.is_published ? <GlobeIcon className="h-4 w-4" aria-hidden="true" /> : <LockIcon className="h-4 w-4" aria-hidden="true" />}
-                  {plan.is_published ? 'Опубликован' : 'Черновик'}
-                </Badge>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  leadingIcon={<span aria-hidden="true">🖉</span>}
-                  onClick={() => setDescriptionOpen(true)}
-                >
-                  {hasDescriptionContent ? 'Править описание' : 'Добавить описание'}
-                </Button>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  Цена, ₽
+            </div>
+          ) : plan ? (
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <input
-                    className="w-24 rounded-xl border border-border/60 bg-card/80 px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    type="number"
-                    min={0}
-                    step={10}
-                    value={priceDraft}
-                    onChange={event => setPriceDraft(event.target.value)}
-                    onBlur={handlePriceCommit}
+                    className="min-w-[12rem] rounded-2xl border border-border/60 bg-card/80 px-4 py-2 text-lg font-semibold text-foreground shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    value={titleDraft}
+                    onChange={event => setTitleDraft(event.target.value)}
+                    onBlur={handleTitleCommit}
                   />
-                </label>
-                <Button variant={plan.is_published ? 'outline' : 'primary'} size="sm" onClick={handleTogglePublish}>
-                  {plan.is_published ? 'Сделать черновиком' : 'Опубликовать'}
-                </Button>
+                  <Badge variant={plan.is_published ? 'outline' : 'secondary'} className="gap-1 text-xs uppercase">
+                    {plan.is_published ? <GlobeIcon className="h-4 w-4" aria-hidden="true" /> : <LockIcon className="h-4 w-4" aria-hidden="true" />}
+                    {plan.is_published ? 'Опубликован' : 'Черновик'}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    leadingIcon={<span aria-hidden="true">🖉</span>}
+                    onClick={() => setDescriptionOpen(true)}
+                  >
+                    {hasDescriptionContent ? 'Править описание' : 'Добавить описание'}
+                  </Button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Цена, ₽
+                    <input
+                      className="w-24 rounded-xl border border-border/60 bg-card/80 px-3 py-1.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                      type="number"
+                      min={0}
+                      step={10}
+                      value={priceDraft}
+                      onChange={event => setPriceDraft(event.target.value)}
+                      onBlur={handlePriceCommit}
+                    />
+                  </label>
+                  <Button variant={plan.is_published ? 'outline' : 'primary'} size="sm" onClick={handleTogglePublish}>
+                    {plan.is_published ? 'Сделать черновиком' : 'Опубликовать'}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground">
+                  Неделя начинается {format(weekStart, 'd MMMM', { locale: ru })}
+                </div>
+                <div className="flex items-center gap-2">
+                  <IconButton variant="ghost" onClick={() => handleWeekShift('prev')} aria-label="Предыдущая неделя">
+                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                  </IconButton>
+                  <IconButton variant="ghost" onClick={() => handleWeekShift('next')} aria-label="Следующая неделя">
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </IconButton>
+                </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
-                Неделя начинается {format(weekStart, 'd MMMM', { locale: ru })}
-              </div>
-              <div className="flex items-center gap-2">
-                <IconButton variant="ghost" onClick={() => handleWeekShift('prev')} aria-label="Предыдущая неделя">
-                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                </IconButton>
-                <IconButton variant="ghost" onClick={() => handleWeekShift('next')} aria-label="Следующая неделя">
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </IconButton>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-muted-foreground">Создайте план, чтобы начать настройку питания.</div>
-        )}
-      </Card>
+          ) : (
+            <div className="text-sm text-muted-foreground">Создайте план, чтобы начать настройку питания.</div>
+          )}
+        </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-        <div className="space-y-6">
-          <PlanDescriptionCard
-            plan={plan}
-            onEdit={() => setDescriptionOpen(true)}
-            onExport={handleExportPlan}
-            isExporting={exportingFormat}
-          />
-          <PlanSummaryCard plan={plan} isLoading={planQuery.isLoading} />
-          <PlanGoalsCard
-            plan={plan}
-            profile={profile}
-            isSaving={updatePlanMutation.isPending}
-            onSave={handleUpdateTargets}
-          />
-          <PlanListCard
-            plans={plans}
-            selectedPlanId={selectedPlanId}
-            onSelectPlan={setSelectedPlanId}
-            onCreatePlan={handleCreatePlan}
-            onDeletePlan={handleDeletePlan}
-            selectedPlans={comparisonSelection}
-            onToggleSelectPlan={handleTogglePlanComparison}
-            onCompareSelected={handleCompareSelectedPlans}
-            isLoading={plansQuery.isLoading}
-            isCreating={createPlanMutation.isPending}
-            deletingPlanId={deletePlanMutation.variables ?? null}
-            isDeleting={deletePlanMutation.isPending}
-          />
-        </div>
-        <div className="flex flex-col gap-6">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <MealPlanCalendar
-              weekStart={weekStart}
-              daysCount={DEFAULT_WEEK_DAYS}
-              items={displayedItems}
-              activeSlot={activeSlot}
-              onSelectSlot={slot => setActiveSlot(slot)}
-              onAddRequest={slot => {
-                setActiveSlot(slot)
-              }}
-              onChangeServings={handleChangeServings}
-              onRemoveItem={handleRemoveItem}
+        <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+          <div className="space-y-6">
+            <PlanDescriptionCard
+              plan={plan}
+              onEdit={() => setDescriptionOpen(true)}
+              onExport={handleExportPlan}
+              isExporting={exportingFormat}
             />
-          </DndContext>
-          <RecipeLibrary activeSlot={activeSlot} onAddItem={handleAddLibraryItem} />
+            <PlanSummaryCard plan={plan} isLoading={planQuery.isLoading} />
+            <PlanGoalsCard
+              plan={plan}
+              profile={profile}
+              isSaving={updatePlanMutation.isPending}
+              onSave={handleUpdateTargets}
+            />
+            <PlanListCard
+              plans={plans}
+              selectedPlanId={selectedPlanId}
+              onSelectPlan={setSelectedPlanId}
+              onCreatePlan={handleCreatePlan}
+              onDeletePlan={handleDeletePlan}
+              selectedPlans={comparisonSelection}
+              onToggleSelectPlan={handleTogglePlanComparison}
+              onCompareSelected={handleCompareSelectedPlans}
+              isLoading={plansQuery.isLoading}
+              isCreating={createPlanMutation.isPending}
+              deletingPlanId={deletePlanMutation.variables ?? null}
+              isDeleting={deletePlanMutation.isPending}
+            />
+          </div>
+          <div className="flex flex-col gap-6">
+            {isDesktop ? (
+              <>
+                {plannerWorkspace}
+                {libraryWorkspace}
+              </>
+            ) : (
+              <div className="space-y-4">
+                <Tabs
+                  value={workspaceTab}
+                  onValueChange={value => {
+                    if (value === 'schedule' || value === 'library') {
+                      setWorkspaceTab(value)
+                    }
+                  }}
+                >
+                  <TabsList className="border-none bg-transparent p-0">
+                    <TabsTrigger value="schedule" className="flex-1">
+                      Календарь
+                    </TabsTrigger>
+                    <TabsTrigger value="library" className="flex-1">
+                      Библиотека
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent
+                    value="schedule"
+                    forceMount
+                    className="border-none bg-transparent p-0 shadow-none"
+                  >
+                    <div className="flex flex-col gap-4">{plannerWorkspace}</div>
+                  </TabsContent>
+                  <TabsContent
+                    value="library"
+                    forceMount
+                    className="border-none bg-transparent p-0 shadow-none"
+                  >
+                    {libraryWorkspace}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       </div>
       <ComparisonModal
         open={comparisonOpen}

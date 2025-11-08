@@ -183,3 +183,20 @@
 | modify | backend/apps/market/services/meal_plan_export.py | Include communication tone in specialist JSON and table CSV metadata for richer ADIME context. | Backend exports | No |
 | modify | backend/apps/market/tests/test_meal_plan_api.py | Extend export coverage to assert tone/review fields in CSV output. | Backend tests | No |
 | modify | frontend/src/features/meal-plans/components/PlanDescriptionCard.tsx | Show communication tone and review date sections with localisation in plan summary. | Frontend UX | No |
+## 2025-11-12 – codex/frontend/meal-plan-workspace (pending)
+
+**Summary:** Restructure meal plan workspace with responsive tabs, rich recipe previews, and consistent confirmation dialogs.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/package.json | Declare Radix tabs dependency for new responsive workspace controls. | Frontend build | npm install |
+| modify | frontend/package-lock.json | Lock dependency graph after installing tabs package. | Frontend build | npm install |
+| create | frontend/src/components/ui/Tabs.tsx | Provide styled Radix tabs primitives aligned with UI kit tokens. | Frontend UX | No |
+| create | frontend/src/components/ui/ConfirmDialog.tsx | Add reusable confirmation dialog component to replace native confirms. | Frontend UX | No |
+| modify | frontend/src/components/ui/index.ts | Re-export new UI primitives for planner consumers. | Frontend UX | No |
+| modify | frontend/src/api/market.ts | Expose recipe detail fetcher for modal presentation. | Frontend API | No |
+| create | frontend/src/features/meal-plans/components/RecipeDetailsDialog.tsx | Display full recipe context in modal with add-to-plan action. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/components/RecipeLibrary.tsx | Wire detail modal triggers, persist state, and reuse new dialog. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Swap `window.confirm` for consistent ConfirmDialog workflow. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/components/MealPlanBuilder.tsx | Introduce responsive workspace tabs and reuse modal-driven flows. | Frontend UX | No |
+

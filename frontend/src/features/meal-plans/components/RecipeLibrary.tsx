@@ -10,12 +10,19 @@ import {
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { Button, Card, SearchInput, SegmentedControl, Skeleton } from '../../../components/ui'
+import {
+  Button,
+  Card,
+  SearchInput,
+  SegmentedControl,
+  Skeleton,
+} from '../../../components/ui'
 import type { MarketProduct, MarketRecipe } from '../../../types/market'
 import { fetchMarketCollection } from '../../../api/market'
 import { formatNutritionValue } from '../utils'
 import type { PlanSlot } from '../types'
 import CreateRecipeDialog from './CreateRecipeDialog'
+import RecipeDetailsDialog from './RecipeDetailsDialog'
 import { useAuthContext } from '../../../providers/AuthProvider'
 
 interface PreferenceToken {
@@ -137,10 +144,12 @@ interface RecipeLibraryProps {
 function RecipeCard({
   recipe,
   onAdd,
+  onOpenDetails,
   warningTerms,
 }: {
   recipe: MarketRecipe
   onAdd: () => void
+  onOpenDetails: () => void
   warningTerms?: string[]
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -172,13 +181,22 @@ function RecipeCard({
           <div className="text-sm font-semibold text-foreground">{recipe.title}</div>
           <div className="text-xs text-muted-foreground">{recipe.store_name}</div>
         </div>
-        <button
-          type="button"
-          className="rounded-full border border-border/60 px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary"
-          onClick={onAdd}
-        >
-          Добавить
-        </button>
+        <div className="flex flex-col items-end gap-2 text-xs font-semibold text-muted-foreground">
+          <button
+            type="button"
+            className="rounded-full border border-border/60 px-3 py-1 transition hover:border-primary hover:text-primary"
+            onClick={onAdd}
+          >
+            Добавить
+          </button>
+          <button
+            type="button"
+            className="text-[11px] text-primary underline-offset-2 transition hover:text-primary/80"
+            onClick={onOpenDetails}
+          >
+            Подробнее
+          </button>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1">
@@ -320,6 +338,8 @@ export function RecipeLibrary({ activeSlot, onAddItem }: RecipeLibraryProps) {
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState<'recipes' | 'products'>('recipes')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [detailsRecipeId, setDetailsRecipeId] = useState<number | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const deferredSearch = useDeferredValue(search)
   const { profile } = useAuthContext()
   const queryClient = useQueryClient()
@@ -414,6 +434,16 @@ export function RecipeLibrary({ activeSlot, onAddItem }: RecipeLibraryProps) {
     void queryClient.invalidateQueries({ queryKey: ['mealPlans', 'library'] })
   }
 
+  const handleOpenDetails = (recipeId: number) => {
+    setDetailsRecipeId(recipeId)
+    setDetailsOpen(true)
+  }
+
+  const handleDetailsAdd = (recipeId: number) => {
+    onAddItem({ recipeId })
+    setDetailsOpen(false)
+  }
+
   return (
     <Card className="space-y-4 border-border/70 bg-background/60 p-5 shadow-level-1">
       <div className="flex flex-col gap-3">
@@ -500,6 +530,7 @@ export function RecipeLibrary({ activeSlot, onAddItem }: RecipeLibraryProps) {
                 onAdd={() => {
                   onAddItem({ recipeId: recipe.id })
                 }}
+                onOpenDetails={() => handleOpenDetails(recipe.id)}
                 warningTerms={!respectPreferences && matches.length > 0 ? matches : undefined}
               />
             ))}
@@ -530,6 +561,17 @@ export function RecipeLibrary({ activeSlot, onAddItem }: RecipeLibraryProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onRecipeCreated={handleRecipeCreated}
+      />
+      <RecipeDetailsDialog
+        open={detailsOpen}
+        recipeId={detailsRecipeId}
+        onOpenChange={open => {
+          setDetailsOpen(open)
+          if (!open) {
+            setDetailsRecipeId(null)
+          }
+        }}
+        onAddToPlan={handleDetailsAdd}
       />
     </Card>
   )

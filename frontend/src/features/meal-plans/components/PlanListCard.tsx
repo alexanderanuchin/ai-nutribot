@@ -1,8 +1,8 @@
 import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, Trash2Icon } from 'lucide-react'
 import clsx from 'clsx'
-import type { ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
-import { Badge, Button, Card, IconButton, Skeleton } from '../../../components/ui'
+import { Badge, Button, Card, ConfirmDialog, IconButton, Skeleton } from '../../../components/ui'
 import type { MealPlan } from '../../../types/meal-plan'
 import { formatNutritionValue } from '../utils'
 import { computeDaysUntilReview, parsePlanDescription } from '../planDescription'
@@ -36,6 +36,10 @@ export function PlanListCard({
   deletingPlanId = null,
   isDeleting = false,
 }: PlanListCardProps) {
+  const [pendingPlanId, setPendingPlanId] = useState<number | null>(null)
+
+  const pendingPlan = useMemo(() => plans.find(plan => plan.id === pendingPlanId) ?? null, [plans, pendingPlanId])
+
   return (
     <Card className="space-y-4 border-border/70 bg-background/60 p-5 shadow-level-1">
       <div className="flex items-center justify-between gap-2">
@@ -151,9 +155,7 @@ export function PlanListCard({
                   aria-label="Удалить план"
                   onClick={event => {
                     event.stopPropagation()
-                    if (confirm(`Удалить план «${plan.title}»?`)) {
-                      onDeletePlan(plan.id)
-                    }
+                    setPendingPlanId(plan.id)
                   }}
                   disabled={isDeleting && deletingPlanId === plan.id}
                 >
@@ -172,6 +174,25 @@ export function PlanListCard({
           ) : null}
         </>
       )}
+      <ConfirmDialog
+        open={pendingPlan != null}
+        onOpenChange={open => {
+          if (!open) {
+            setPendingPlanId(null)
+          }
+        }}
+        onConfirm={() => {
+          if (!pendingPlan) return
+          onDeletePlan(pendingPlan.id)
+          setPendingPlanId(null)
+        }}
+        title={pendingPlan ? `Удалить план «${pendingPlan.title}»?` : 'Удалить план?'}
+        description="План будет удалён без возможности восстановления. Это не повлияет на опубликованные копии у клиентов."
+        confirmLabel="Удалить"
+        cancelLabel="Отмена"
+        tone="destructive"
+        loading={Boolean(isDeleting && deletingPlanId === pendingPlan?.id)}
+      />
     </Card>
   )
 }

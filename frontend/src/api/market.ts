@@ -85,6 +85,11 @@ export async function fetchMarketCollection<T extends MarketResource>({
   }
 }
 
+export async function fetchMarketRecipe(recipeId: number): Promise<MarketRecipe> {
+  const { data } = await api.get<MarketRecipe>(`/v1/market/recipes/${recipeId}/`)
+  return data
+}
+
 export interface CreateRecipeInput {
   store: number
   title: string
