@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from ..models import MealPlan, MealPlanItem
-from ..serializers import _empty_nutrition, _format_nutrition, _item_total_nutrition
+from .meal_plan_metrics import empty_nutrition, format_nutrition, item_total_nutrition
 from .plan_description import parse_plan_description
 
 
@@ -50,7 +50,7 @@ def _build_client_export(plan: MealPlan) -> tuple[str, str, str]:
         elif entry.product:
             title = entry.product.title
             subtitle = "продукт"
-        totals = _item_total_nutrition(entry)
+        totals = item_total_nutrition(entry)
         totals_text = f"{totals['calories']:.0f} ккал · Б {totals['protein_g']:.1f} · Ж {totals['fat_g']:.1f} · У {totals['carbs_g']:.1f}"
         return (
             "<li class=\"plan-item\">"
@@ -141,11 +141,11 @@ def _build_client_export(plan: MealPlan) -> tuple[str, str, str]:
 def _build_specialist_export(plan: MealPlan) -> tuple[str, str, str]:
     schema = parse_plan_description(plan.description)
     sections = schema.sections
-    totals = _empty_nutrition()
-    daily: dict[str, dict[str, float]] = defaultdict(_empty_nutrition)
+    totals = empty_nutrition()
+    daily: dict[str, dict[str, float]] = defaultdict(empty_nutrition)
     items_payload: list[dict[str, object]] = []
     for item in _plan_items(plan):
-        item_totals = _item_total_nutrition(item)
+        item_totals = item_total_nutrition(item)
         totals = {
             "calories": totals["calories"] + item_totals["calories"],
             "protein_g": totals["protein_g"] + item_totals["protein_g"],
@@ -153,7 +153,7 @@ def _build_specialist_export(plan: MealPlan) -> tuple[str, str, str]:
             "carbs_g": totals["carbs_g"] + item_totals["carbs_g"],
         }
         key = item.scheduled_for.isoformat() if item.scheduled_for else "unscheduled"
-        day_totals = daily.setdefault(key, _empty_nutrition())
+        day_totals = daily.setdefault(key, empty_nutrition())
         day_totals["calories"] += item_totals["calories"]
         day_totals["protein_g"] += item_totals["protein_g"]
         day_totals["fat_g"] += item_totals["fat_g"]
@@ -169,7 +169,7 @@ def _build_specialist_export(plan: MealPlan) -> tuple[str, str, str]:
                     "id": item.recipe_id or item.product_id,
                     "title": getattr(item.recipe, "title", None) or getattr(item.product, "title", None),
                 },
-                "nutrition": _format_nutrition(item_totals),
+                "nutrition": format_nutrition(item_totals),
             }
         )
 
@@ -226,11 +226,11 @@ def _build_specialist_export(plan: MealPlan) -> tuple[str, str, str]:
                 else None,
             },
         },
-        "totals": _format_nutrition(totals),
+        "totals": format_nutrition(totals),
         "daily_breakdown": [
             {
                 "date": key if key != "unscheduled" else None,
-                "nutrition": _format_nutrition(value),
+                "nutrition": format_nutrition(value),
             }
             for key, value in sorted(daily.items(), key=lambda entry: entry[0] or "zzzz")
         ],
@@ -269,7 +269,7 @@ def _build_table_export(plan: MealPlan) -> tuple[str, str, str]:
         "carbs_g",
     ])
     for item in _plan_items(plan):
-        totals = _item_total_nutrition(item)
+        totals = item_total_nutrition(item)
         writer.writerow(
             [
                 item.scheduled_for.isoformat() if item.scheduled_for else "",

@@ -316,6 +316,13 @@ class CartItem(models.Model):
 
 
 class MealPlan(models.Model):
+    class Goal(models.TextChoices):
+        WEIGHT_LOSS = "weight_loss", "Похудение"
+        MUSCLE_GAIN = "muscle_gain", "Набор массы"
+        DETOX = "detox", "Детокс"
+        KETO = "keto", "Кето"
+        BALANCED = "balanced", "Сбалансированное питание"
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -325,6 +332,9 @@ class MealPlan(models.Model):
     description = models.TextField(blank=True)
     start_date = models.DateField(default=timezone.now)
     end_date = models.DateField(null=True, blank=True)
+    goal = models.CharField(max_length=64, choices=Goal.choices, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+    duration_days = models.PositiveIntegerField(null=True, blank=True)
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
     price_amount = models.DecimalField(
@@ -335,6 +345,8 @@ class MealPlan(models.Model):
         validators=[MinValueValidator(Decimal("0.00"))],
     )
     price_currency = models.CharField(max_length=3, default="RUB")
+    total_calories = models.PositiveIntegerField(null=True, blank=True)
+    calories_per_day = models.PositiveIntegerField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
     reviews = GenericRelation(
         "reviews.Review",
@@ -351,10 +363,36 @@ class MealPlan(models.Model):
             models.Index(fields=["user", "start_date"], name="market_mealplan_user_start"),
             models.Index(fields=["is_published", "published_at"], name="market_mealplan_published"),
             models.Index(fields=["is_published", "price_amount"], name="market_plan_price_pub"),
+            models.Index(fields=["goal", "is_published"], name="market_plan_goal_pub"),
+            models.Index(fields=["duration_days"], name="market_plan_duration"),
+            models.Index(fields=["total_calories"], name="market_plan_calories"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"MealPlan<{self.user_id}:{self.title}>"
+
+    def save(self, *args, **kwargs) -> None:
+        tags = self.tags or []
+        normalized_tags: list[str] = []
+        for tag in tags:
+            if tag is None:
+                continue
+            value = str(tag).strip()
+            if not value:
+                continue
+            normalized_tags.append(value.lower())
+        self.tags = list(dict.fromkeys(normalized_tags))
+        if self.start_date and self.end_date and self.end_date >= self.start_date:
+            self.duration_days = (self.end_date - self.start_date).days + 1
+        else:
+            self.duration_days = None
+        if self.duration_days and self.duration_days > 0 and self.total_calories is not None:
+            self.calories_per_day = (
+                int(round(self.total_calories / self.duration_days)) if self.total_calories else 0
+            )
+        elif not self.duration_days:
+            self.calories_per_day = None
+        super().save(*args, **kwargs)
 
 
 class MealPlanItem(models.Model):

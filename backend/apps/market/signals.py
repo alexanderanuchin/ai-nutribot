@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 
 from nutribot.middleware import get_request_id
 
 from .events import publish_market_event, serialize_instance
-from .models import MealPlan, Product, Recipe, Store
+from .models import MealPlan, MealPlanItem, Product, Recipe, Store
+from .services.meal_plan_metrics import sync_plan_stats
 from .roles import VENDOR_GROUP_NAME, ensure_market_roles
 
 User = get_user_model()
@@ -184,6 +185,7 @@ def recipe_post_save(sender, instance: Recipe, created: bool, **kwargs) -> None:
 
 @receiver(post_save, sender=MealPlan)
 def meal_plan_post_save(sender, instance: MealPlan, created: bool, **kwargs) -> None:
+    sync_plan_stats(instance)
     meal_plan_data = serialize_instance(instance, "apps.market.serializers.MealPlanSerializer")
     publish_market_event(
         "mealplans",
@@ -204,3 +206,17 @@ def meal_plan_post_save(sender, instance: MealPlan, created: bool, **kwargs) -> 
             },
             context={"rid": getattr(instance, "rid", None)},
         )
+
+
+@receiver(post_save, sender=MealPlanItem)
+def meal_plan_item_post_save(sender, instance: MealPlanItem, **kwargs) -> None:
+    meal_plan = instance.meal_plan
+    if getattr(meal_plan, "id", None):
+        sync_plan_stats(meal_plan)
+
+
+@receiver(post_delete, sender=MealPlanItem)
+def meal_plan_item_post_delete(sender, instance: MealPlanItem, **kwargs) -> None:
+    meal_plan = instance.meal_plan
+    if getattr(meal_plan, "id", None):
+        sync_plan_stats(meal_plan)

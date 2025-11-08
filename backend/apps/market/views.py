@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .filters import (
+    apply_meal_plan_filters,
     apply_product_filters,
     apply_recipe_filters,
     apply_store_filters,
@@ -498,6 +499,18 @@ class MealPlanViewSet(viewsets.ModelViewSet):
     serializer_class = MealPlanSerializer
     permission_classes = [IsMealPlanOwner]
     pagination_class = MarketPagination
+    ORDERING_MAP = {
+        "-published": "-published_at",
+        "published": "published_at",
+        "price": "price_amount",
+        "-price": "-price_amount",
+        "calories": "total_calories",
+        "-calories": "-total_calories",
+        "calories_per_day": "calories_per_day",
+        "-calories_per_day": "-calories_per_day",
+        "duration": "duration_days",
+        "-duration": "-duration_days",
+    }
 
     def get_permissions(self):
         if getattr(self, "action", None) == "purchase":
@@ -563,13 +576,25 @@ class MealPlanViewSet(viewsets.ModelViewSet):
                     qs = qs.filter(is_published=True)
                 elif published in {"false", "0"}:
                     qs = qs.filter(is_published=False)
+            qs = apply_meal_plan_filters(qs, self.request.query_params)
+            ordering_param = self.request.query_params.get("ordering")
+            if ordering_param:
+                ordering_key = self.ORDERING_MAP.get(ordering_param)
+                if ordering_key:
+                    return qs.order_by(ordering_key, "-start_date", "-id")
 
         return qs.order_by("-start_date", "-id")
 
     def retrieve(self, request, *args, **kwargs):
         plan = self.get_object()
+        if plan.is_published:
+            serializer = self.get_serializer(plan)
+            return Response(serializer.data)
         if not request.user.is_authenticated:
             raise PermissionDenied("Требуется аутентификация")
+        if plan.user_id == request.user.id:
+            serializer = self.get_serializer(plan)
+            return Response(serializer.data)
         profile, _ = Profile.objects.get_or_create(user=request.user)
         if not has_meal_plan_access(profile, plan):
             raise PermissionDenied("План доступен после покупки")

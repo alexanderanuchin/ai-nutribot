@@ -85,6 +85,8 @@ def test_meal_plan_creation_with_price(api_client, django_user_model):
             "title": "План недели",
             "description": "Фокус на баланс БЖУ",
             "start_date": timezone.now().date().isoformat(),
+            "goal": "weight_loss",
+            "tags": ["Detox", "Fresh-start"],
             "price_amount": "1290.00",
             "price_currency": "RUB",
             "metadata": {"targets": {"calories": 1800, "protein_g": 120, "fat_g": 50, "carbs_g": 200}},
@@ -95,10 +97,14 @@ def test_meal_plan_creation_with_price(api_client, django_user_model):
     payload = response.json()
     assert payload["price_amount"] == "1290.00"
     assert payload["price_currency"] == "RUB"
+    assert payload["goal"] == "weight_loss"
+    assert payload["tags"] == ["detox", "fresh-start"]
     assert payload["metadata"]["targets"]["calories"] == 1800
     plan = MealPlan.objects.get(pk=payload["id"])
     assert plan.price_amount == pytest.approx(1290)
     assert plan.metadata["targets"]["protein_g"] == 120
+    assert plan.goal == "weight_loss"
+    assert plan.tags == ["detox", "fresh-start"]
 
 
 @pytest.mark.django_db
@@ -106,11 +112,15 @@ def test_meal_plan_nutrition_totals_and_daily_breakdown(api_client, django_user_
     owner = django_user_model.objects.create_user(username="nutrition", password="secret123")
     store = _create_store(owner)
     recipe = _create_recipe(store)
+    start = timezone.now().date()
     plan = MealPlan.objects.create(
         user=owner,
         title="Сбалансированная неделя",
-        start_date=timezone.now().date(),
+        start_date=start,
+        end_date=start,
         metadata={"targets": {"calories": 2000}},
+        goal="balanced",
+        tags=["wellness"],
     )
     MealPlanItem.objects.create(
         meal_plan=plan,
@@ -129,6 +139,11 @@ def test_meal_plan_nutrition_totals_and_daily_breakdown(api_client, django_user_
     assert totals["protein_g"] == pytest.approx(48)
     assert totals["fat_g"] == pytest.approx(16)
     assert totals["carbs_g"] == pytest.approx(60)
+    assert data["total_calories"] == 640
+    assert data["calories_per_day"] == 640
+    assert data["duration_days"] == 1
+    assert data["goal"] == "balanced"
+    assert data["tags"] == ["wellness"]
     assert len(data["daily_breakdown"]) == 1
     day_entry = data["daily_breakdown"][0]
     assert day_entry["date"] == plan.start_date.isoformat()
@@ -154,12 +169,16 @@ def test_published_plan_accessible_for_other_user(api_client, django_user_model)
     )
     MealPlanItem.objects.create(meal_plan=plan, recipe=recipe, servings="1.0", meal_type="lunch")
 
+    api_client.force_authenticate(user=None)
+    anonymous_response = api_client.get(reverse("market:market-meal-plan-detail", args=[plan.id]))
+    assert anonymous_response.status_code == status.HTTP_200_OK
+    payload = anonymous_response.json()
+    assert payload["is_published"] is True
+    assert payload["items"]
+
     api_client.force_authenticate(user=viewer)
     response = api_client.get(reverse("market:market-meal-plan-detail", args=[plan.id]))
     assert response.status_code == status.HTTP_200_OK
-    payload = response.json()
-    assert payload["is_published"] is True
-    assert payload["items"]
 
 
 @pytest.mark.django_db
@@ -222,6 +241,54 @@ def test_public_scope_lists_published_plans(api_client, django_user_model):
 
 
 @pytest.mark.django_db
+def test_public_filters_by_goal_duration_and_calories(api_client, django_user_model):
+    owner = django_user_model.objects.create_user(username="filters", password="secret123")
+    store = _create_store(owner, name="Filter Kitchen")
+    recipe = _create_recipe(store, title="Рис")
+    start = timezone.now().date()
+
+    match_plan = MealPlan.objects.create(
+        user=owner,
+        title="Детокс",
+        start_date=start,
+        end_date=start + timedelta(days=6),
+        is_published=True,
+        published_at=timezone.now(),
+        goal="balanced",
+        tags=["detox"],
+    )
+    MealPlanItem.objects.create(meal_plan=match_plan, recipe=recipe, servings="1.0")
+
+    other_plan = MealPlan.objects.create(
+        user=owner,
+        title="Другая цель",
+        start_date=start,
+        end_date=start + timedelta(days=13),
+        is_published=True,
+        published_at=timezone.now(),
+        goal="muscle_gain",
+        tags=["mass"],
+    )
+    MealPlanItem.objects.create(meal_plan=other_plan, recipe=recipe, servings="3.0")
+
+    response = api_client.get(
+        reverse("market:market-meal-plan-list"),
+        {
+            "scope": "public",
+            "goal": "balanced",
+            "duration": "7",
+            "calories_min": "300",
+            "calories_max": "900",
+            "tag": "detox",
+        },
+    )
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["results"][0]["id"] == match_plan.id
+    assert payload["results"][0]["goal"] == "balanced"
+    assert payload["results"][0]["total_calories"] >= 300
+@pytest.mark.django_db
 def test_plan_publish_toggle_controls_visibility(api_client, django_user_model):
     owner = django_user_model.objects.create_user(username="publisher", password="secret123")
     viewer = django_user_model.objects.create_user(username="observer", password="secret123")
@@ -271,11 +338,15 @@ def test_plan_product_items_count_in_totals(api_client, django_user_model):
     owner = django_user_model.objects.create_user(username="products", password="secret123")
     store = _create_store(owner, name="Nutrition Store")
     product = _create_product(store, title="Протеиновый батончик")
+    start = timezone.now().date()
     plan = MealPlan.objects.create(
         user=owner,
         title="Продукты",
-        start_date=timezone.now().date(),
+        start_date=start,
+        end_date=start + timedelta(days=6),
         metadata={"targets": {"calories": 2000}},
+        goal="balanced",
+        tags=["protein"],
     )
     MealPlanItem.objects.create(
         meal_plan=plan,
@@ -293,6 +364,9 @@ def test_plan_product_items_count_in_totals(api_client, django_user_model):
     assert totals["protein_g"] == pytest.approx(18)
     assert totals["fat_g"] == pytest.approx(13.5)
     assert totals["carbs_g"] == pytest.approx(28.5)
+    assert data["total_calories"] == 315
+    assert data["calories_per_day"] == 45
+    assert data["duration_days"] == 7
     item = data["items"][0]
     assert item["product_snapshot"]["title"] == "Протеиновый батончик"
     assert item["total_nutrition"]["calories"] == pytest.approx(315)

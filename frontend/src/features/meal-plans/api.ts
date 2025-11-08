@@ -31,6 +31,39 @@ export async function fetchMealPlans(params: MealPlanQueryParams = {}): Promise<
   if (params.scope) {
     query.scope = params.scope
   }
+  if (params.search) {
+    query.search = params.search
+  }
+  if (params.goal) {
+    query.goal = params.goal
+  }
+  if (params.tag) {
+    query.tag = params.tag
+  }
+  if (params.tags) {
+    query.tags = params.tags
+  }
+  if (params.duration) {
+    query.duration = params.duration
+  }
+  if (params.duration_days) {
+    query.duration_days = params.duration_days
+  }
+  if (typeof params.calories_min === 'number') {
+    query.calories_min = params.calories_min
+  }
+  if (typeof params.calories_max === 'number') {
+    query.calories_max = params.calories_max
+  }
+  if (typeof params.calories_per_day_min === 'number') {
+    query.calories_per_day_min = params.calories_per_day_min
+  }
+  if (typeof params.calories_per_day_max === 'number') {
+    query.calories_per_day_max = params.calories_per_day_max
+  }
+  if (params.ordering) {
+    query.ordering = params.ordering
+  }
   const { data } = await api.get<MealPlanListResponse>('/v1/market/meal-plans/', {
     params: query,
   })

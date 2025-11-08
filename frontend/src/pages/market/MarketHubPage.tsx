@@ -12,6 +12,9 @@ import { MARKET_RESOURCE_DESCRIPTION, MARKET_RESOURCE_TITLE } from '../../featur
 import { useMarketCartStore, selectCartTotals } from '../../features/market/stores/cartStore'
 import { useMarketPlanStore, selectPlanTotals } from '../../features/market/stores/planStore'
 import { Card } from '../../components/ui'
+import MealPlanCard from '../../features/market/cards/MealPlanCard'
+import { fetchMealPlans } from '../../features/meal-plans/api'
+import type { MealPlan } from '../../types/meal-plan'
 
 export function MarketHubPage() {
   const cartTotals = useMarketCartStore(
@@ -26,6 +29,16 @@ export function MarketHubPage() {
     selectPlanTotals,
     (a, b) => a.count === b.count && a.servings === b.servings && a.calories === b.calories,
   )
+
+  const mealPlansQuery = useQuery({
+    queryKey: ['market', 'hub', 'meal-plans'],
+    queryFn: () =>
+      fetchMealPlans({
+        scope: 'public',
+        page_size: 3,
+        ordering: '-published_at',
+      }),
+  })
 
   const recipesQuery = useQuery({
     queryKey: ['market', 'hub', 'recipes'],
@@ -89,6 +102,34 @@ export function MarketHubPage() {
           </Card>
         </div>
       </MarketPageHeader>
+
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-headline font-semibold text-foreground">Готовые программы питания</h2>
+            <p className="text-sm text-muted-foreground">
+              Сборник планов от нутрициологов с AI-подсказками — стартуйте за пару минут.
+            </p>
+          </div>
+          <Link to="/market/meal-plans" className={ghostLinkClass}>
+            Все программы
+            <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        </div>
+        {mealPlansQuery.isLoading ? (
+          <MarketListSkeleton variant="recipes" count={3} />
+        ) : mealPlansQuery.data?.results?.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {mealPlansQuery.data.results.map((plan: MealPlan) => (
+              <MealPlanCard key={plan.id} plan={plan} to={`/market/meal-plans/${plan.id}`} />
+            ))}
+          </div>
+        ) : (
+          <Card elevation={1} className="text-sm text-muted-foreground">
+            Пока нет подборок — зайдите позже, мы готовим новые программы.
+          </Card>
+        )}
+      </section>
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-2">

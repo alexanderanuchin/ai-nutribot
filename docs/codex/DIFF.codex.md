@@ -1,3 +1,39 @@
+## 2025-11-14 – codex/frontend/market-mealplans-polish (pending)
+
+**Summary:** Surface marketplace meal plan programs on the hub page and tighten the mobile experience of the dedicated listing with responsive filters.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/market/MarketHubPage.tsx | Highlight published meal plan programs above recipe collections on the marketplace hub. | Frontend UX | No |
+| modify | frontend/src/pages/market/MarketMealPlansPage.tsx | Rework search, filter, and slider layout to prevent horizontal scrolling on mobile and match marketplace styling. | Frontend UX | No |
+| modify | frontend/src/components/ui/SegmentedControl.tsx | Allow toggle groups to wrap and stretch items for compact responsive filters. | Frontend UI kit | No |
+
+## 2025-11-13 – codex/fullstack/market-mealplan-programs (pending)
+
+**Summary:** Launch marketplace catalogue for expert meal plan programs with goal/tag metadata, nutrition metrics aggregation, public filters, and dedicated SPA listing/detail pages.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/models.py | Add goal, tags, duration, and calorie fields with normalization logic for marketplace plans. | Backend schema | Yes (market.0007) |
+| create | backend/apps/market/migrations/0007_mealplan_goal_tags.py | Persist new meal plan goal/tag/calorie fields and supporting indexes. | Backend schema | Yes (market.0007) |
+| create | backend/apps/market/services/meal_plan_metrics.py | Provide reusable nutrition aggregation helpers and stat sync utilities. | Backend services | No |
+| modify | backend/apps/market/services/meal_plan_export.py | Reuse metrics helpers when exporting plans and enrich payloads. | Backend services | No |
+| modify | backend/apps/market/serializers.py | Expose new goal/tag/calorie fields in API responses. | Backend API | No |
+| modify | backend/apps/market/filters.py | Add goal/duration/calorie filters with SQLite-safe tag matching. | Backend API | No |
+| modify | backend/apps/market/views.py | Wire marketplace plan ordering, filters, and relaxed detail access. | Backend API | No |
+| modify | backend/apps/market/signals.py | Sync plan stats on save via metrics helpers. | Backend services | No |
+| modify | backend/apps/market/admin.py | Surface new goal/tag/calorie fields in admin. | Backend admin | No |
+| modify | backend/apps/market/tests/test_meal_plan_api.py | Cover new filters, field exposures, and stats assertions. | Backend tests | No |
+| modify | frontend/src/App.tsx | Register marketplace meal plan routes. | Frontend routing | No |
+| modify | frontend/src/features/market/constants.ts | Add navigation entry for meal plan programs. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/api.ts | Support new query filters for marketplace plans. | Frontend API | No |
+| modify | frontend/src/types/meal-plan.ts | Extend DTOs with goal, tags, duration, and calorie fields. | Frontend types | No |
+| create | frontend/src/features/market/cards/MealPlanCard.tsx | Display marketplace meal plan summary card with pricing and stats. | Frontend UX | No |
+| create | frontend/src/pages/market/MarketMealPlansPage.tsx | Implement marketplace listing with filters and infinite scrolling. | Frontend UX | No |
+| create | frontend/src/pages/market/MarketMealPlanDetailPage.tsx | Show plan overview, calendar preview, and CTA on detail view. | Frontend UX | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record meal plan marketplace milestone. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append audit entry for meal plan marketplace changes. | Docs | No |
+
 ## 2025-11-12 – codex/fullstack/market-premium (pending)
 
 **Summary:** Enable premium recipe and meal plan purchases via Stars wallet debits, gate content delivery, and surface pricing cues across API and SPA.

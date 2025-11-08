@@ -80,10 +80,26 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(MealPlan)
 class MealPlanAdmin(admin.ModelAdmin):
-    list_display = ("title", "user", "start_date", "end_date", "is_published")
-    list_filter = ("is_published",)
+    list_display = (
+        "title",
+        "user",
+        "goal",
+        "start_date",
+        "duration_days",
+        "total_calories",
+        "is_published",
+    )
+    list_filter = ("is_published", "goal")
     search_fields = ("title", "user__email", "user__username")
     autocomplete_fields = ("user",)
+    readonly_fields = (
+        "duration_days",
+        "total_calories",
+        "calories_per_day",
+        "published_at",
+        "created_at",
+        "updated_at",
+    )
 
 
 @admin.register(MealPlanItem)

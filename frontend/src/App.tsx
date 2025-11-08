@@ -17,6 +17,8 @@ import MarketHubPage from './pages/market/MarketHubPage'
 import MarketRecipesPage from './pages/market/MarketRecipesPage'
 import MarketProductsPage from './pages/market/MarketProductsPage'
 import MarketStoresPage from './pages/market/MarketStoresPage'
+import MarketMealPlansPage from './pages/market/MarketMealPlansPage'
+import MarketMealPlanDetailPage from './pages/market/MarketMealPlanDetailPage'
 import MealPlanBuilderPage from './pages/nutrition/MealPlanBuilderPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
@@ -78,6 +80,8 @@ export default function App(){
                     )}
                   >
                     <Route index element={<MarketHubPage />} />
+                    <Route path="meal-plans" element={<MarketMealPlansPage />} />
+                    <Route path="meal-plans/:planId" element={<MarketMealPlanDetailPage />} />
                     <Route path="recipes" element={<MarketRecipesPage />} />
                     <Route path="products" element={<MarketProductsPage />} />
                     <Route path="stores" element={<MarketStoresPage />} />

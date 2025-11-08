@@ -75,6 +75,9 @@ export interface MealPlan {
   description?: string | null
   start_date: string
   end_date?: string | null
+  goal?: string | null
+  tags?: string[] | null
+  duration_days?: number | null
   is_published: boolean
   published_at?: string | null
   price_amount?: string | null
@@ -82,6 +85,8 @@ export interface MealPlan {
   price_stars?: number | null
   is_free?: boolean
   has_access?: boolean
+  total_calories?: number | null
+  calories_per_day?: number | null
   metadata: Record<string, any>
   created_at: string
   updated_at: string
@@ -99,6 +104,17 @@ export interface MealPlanQueryParams {
   published?: boolean
   page?: number
   page_size?: number
+  search?: string
+  goal?: string
+  tag?: string
+  tags?: string
+  duration?: string
+  duration_days?: string
+  calories_min?: number
+  calories_max?: number
+  calories_per_day_min?: number
+  calories_per_day_max?: number
+  ordering?: string
 }
 
 export interface MealPlanCreatePayload {

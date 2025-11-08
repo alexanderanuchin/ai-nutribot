@@ -27,6 +27,16 @@ from .services import (
     has_recipe_access,
     is_recipe_premium,
 )
+from .services.meal_plan_metrics import (
+    add_nutrition,
+    aggregate_plan_nutrition,
+    empty_nutrition,
+    format_nutrition,
+    item_base_nutrition,
+    item_total_nutrition,
+    product_nutrition,
+    recipe_nutrition,
+)
 
 User = get_user_model()
 
@@ -70,40 +80,6 @@ def _resolve_profile(context: dict | None) -> Profile | None:
     return profile
 
 
-def _normalize_nutrition_payload(raw: Any) -> dict[str, float]:
-    if isinstance(raw, dict):
-        source = raw
-    else:
-        source = {}
-    calories = _ensure_number(source.get("calories")) or 0.0
-    protein = _ensure_number(source.get("protein")) or 0.0
-    fat = _ensure_number(source.get("fat")) or 0.0
-    carbs = _ensure_number(source.get("carbs")) or 0.0
-    if "protein_g" in source:
-        protein = _ensure_number(source.get("protein_g")) or protein
-    if "fat_g" in source:
-        fat = _ensure_number(source.get("fat_g")) or fat
-    if "carbs_g" in source:
-        carbs = _ensure_number(source.get("carbs_g")) or carbs
-    return {
-        "calories": calories,
-        "protein_g": protein,
-        "fat_g": fat,
-        "carbs_g": carbs,
-    }
-
-
-def _recipe_nutrition(recipe: "Recipe") -> dict[str, float]:
-    metadata = recipe.metadata or {}
-    nutrition = metadata.get("nutrition")
-    return _normalize_nutrition_payload(nutrition)
-
-
-def _product_nutrition(product: "Product") -> dict[str, float]:
-    nutrition = product.nutrition or {}
-    return _normalize_nutrition_payload(nutrition)
-
-
 def _recipe_metadata(recipe: "Recipe") -> dict[str, Any]:
     metadata = recipe.metadata or {}
     if isinstance(metadata, dict):
@@ -116,47 +92,6 @@ def _product_metadata(product: "Product") -> dict[str, Any]:
     if isinstance(metadata, dict):
         return metadata
     return {}
-
-
-def _empty_nutrition() -> dict[str, float]:
-    return {"calories": 0.0, "protein_g": 0.0, "fat_g": 0.0, "carbs_g": 0.0}
-
-
-def _add_nutrition(lhs: dict[str, float], rhs: dict[str, float]) -> dict[str, float]:
-    return {
-        "calories": lhs.get("calories", 0.0) + rhs.get("calories", 0.0),
-        "protein_g": lhs.get("protein_g", 0.0) + rhs.get("protein_g", 0.0),
-        "fat_g": lhs.get("fat_g", 0.0) + rhs.get("fat_g", 0.0),
-        "carbs_g": lhs.get("carbs_g", 0.0) + rhs.get("carbs_g", 0.0),
-    }
-
-
-def _format_nutrition(payload: dict[str, float]) -> dict[str, float]:
-    return {
-        "calories": round(payload.get("calories", 0.0), 2),
-        "protein_g": round(payload.get("protein_g", 0.0), 2),
-        "fat_g": round(payload.get("fat_g", 0.0), 2),
-        "carbs_g": round(payload.get("carbs_g", 0.0), 2),
-    }
-
-
-def _item_base_nutrition(item: "MealPlanItem") -> dict[str, float]:
-    if item.recipe:
-        return _recipe_nutrition(item.recipe)
-    if item.product:
-        return _product_nutrition(item.product)
-    return _empty_nutrition()
-
-
-def _item_total_nutrition(item: "MealPlanItem") -> dict[str, float]:
-    base = _item_base_nutrition(item)
-    servings = float(item.servings or 0)
-    return {
-        "calories": base["calories"] * servings,
-        "protein_g": base["protein_g"] * servings,
-        "fat_g": base["fat_g"] * servings,
-        "carbs_g": base["carbs_g"] * servings,
-    }
 
 
 class StoreSerializer(serializers.ModelSerializer):
@@ -813,7 +748,7 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
         if price_stars is not None:
             price = float(price_stars)
             currency = "STARS"
-        nutrition = _recipe_nutrition(recipe)
+        nutrition = recipe_nutrition(recipe)
         return {
             "id": recipe.id,
             "title": recipe.title,
@@ -842,7 +777,7 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
         image = metadata.get("image_url")
         if not image and product.metadata:
             image = product.metadata.get("image")
-        nutrition = _product_nutrition(product)
+        nutrition = product_nutrition(product)
         return {
             "id": product.id,
             "title": product.title,
@@ -860,10 +795,10 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
         }
 
     def get_nutrition(self, obj: MealPlanItem) -> dict[str, float]:
-        return _format_nutrition(_item_base_nutrition(obj))
+        return format_nutrition(item_base_nutrition(obj))
 
     def get_total_nutrition(self, obj: MealPlanItem) -> dict[str, float]:
-        return _format_nutrition(_item_total_nutrition(obj))
+        return format_nutrition(item_total_nutrition(obj))
 
 
 class MarketSearchResultSerializer(serializers.Serializer):
@@ -922,6 +857,9 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "description",
             "start_date",
             "end_date",
+            "goal",
+            "tags",
+            "duration_days",
             "is_published",
             "published_at",
             "price_amount",
@@ -929,6 +867,8 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "price_stars",
             "is_free",
             "has_access",
+            "total_calories",
+            "calories_per_day",
             "metadata",
             "created_at",
             "updated_at",
@@ -939,6 +879,7 @@ class MealPlanSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "id",
             "user",
+            "duration_days",
             "published_at",
             "created_at",
             "updated_at",
@@ -948,6 +889,8 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "price_stars",
             "is_free",
             "has_access",
+            "total_calories",
+            "calories_per_day",
         ]
 
     def _get_items(self, obj: MealPlan) -> Iterable[MealPlanItem]:
@@ -959,20 +902,16 @@ class MealPlanSerializer(serializers.ModelSerializer):
         cached = getattr(obj, "_nutrition_aggregate", None)
         if cached is not None:
             return cached
-        totals = _empty_nutrition()
-        daily: dict[str, dict[str, float]] = {}
-        for item in self._get_items(obj):
-            item_total = _item_total_nutrition(item)
-            totals = _add_nutrition(totals, item_total)
-            key = item.scheduled_for.isoformat() if item.scheduled_for else "unscheduled"
-            daily[key] = _add_nutrition(daily.get(key, _empty_nutrition()), item_total)
+        aggregate_payload = aggregate_plan_nutrition(obj, self._get_items(obj))
+        totals = aggregate_payload.totals
+        daily = aggregate_payload.daily
         aggregate = (totals, daily)
         setattr(obj, "_nutrition_aggregate", aggregate)
         return aggregate
 
     def get_nutrition_totals(self, obj: MealPlan) -> dict[str, float]:
         totals, _ = self._get_aggregate(obj)
-        return _format_nutrition(totals)
+        return format_nutrition(totals)
 
     def get_daily_breakdown(self, obj: MealPlan) -> list[dict[str, Any]]:
         _, daily = self._get_aggregate(obj)
@@ -989,7 +928,7 @@ class MealPlanSerializer(serializers.ModelSerializer):
                 {
                     "date": key if key != "unscheduled" else None,
                     "is_unscheduled": key == "unscheduled",
-                    "totals": _format_nutrition(payload),
+                    "totals": format_nutrition(payload),
                 }
             )
         return breakdown

@@ -22,7 +22,7 @@ export const MARKET_RESOURCE_DESCRIPTION: Record<MarketResource, string> = {
 }
 
 export const MARKET_SECTIONS: Array<{
-  id: 'hub' | MarketResource
+  id: 'hub' | 'mealplans' | MarketResource
   label: string
   description: string
   to: string
@@ -32,6 +32,12 @@ export const MARKET_SECTIONS: Array<{
     label: 'Маркет',
     description: 'Витрина и подборки',
     to: '/market',
+  },
+  {
+    id: 'mealplans',
+    label: 'Программы',
+    description: 'Готовые планы питания',
+    to: '/market/meal-plans',
   },
   {
     id: 'recipes',
