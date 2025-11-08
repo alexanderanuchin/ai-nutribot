@@ -27,8 +27,9 @@ const sampleRecipe: MarketRecipe = {
   protein_g: 28,
   fat_g: 18,
   carbs_g: 55,
-  price: 390,
-  currency: 'RUB',
+  price: 150,
+  price_stars: 150,
+  currency: 'STARS',
   rating: 4.8,
   rating_count: 87,
   hero_image_url: 'https://images.unsplash.com/photo-1512058564366-c9e3e0464b1b?auto=format&fit=crop&w=700&q=80',
@@ -36,6 +37,8 @@ const sampleRecipe: MarketRecipe = {
   tags: ['vegan', 'gluten-free'],
   is_premium: true,
   is_in_plan: false,
+  is_free: false,
+  has_access: false,
   is_public: true,
   published_at: '2025-01-01T10:00:00Z',
   metadata: {},
@@ -55,6 +58,7 @@ export const InPlan = () => (
       title: 'Смузи боул с ягодами',
       rating: 4.5,
       rating_count: 34,
+      has_access: true,
     }}
   />
 )

@@ -1,4 +1,4 @@
-import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, Trash2Icon } from 'lucide-react'
+import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, StarIcon, Trash2Icon } from 'lucide-react'
 import clsx from 'clsx'
 import { useMemo, useState, type ReactNode } from 'react'
 
@@ -72,7 +72,13 @@ export function PlanListCard({
           <div className="flex flex-col gap-3">
             {plans.map(plan => {
               const isActive = plan.id === selectedPlanId
-              const price = plan.price_amount ? `${plan.price_amount} ${plan.price_currency}` : 'Бесплатно'
+              const priceStars = Number.isFinite(plan.price_stars ?? Number.NaN)
+                ? Number(plan.price_stars)
+                : null
+              const isFree = plan.is_free ?? priceStars == null
+              const price = isFree
+                ? 'Free'
+                : `${priceStars!.toLocaleString('ru-RU')} Stars`
               const isSelectedForCompare = selectedPlans.includes(plan.id)
               const selectionDisabled = !isSelectedForCompare && selectedPlans.length >= 2
               const descriptionSchema = parsePlanDescription(plan.description)
@@ -149,7 +155,10 @@ export function PlanListCard({
                         <CalendarIcon className="h-3.5 w-3.5" aria-hidden="true" />
                         {new Date(plan.start_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                       </span>
-                      <span>{price}</span>
+                      <span className="inline-flex items-center gap-1">
+                        {!isFree ? <StarIcon className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" /> : null}
+                        {price}
+                      </span>
                       <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
                       {reviewBadge}
                       {ratingValue ? <Rating value={ratingValue} count={ratingCount ?? undefined} size="sm" /> : null}

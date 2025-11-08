@@ -28,6 +28,7 @@ export interface MealPlanRecipeSnapshot extends MealPlanNutritionTotals {
   servings: number
   cooking_time_minutes: number
   price?: number | null
+  price_stars?: number | null
   currency?: string | null
 }
 
@@ -78,6 +79,9 @@ export interface MealPlan {
   published_at?: string | null
   price_amount?: string | null
   price_currency: string
+  price_stars?: number | null
+  is_free?: boolean
+  has_access?: boolean
   metadata: Record<string, any>
   created_at: string
   updated_at: string

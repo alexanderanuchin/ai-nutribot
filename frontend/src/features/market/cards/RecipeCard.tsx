@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Clock3Icon, FlameIcon, SparklesIcon } from 'lucide-react'
+import { Clock3Icon, FlameIcon, SparklesIcon, StarIcon } from 'lucide-react'
 
 import type { MarketRecipe } from '../../../types/market'
 import { submitPlanItem } from '../plan/api'
@@ -90,7 +90,11 @@ export function RecipeCard({ item }: RecipeCardProps) {
   const ratingCount = Number.isFinite(item.rating_count ?? Number.NaN)
     ? Math.trunc(Number(item.rating_count))
     : undefined
-  const priceValue = Number.isFinite(item.price ?? Number.NaN) ? Number(item.price) : null
+  const priceStars = Number.isFinite(item.price_stars ?? Number.NaN) ? Number(item.price_stars) : null
+  const isFree = item.is_free ?? priceStars == null
+  const priceLabel = isFree
+    ? 'Free'
+    : `${priceStars!.toLocaleString('ru-RU')} Stars`
 
   const handleTogglePlan = () => {
     if (!hydrated) return
@@ -122,7 +126,14 @@ export function RecipeCard({ item }: RecipeCardProps) {
           )}
         </div>
         <div className="absolute inset-x-0 top-3 flex items-center justify-between px-3">
-          {item.is_premium ? <Badge tone="primary">Premium</Badge> : null}
+          {item.is_premium ? (
+            <Badge tone={item.has_access ? 'success' : 'primary'} className="gap-1">
+              <StarIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {isFree ? 'Premium' : priceLabel}
+            </Badge>
+          ) : (
+            <Badge tone="success">Free</Badge>
+          )}
           {inPlan ? <Badge tone="success">В плане</Badge> : null}
         </div>
       </div>
@@ -158,12 +169,14 @@ export function RecipeCard({ item }: RecipeCardProps) {
           ))}
         </div>
         <div className="mt-auto flex items-center justify-between gap-3">
-          {priceValue != null ? (
-            <div className="text-sm font-semibold text-primary">
-              {priceValue.toLocaleString('ru-RU', { style: 'currency', currency: item.currency || 'RUB' })}
-            </div>
+          {isFree ? (
+            <div className="flex items-center gap-2 text-sm font-semibold text-success">Free</div>
           ) : (
-            <div className="text-sm font-semibold text-success">Бесплатно</div>
+            <div className="flex items-center gap-1 text-sm font-semibold text-primary">
+              <StarIcon className="h-4 w-4 text-amber-400" aria-hidden="true" />
+              <span>{priceStars!.toLocaleString('ru-RU')}</span>
+              <span className="text-xs uppercase text-muted-foreground">Stars</span>
+            </div>
           )}
           {inPlan ? (
             <QuantityStepper value={servings} min={1} onChange={handleServingsChange} disabled={mutation.isPending} />

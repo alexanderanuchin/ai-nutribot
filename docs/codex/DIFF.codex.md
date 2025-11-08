@@ -1,3 +1,26 @@
+## 2025-11-12 – codex/fullstack/market-premium (pending)
+
+**Summary:** Enable premium recipe and meal plan purchases via Stars wallet debits, gate content delivery, and surface pricing cues across API and SPA.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/models.py | Add `RecipeAccess` / `MealPlanAccess` models with helpers for entitlement checks. | Backend schema | Yes (market.0006) |
+| create | backend/apps/market/migrations/0006_mealplanaccess_recipeaccess.py | Persist premium access tables and related constraints. | Backend schema | Yes (market.0006) |
+| modify | backend/apps/market/serializers.py | Expose Stars pricing, premium flags, and entitlement fields in API payloads. | Backend API | No |
+| modify | backend/apps/market/services/__init__.py | Re-export premium purchase helpers for view usage. | Backend services | No |
+| modify | backend/apps/market/services/search.py | Include premium price/access markers in marketplace search results. | Backend API | No |
+| create | backend/apps/market/services/premium.py | Centralise premium pricing, entitlement checks, and wallet-charged purchase flows. | Backend services | No |
+| modify | backend/apps/market/views.py | Gate detail endpoints, add purchase actions, and allow wallet-charged access grants. | Backend API | No |
+| create | backend/apps/market/tests/test_premium_access.py | Cover happy/insufficient balance flows and entitlement persistence. | Backend tests | No |
+| modify | docs/codex/DIFF.codex.md | Record premium monetisation touchpoints. | Docs | No |
+| create | docs/codex/CHANGELOG.codex.md | Summarise premium monetisation milestone. | Docs | No |
+| modify | frontend/src/features/market/cards/RecipeCard.tsx | Show premium badges, Stars pricing, and purchase CTA handling. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/RecipeCard.stories.tsx | Update Storybook fixtures with premium pricing scenarios. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/CardComponents.test.tsx | Adjust card tests for new premium props and assertions. | Frontend tests | No |
+| modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Surface premium flagging and pricing for meal plans. | Frontend UX | No |
+| modify | frontend/src/types/market.ts | Extend recipe DTOs with premium access and pricing fields. | Frontend types | No |
+| modify | frontend/src/types/meal-plan.ts | Extend meal plan DTOs with premium access and pricing fields. | Frontend types | No |
+
 ## 2025-11-08 – codex/fullstack/market-reviews (pending)
 
 **Summary:** Introduce cross-entity review system with eligibility checks, averaged ratings, and SPA surfaces for stores, products, recipes, and meal plans.
@@ -232,3 +255,23 @@
 | modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Swap `window.confirm` for consistent ConfirmDialog workflow. | Frontend UX | No |
 | modify | frontend/src/features/meal-plans/components/MealPlanBuilder.tsx | Introduce responsive workspace tabs and reuse modal-driven flows. | Frontend UX | No |
 
+## 2025-11-12 – codex/fullstack/market-premium (pending)
+
+**Summary:** Enable premium marketplace content monetisation with wallet debits, access tracking, and Star-based UI indicators.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/market/services/premium.py | Implement premium pricing helpers, wallet debits, and access checks. | Backend billing | No |
+| create | backend/apps/market/migrations/0006_mealplanaccess_recipeaccess.py | Persist recipe/plan access ledgers linked to wallet transactions. | Backend schema | Yes (market.0006) |
+| create | backend/apps/market/tests/test_premium_access.py | Cover wallet top-up, purchase, and access enforcement scenarios. | Backend tests | No |
+| modify | backend/apps/market/models.py | Add RecipeAccess/MealPlanAccess models for premium entitlement tracking. | Backend schema | Yes (market.0006) |
+| modify | backend/apps/market/services/__init__.py | Re-export premium helpers for view/serializer integration. | Backend services | No |
+| modify | backend/apps/market/services/search.py | Surface premium flags and Star pricing in recipe search payloads. | Backend API | No |
+| modify | backend/apps/market/serializers.py | Expose price_stars/has_access fields and enforce profile-aware access flags. | Backend API | No |
+| modify | backend/apps/market/views.py | Require authentication, enforce access, and add purchase actions for recipes/plans. | Backend API | No |
+| modify | frontend/src/features/market/cards/RecipeCard.tsx | Display Star pricing, free badges, and unlocked state for premium recipes. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/RecipeCard.stories.tsx | Align storybook fixtures with premium pricing props. | Frontend docs | No |
+| modify | frontend/src/features/market/cards/CardComponents.test.tsx | Update mocks to reflect Star pricing fields and avoid NaN renders. | Frontend tests | No |
+| modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Render Star price badges and free labels for meal plans. | Frontend UX | No |
+| modify | frontend/src/types/market.ts | Extend recipe DTO with Star pricing and access flags. | Frontend types | No |
+| modify | frontend/src/types/meal-plan.ts | Extend plan DTOs with Star pricing and entitlement flags. | Frontend types | No |

@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from apps.orders.models import Order
+from apps.users.models import Profile
 
 from .models import (
     Cart,
@@ -18,6 +19,13 @@ from .models import (
     RecipeIngredient,
     RecipeStep,
     Store,
+)
+from .services import (
+    get_meal_plan_price_stars,
+    get_recipe_price_stars,
+    has_meal_plan_access,
+    has_recipe_access,
+    is_recipe_premium,
 )
 
 User = get_user_model()
@@ -39,6 +47,27 @@ def _ensure_number(value: Any) -> Optional[float]:
     if number != number:  # NaN check
         return None
     return number
+
+
+def _resolve_profile(context: dict | None) -> Profile | None:
+    if not context:
+        return None
+    request = context.get("request")
+    if not request or not getattr(request.user, "is_authenticated", False):
+        return None
+    cached = getattr(request, "_market_profile", None)
+    if isinstance(cached, Profile):
+        return cached
+    profile = getattr(request.user, "profile", None)
+    if isinstance(profile, Profile):
+        setattr(request, "_market_profile", profile)
+        return profile
+    try:
+        profile = Profile.objects.get(user=request.user)
+    except Profile.DoesNotExist:
+        return None
+    setattr(request, "_market_profile", profile)
+    return profile
 
 
 def _normalize_nutrition_payload(raw: Any) -> dict[str, float]:
@@ -452,12 +481,15 @@ class RecipeSerializer(serializers.ModelSerializer):
     fat_g = serializers.SerializerMethodField()
     carbs_g = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
+    price_stars = serializers.SerializerMethodField()
     currency = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     is_premium = serializers.SerializerMethodField()
+    is_free = serializers.SerializerMethodField()
     is_in_plan = serializers.SerializerMethodField()
+    has_access = serializers.SerializerMethodField()
 
     class Meta:
         model = Recipe
@@ -484,12 +516,15 @@ class RecipeSerializer(serializers.ModelSerializer):
             "fat_g",
             "carbs_g",
             "price",
+            "price_stars",
             "currency",
             "rating",
             "rating_count",
             "tags",
             "is_premium",
+            "is_free",
             "is_in_plan",
+            "has_access",
             "is_public",
             "published_at",
             "metadata",
@@ -518,12 +553,15 @@ class RecipeSerializer(serializers.ModelSerializer):
             "fat_g",
             "carbs_g",
             "price",
+            "price_stars",
             "currency",
             "rating",
             "rating_count",
             "tags",
             "is_premium",
+            "is_free",
             "is_in_plan",
+            "has_access",
         ]
 
     def _recipe_metadata(self, obj: Recipe) -> dict[str, Any]:
@@ -573,13 +611,23 @@ class RecipeSerializer(serializers.ModelSerializer):
         return self._nutrition_value(obj, "carbs_g")
 
     def get_price(self, obj: Recipe) -> Optional[float]:
+        stars = get_recipe_price_stars(obj)
+        if stars is not None:
+            return float(stars)
         metadata = self._recipe_metadata(obj)
         price = metadata.get("price")
         if isinstance(price, dict):
             return _ensure_number(price.get("value"))
         return _ensure_number(price)
 
+    def get_price_stars(self, obj: Recipe) -> Optional[int]:
+        stars = get_recipe_price_stars(obj)
+        return int(stars) if stars is not None else None
+
     def get_currency(self, obj: Recipe) -> Optional[str]:
+        stars = get_recipe_price_stars(obj)
+        if stars is not None:
+            return "STARS"
         metadata = self._recipe_metadata(obj)
         price = metadata.get("price")
         if isinstance(price, dict):
@@ -611,7 +659,12 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def get_is_premium(self, obj: Recipe) -> bool:
         metadata = self._recipe_metadata(obj)
-        return bool(metadata.get("is_premium"))
+        if metadata.get("is_premium"):
+            return True
+        return get_recipe_price_stars(obj) is not None
+
+    def get_is_free(self, obj: Recipe) -> bool:
+        return not self.get_is_premium(obj)
 
     def get_is_in_plan(self, obj: Recipe) -> bool:
         request = self.context.get("request") if self.context else None
@@ -621,6 +674,12 @@ class RecipeSerializer(serializers.ModelSerializer):
         if plan_ids is None:
             return False
         return obj.id in plan_ids
+
+    def get_has_access(self, obj: Recipe) -> bool:
+        profile = _resolve_profile(self.context)
+        if profile is None:
+            return not self.get_is_premium(obj)
+        return has_recipe_access(profile, obj)
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -749,6 +808,11 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
         if not currency:
             currency_val = metadata.get("currency")
             currency = str(currency_val) if currency_val else None
+        stars = get_recipe_price_stars(recipe)
+        price_stars = int(stars) if stars is not None else None
+        if price_stars is not None:
+            price = float(price_stars)
+            currency = "STARS"
         nutrition = _recipe_nutrition(recipe)
         return {
             "id": recipe.id,
@@ -767,6 +831,7 @@ class MealPlanItemSerializer(serializers.ModelSerializer):
             "carbs_g": nutrition["carbs_g"],
             "price": price,
             "currency": currency,
+            "price_stars": price_stars,
         }
 
     def get_product_snapshot(self, obj: MealPlanItem) -> Optional[dict[str, Any]]:
@@ -844,6 +909,9 @@ class MealPlanSerializer(serializers.ModelSerializer):
     items = MealPlanItemSerializer(many=True, read_only=True)
     nutrition_totals = serializers.SerializerMethodField()
     daily_breakdown = serializers.SerializerMethodField()
+    price_stars = serializers.SerializerMethodField()
+    has_access = serializers.SerializerMethodField()
+    is_free = serializers.SerializerMethodField()
 
     class Meta:
         model = MealPlan
@@ -858,6 +926,9 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "published_at",
             "price_amount",
             "price_currency",
+            "price_stars",
+            "is_free",
+            "has_access",
             "metadata",
             "created_at",
             "updated_at",
@@ -874,6 +945,9 @@ class MealPlanSerializer(serializers.ModelSerializer):
             "items",
             "nutrition_totals",
             "daily_breakdown",
+            "price_stars",
+            "is_free",
+            "has_access",
         ]
 
     def _get_items(self, obj: MealPlan) -> Iterable[MealPlanItem]:
@@ -919,3 +993,16 @@ class MealPlanSerializer(serializers.ModelSerializer):
                 }
             )
         return breakdown
+
+    def get_price_stars(self, obj: MealPlan) -> Optional[int]:
+        stars = get_meal_plan_price_stars(obj)
+        return int(stars) if stars is not None else None
+
+    def get_is_free(self, obj: MealPlan) -> bool:
+        return self.get_price_stars(obj) is None
+
+    def get_has_access(self, obj: MealPlan) -> bool:
+        profile = _resolve_profile(self.context)
+        if profile is None:
+            return self.get_is_free(obj)
+        return has_meal_plan_access(profile, obj)

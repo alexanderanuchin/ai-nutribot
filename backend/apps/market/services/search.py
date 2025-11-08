@@ -12,6 +12,7 @@ from django.db.models import Prefetch, Q
 from apps.market.constants import MARKET_QUICK_FILTERS, MarketResource
 from apps.market.filters import coerce_decimal, coerce_int
 from apps.market.models import Inventory, Product, Recipe, RecipeIngredient, Store
+from apps.market.services.premium import get_recipe_price_stars, is_recipe_premium
 
 
 SearchResource = MarketResource | Literal["all"]
@@ -198,7 +199,12 @@ class MarketSearchService:
             "cook_time_minutes": recipe.cooking_time_minutes,
             "servings": recipe.servings,
             "difficulty": recipe.difficulty or None,
+            "is_premium": is_recipe_premium(recipe),
         }
+        stars = get_recipe_price_stars(recipe)
+        if stars is not None:
+            metrics["price_stars"] = int(stars)
+            metrics["currency"] = "STARS"
         return MarketSearchResult(
             resource="recipes",
             id=recipe.id,

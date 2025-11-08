@@ -10,6 +10,8 @@ from django.db import models
 from django.utils import timezone
 
 
+from apps.users.models import Profile
+
 class Store(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -401,3 +403,77 @@ class MealPlanItem(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"MealPlanItem<{self.meal_plan_id}>"
+
+
+class RecipeAccess(models.Model):
+    """Grants premium marketplace recipe access to a specific profile."""
+
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="market_recipe_accesses",
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        related_name="premium_accesses",
+    )
+    wallet_transaction = models.ForeignKey(
+        "orders.WalletTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recipe_accesses",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    granted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Recipe access"
+        verbose_name_plural = "Recipe accesses"
+        unique_together = ("profile", "recipe")
+        indexes = [
+            models.Index(fields=["profile", "recipe"], name="market_recacc_profile_recipe"),
+            models.Index(fields=["recipe", "granted_at"], name="market_recacc_recipe_date"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"RecipeAccess<{self.profile_id}:{self.recipe_id}>"
+
+
+class MealPlanAccess(models.Model):
+    """Tracks purchased access to paid meal plans."""
+
+    profile = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="market_meal_plan_accesses",
+    )
+    meal_plan = models.ForeignKey(
+        MealPlan,
+        on_delete=models.CASCADE,
+        related_name="premium_accesses",
+    )
+    wallet_transaction = models.ForeignKey(
+        "orders.WalletTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="meal_plan_accesses",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    granted_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Meal plan access"
+        verbose_name_plural = "Meal plan accesses"
+        unique_together = ("profile", "meal_plan")
+        indexes = [
+            models.Index(fields=["profile", "meal_plan"], name="market_planaccess_profile_plan"),
+            models.Index(fields=["meal_plan", "granted_at"], name="market_planaccess_plan_date"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"MealPlanAccess<{self.profile_id}:{self.meal_plan_id}>"

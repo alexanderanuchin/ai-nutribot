@@ -20,9 +20,11 @@ from .models import (
     CartItem,
     Inventory,
     MealPlan,
+    MealPlanAccess,
     MealPlanItem,
     Product,
     Recipe,
+    RecipeAccess,
     RecipeIngredient,
     RecipeStep,
     Store,
@@ -62,12 +64,18 @@ from .services import (
     CartEmptyError,
     CartInactiveError,
     InventoryInsufficientError,
+    WalletInsufficientFunds,
     checkout_cart,
+    get_meal_plan_price_stars,
+    get_recipe_price_stars,
+    has_meal_plan_access,
+    has_recipe_access,
+    purchase_meal_plan,
+    purchase_recipe,
 )
 from .services.meal_plan_export import MealPlanExportError, export_meal_plan
 from .services.search import MarketSearchService
 from apps.orders.serializers import OrderSerializer
-from apps.orders.services.wallet import WalletInsufficientFunds
 from apps.users.models import Profile
 from nutribot.middleware import get_request_id
 
@@ -165,6 +173,8 @@ class ProductViewSet(viewsets.ModelViewSet):
         self._assert_store_owner(instance.store)
         instance.delete()
 
+    # ProductViewSet relies on default retrieve behavior.
+
 
 class RecipeViewSet(viewsets.ModelViewSet):
     serializer_class = RecipeSerializer
@@ -190,6 +200,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     }
     ordering = ("title", "id")
 
+    def get_permissions(self):
+        if getattr(self, "action", None) == "purchase":
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         ingredients_prefetch = Prefetch(
             "ingredients",
@@ -200,6 +215,13 @@ class RecipeViewSet(viewsets.ModelViewSet):
             ingredients_prefetch,
         )
         user = self.request.user
+        if getattr(user, "is_authenticated", False):
+            access_prefetch = Prefetch(
+                "premium_accesses",
+                queryset=RecipeAccess.objects.filter(profile__user=user),
+                to_attr="_prefetched_accesses",
+            )
+            qs = qs.prefetch_related(access_prefetch)
         if is_market_moderator(user):
             pass
         elif is_market_operator(user):
@@ -229,6 +251,42 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         self._assert_store_owner(instance.store)
         instance.delete()
+
+    def retrieve(self, request, *args, **kwargs):
+        recipe = self.get_object()
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Требуется аутентификация")
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        if not has_recipe_access(profile, recipe):
+            raise PermissionDenied("Требуется покупка рецепта")
+        serializer = self.get_serializer(recipe)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="purchase")
+    def purchase(self, request, pk=None):
+        recipe = self.get_object()
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Требуется аутентификация")
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        rid = getattr(request, "request_id", get_request_id())
+        idempotency_key = request.headers.get("Idempotency-Key") or request.META.get("HTTP_IDEMPOTENCY_KEY")
+        try:
+            result = purchase_recipe(
+                profile,
+                recipe,
+                rid=rid,
+                idempotency_key=idempotency_key,
+            )
+        except WalletInsufficientFunds as exc:
+            raise ValidationError({"detail": str(exc), "code": "insufficient_stars"}) from exc
+        serializer = self.get_serializer(recipe)
+        status_code = status.HTTP_201_CREATED if result.wallet_transaction else status.HTTP_200_OK
+        response_payload = {
+            "recipe": serializer.data,
+            "wallet_transaction_id": getattr(result.wallet_transaction, "id", None),
+            "price_stars": str(get_recipe_price_stars(recipe) or 0),
+        }
+        return Response(response_payload, status=status_code)
 
 
 class RecipeStepViewSet(viewsets.ModelViewSet):
@@ -441,6 +499,11 @@ class MealPlanViewSet(viewsets.ModelViewSet):
     permission_classes = [IsMealPlanOwner]
     pagination_class = MarketPagination
 
+    def get_permissions(self):
+        if getattr(self, "action", None) == "purchase":
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
+
     def get_queryset(self):
         items_prefetch = Prefetch(
             "items",
@@ -454,10 +517,17 @@ class MealPlanViewSet(viewsets.ModelViewSet):
         qs = MealPlan.objects.all().select_related("user").prefetch_related(items_prefetch)
 
         user = self.request.user if getattr(self.request.user, "is_authenticated", False) else None
+        if user:
+            access_prefetch = Prefetch(
+                "premium_accesses",
+                queryset=MealPlanAccess.objects.filter(profile__user=user),
+                to_attr="_prefetched_accesses",
+            )
+            qs = qs.prefetch_related(access_prefetch)
         scope = (self.request.query_params.get("scope") or "").lower()
         action = getattr(self, "action", None)
 
-        if action in {"retrieve", "export"}:
+        if action in {"retrieve", "export", "purchase"}:
             filters = Q(is_published=True)
             if user:
                 filters |= Q(user=user)
@@ -496,12 +566,27 @@ class MealPlanViewSet(viewsets.ModelViewSet):
 
         return qs.order_by("-start_date", "-id")
 
+    def retrieve(self, request, *args, **kwargs):
+        plan = self.get_object()
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Требуется аутентификация")
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        if not has_meal_plan_access(profile, plan):
+            raise PermissionDenied("План доступен после покупки")
+        serializer = self.get_serializer(plan)
+        return Response(serializer.data)
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=["get"], url_path="export")
     def export(self, request, *args, **kwargs):
         plan = self.get_object()
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Требуется аутентификация")
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        if not has_meal_plan_access(profile, plan):
+            raise PermissionDenied("План доступен после покупки")
         format_name = (
             request.query_params.get("type")
             or request.query_params.get("format")
@@ -512,6 +597,45 @@ class MealPlanViewSet(viewsets.ModelViewSet):
         except MealPlanExportError as exc:
             raise ValidationError({"type": str(exc)}) from exc
         return response
+
+    @action(detail=True, methods=["post"], url_path="purchase")
+    def purchase(self, request, *args, **kwargs):
+        plan = self.get_object()
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Требуется аутентификация")
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        if plan.user_id == request.user.id:
+            serializer = self.get_serializer(plan)
+            return Response(
+                {
+                    "plan": serializer.data,
+                    "wallet_transaction_id": None,
+                    "price_stars": str(get_meal_plan_price_stars(plan) or 0),
+                },
+                status=status.HTTP_200_OK,
+            )
+        rid = getattr(request, "request_id", get_request_id())
+        idempotency_key = request.headers.get("Idempotency-Key") or request.META.get("HTTP_IDEMPOTENCY_KEY")
+        try:
+            result = purchase_meal_plan(
+                profile,
+                plan,
+                rid=rid,
+                idempotency_key=idempotency_key,
+            )
+        except WalletInsufficientFunds as exc:
+            raise ValidationError({"detail": str(exc), "code": "insufficient_stars"}) from exc
+        plan.refresh_from_db()
+        serializer = self.get_serializer(plan)
+        status_code = status.HTTP_201_CREATED if result.wallet_transaction else status.HTTP_200_OK
+        return Response(
+            {
+                "plan": serializer.data,
+                "wallet_transaction_id": getattr(result.wallet_transaction, "id", None),
+                "price_stars": str(get_meal_plan_price_stars(plan) or 0),
+            },
+            status=status_code,
+        )
 
 
 class MealPlanItemViewSet(viewsets.ModelViewSet):

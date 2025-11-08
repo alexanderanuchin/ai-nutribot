@@ -54,12 +54,15 @@ export interface MarketRecipe {
   fat_g: number
   carbs_g: number
   price?: number | null
+  price_stars?: number | null
   currency?: string | null
   rating?: number | null
   rating_count?: number | null
   tags?: string[] | null
   is_premium?: boolean
+  is_free?: boolean
   is_in_plan?: boolean
+  has_access?: boolean
   is_public: boolean
   published_at?: string | null
   metadata?: Record<string, unknown>
