@@ -10,6 +10,7 @@ import {
   useMarketCartStore,
 } from '../stores/cartStore'
 import { Badge, Button, Card, Price, QuantityStepper, Rating, useToast } from '../../../components/ui'
+import { ReviewsSection } from '../../reviews'
 import { useAuth } from '../../../hooks/useAuth'
 
 export interface ProductCardProps {
@@ -178,6 +179,7 @@ export function ProductCard({ item }: ProductCardProps) {
             </Button>
           )}
         </div>
+        <ReviewsSection targetType="product" targetId={item.id} className="mt-2" />
       </div>
     </Card>
   )

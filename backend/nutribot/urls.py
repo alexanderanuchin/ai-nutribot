@@ -14,6 +14,7 @@ urlpatterns = [
     path("api/monitoring/", include("apps.monitoring.urls")),
     path("api/v1/", include("apps.feed.urls")),
     path("api/v1/market/", include("apps.market.urls")),
+    path("api/reviews/", include("apps.reviews.urls")),
     path("api/me/stars/", StarsBalanceView.as_view(), name="api-me-stars"),
     path("api/admin/stars/bot-balance/", BotStarsBalanceView.as_view(), name="api-bot-stars-balance"),
 ]

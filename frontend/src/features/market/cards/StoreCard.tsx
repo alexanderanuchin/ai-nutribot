@@ -2,6 +2,7 @@ import { ExternalLinkIcon, MapPinIcon, TimerIcon } from 'lucide-react'
 
 import type { MarketStore } from '../../../types/market'
 import { Badge, Button, Card, Rating } from '../../../components/ui'
+import { ReviewsSection } from '../../reviews'
 
 export interface StoreCardProps {
   item: MarketStore
@@ -104,6 +105,7 @@ export function StoreCard({ item }: StoreCardProps) {
             </Button>
           ) : null}
         </div>
+        <ReviewsSection targetType="store" targetId={item.id} className="mt-2" />
       </div>
     </Card>
   )

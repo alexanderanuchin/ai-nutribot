@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     "apps.monitoring",
     "apps.feed",
     "apps.market",
+    "apps.reviews",
 ]
 
 if JAZZMIN_AVAILABLE:  # pragma: no cover - optional skin

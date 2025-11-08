@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.indexes import GinIndex
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -23,6 +24,10 @@ class Store(models.Model):
     is_active = models.BooleanField(default=True)
     is_verified = models.BooleanField(default=False)
     metadata = models.JSONField(default=dict, blank=True)
+    reviews = GenericRelation(
+        "reviews.Review",
+        related_query_name="store",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -64,6 +69,10 @@ class Product(models.Model):
     tags = models.JSONField(default=list, blank=True)
     nutrition = models.JSONField(default=dict, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    reviews = GenericRelation(
+        "reviews.Review",
+        related_query_name="product",
+    )
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
     available_from = models.DateTimeField(null=True, blank=True)
@@ -116,6 +125,10 @@ class Recipe(models.Model):
     is_public = models.BooleanField(default=True)
     published_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+    reviews = GenericRelation(
+        "reviews.Review",
+        related_query_name="recipe",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -321,6 +334,10 @@ class MealPlan(models.Model):
     )
     price_currency = models.CharField(max_length=3, default="RUB")
     metadata = models.JSONField(default=dict, blank=True)
+    reviews = GenericRelation(
+        "reviews.Review",
+        related_query_name="meal_plan",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

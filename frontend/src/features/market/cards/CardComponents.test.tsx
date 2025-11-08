@@ -11,6 +11,17 @@ import ProductCard from './ProductCard'
 import RecipeCard from './RecipeCard'
 import StoreCard from './StoreCard'
 
+vi.mock('../../../hooks/useAuth', () => ({
+  useAuth: () => ({
+    ready: true,
+    bootstrapping: false,
+    authReady: true,
+    refreshing: false,
+    authenticated: true,
+    profile: { calocoin_rate_rub: 100 },
+  }),
+}))
+
 const activeClients: QueryClient[] = []
 
 function renderWithProviders(children: ReactNode) {

@@ -1,6 +1,7 @@
 import { AlertTriangleIcon, ClipboardListIcon, DownloadIcon } from 'lucide-react'
 
 import { Badge, Button, Card } from '../../../components/ui'
+import { ReviewsSection } from '../../reviews'
 import type { MealPlan } from '../../../types/meal-plan'
 import {
   computeDaysUntilReview,
@@ -150,6 +151,8 @@ export function PlanDescriptionCard({ plan, onEdit, onExport, isExporting = null
           • CSV — таблица по дням: дата, тип приёма, блюдо/продукт, порции, калории и макросы.
         </p>
       </div>
+
+      {plan ? <ReviewsSection targetType="plan" targetId={plan.id} className="mt-2" /> : null}
     </Card>
   )
 }

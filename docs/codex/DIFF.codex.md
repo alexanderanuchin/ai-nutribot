@@ -1,3 +1,35 @@
+## 2025-11-08 – codex/fullstack/market-reviews (pending)
+
+**Summary:** Introduce cross-entity review system with eligibility checks, averaged ratings, and SPA surfaces for stores, products, recipes, and meal plans.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/reviews/__init__.py | Register `apps.reviews` package for Django discovery. | Backend API | No |
+| create | backend/apps/reviews/apps.py | Configure app startup and signal wiring. | Backend API | No |
+| create | backend/apps/reviews/models.py | Persist review entries with generic FK, author, rating, and timestamps. | Backend schema | No |
+| create | backend/apps/reviews/targets.py | Centralise model alias resolution for serializers/views. | Backend API | No |
+| create | backend/apps/reviews/services.py | Aggregate ratings and sync metadata.rating/metadata.rating_count. | Backend services | No |
+| create | backend/apps/reviews/eligibility.py | Enforce purchase/plan interaction rules before accepting reviews. | Backend services | No |
+| create | backend/apps/reviews/serializers.py | Validate review payloads, prevent duplicates, and hydrate targets. | Backend API | No |
+| create | backend/apps/reviews/views.py | Expose list/create endpoints with logging and eligibility checks. | Backend API | No |
+| create | backend/apps/reviews/urls.py | Register REST routes under `/api/reviews/`. | Backend API | No |
+| create | backend/apps/reviews/signals.py | Recalculate ratings on review create/delete. | Backend services | No |
+| create | backend/apps/reviews/migrations/0001_initial.py | Create `reviews_review` table and supporting indexes. | Backend schema | Yes (reviews.0001) |
+| create | backend/apps/reviews/tests/__init__.py | Enable pytest package discovery for reviews app. | Backend tests | No |
+| create | backend/apps/reviews/tests/test_reviews_api.py | Cover eligibility, duplicate protection, and metadata sync. | Backend tests | No |
+| modify | backend/apps/market/models.py | Add `GenericRelation` hooks for stores/products/recipes/meal plans. | Backend schema | No |
+| modify | backend/nutribot/settings.py | Add `apps.reviews` to installed apps. | Backend config | No |
+| modify | backend/nutribot/urls.py | Mount `/api/reviews/` router. | Backend API | No |
+| create | frontend/src/api/reviews.ts | Provide client helpers for listing/creating reviews. | Frontend API | No |
+| create | frontend/src/features/reviews/components/ReviewsSection.tsx | Implement lazy-loaded review list and submission form. | Frontend UX | No |
+| create | frontend/src/features/reviews/index.ts | Re-export reviews components for consumers. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/StoreCard.tsx | Surface review toggle beneath store metadata. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/ProductCard.tsx | Embed review section below purchase controls. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/RecipeCard.tsx | Allow recipe cards to reveal and capture reviews. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Show averaged ratings next to plan stats. | Frontend UX | No |
+| modify | frontend/src/features/meal-plans/components/PlanDescriptionCard.tsx | Append review section to plan summary view. | Frontend UX | No |
+| modify | frontend/src/features/market/cards/CardComponents.test.tsx | Stub auth context and keep card snapshot tests passing. | Frontend tests | No |
+
 ## 2025-11-06 – codex/frontend/meal-plan-ux-bugfix (pending)
 
 **Summary:** Fix duplicated key warnings in sheet overlays and restore scrollable viewport for the create-recipe dialog.

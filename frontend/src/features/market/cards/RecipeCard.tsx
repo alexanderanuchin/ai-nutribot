@@ -6,14 +6,8 @@ import type { MarketRecipe } from '../../../types/market'
 import { submitPlanItem } from '../plan/api'
 import { createPlanSubmissionPayload } from '../plan/form'
 import { selectPlanItem, useMarketPlanStore } from '../stores/planStore'
-import {
-  Badge,
-  Button,
-  Card,
-  QuantityStepper,
-  Rating,
-  useToast,
-} from '../../../components/ui'
+import { Badge, Button, Card, QuantityStepper, Rating, useToast } from '../../../components/ui'
+import { ReviewsSection } from '../../reviews'
 
 export interface RecipeCardProps {
   item: MarketRecipe
@@ -184,6 +178,7 @@ export function RecipeCard({ item }: RecipeCardProps) {
             Удалить из плана
           </Button>
         ) : null}
+        <ReviewsSection targetType="recipe" targetId={item.id} className="mt-3" />
       </div>
     </Card>
   )

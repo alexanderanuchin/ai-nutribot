@@ -2,7 +2,7 @@ import { CalendarIcon, GlobeIcon, LockIcon, PlusCircleIcon, Trash2Icon } from 'l
 import clsx from 'clsx'
 import { useMemo, useState, type ReactNode } from 'react'
 
-import { Badge, Button, Card, ConfirmDialog, IconButton, Skeleton } from '../../../components/ui'
+import { Badge, Button, Card, ConfirmDialog, IconButton, Rating, Skeleton } from '../../../components/ui'
 import type { MealPlan } from '../../../types/meal-plan'
 import { formatNutritionValue } from '../utils'
 import { computeDaysUntilReview, parsePlanDescription } from '../planDescription'
@@ -77,6 +77,12 @@ export function PlanListCard({
               const selectionDisabled = !isSelectedForCompare && selectedPlans.length >= 2
               const descriptionSchema = parsePlanDescription(plan.description)
               const daysToReview = computeDaysUntilReview(descriptionSchema.sections.nextReviewDate)
+              const ratingValue = Number.isFinite(Number(plan.metadata?.rating ?? Number.NaN))
+                ? Number(plan.metadata?.rating)
+                : null
+              const ratingCount = Number.isFinite(Number(plan.metadata?.rating_count ?? Number.NaN))
+                ? Math.trunc(Number(plan.metadata?.rating_count))
+                : null
               let reviewBadge: ReactNode = null
               if (typeof daysToReview === 'number') {
                 if (daysToReview < 0) {
@@ -99,7 +105,7 @@ export function PlanListCard({
                   )
                 }
               }
-            return (
+              return (
               <div
                 key={plan.id}
                 role="button"
@@ -146,6 +152,7 @@ export function PlanListCard({
                       <span>{price}</span>
                       <span>{formatNutritionValue(plan.nutrition_totals.calories, 0)} ккал</span>
                       {reviewBadge}
+                      {ratingValue ? <Rating value={ratingValue} count={ratingCount ?? undefined} size="sm" /> : null}
                     </div>
                   </div>
                 </div>
