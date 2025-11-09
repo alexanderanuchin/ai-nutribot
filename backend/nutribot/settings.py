@@ -24,23 +24,44 @@ LOG_DB_CAPACITY = int(os.getenv("LOG_DB_CAPACITY", "5000"))
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
+RUNNING_TESTS = any("pytest" in arg for arg in sys.argv)
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
 
-def _parse_allowed_hosts(raw_value: str | None) -> list[str]:
+def _get_secret_key() -> str:
+    value = os.getenv("DJANGO_SECRET_KEY")
+    if value:
+        return value
+    if DEBUG or RUNNING_TESTS:
+        return "dev-secret"
+    raise RuntimeError(
+        "DJANGO_SECRET_KEY environment variable must be set when DJANGO_DEBUG=0."
+    )
+
+
+SECRET_KEY = _get_secret_key()
+
+
+def _parse_allowed_hosts(raw_value: str | None, *, allow_wildcard: bool) -> list[str]:
     default_hosts = {"backend", "localhost", "127.0.0.1", "[::1]"}
     if not raw_value:
-        return ["*"]
+        return sorted(default_hosts)
     hosts = {host.strip() for host in raw_value.split(",") if host.strip()}
     if not hosts:
-        return ["*"]
+        return sorted(default_hosts)
     if "*" in hosts:
+        if not allow_wildcard:
+            raise RuntimeError(
+                "ALLOWED_HOSTS must not contain '*' when DJANGO_DEBUG=0."
+            )
         return ["*"]
     return sorted(hosts | default_hosts)
 
 
-ALLOWED_HOSTS = _parse_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
+ALLOWED_HOSTS = _parse_allowed_hosts(
+    os.getenv("ALLOWED_HOSTS"),
+    allow_wildcard=DEBUG or RUNNING_TESTS,
+)
 
 CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
@@ -125,8 +146,7 @@ else:
 
 USE_SQLITE_VALUE = os.getenv("USE_SQLITE")
 if USE_SQLITE_VALUE is None:
-    running_pytest = any("pytest" in arg for arg in sys.argv)
-    USE_SQLITE_VALUE = "1" if running_pytest else "0"
+    USE_SQLITE_VALUE = "1" if RUNNING_TESTS else "0"
 
 if USE_SQLITE_VALUE == "1":
     DATABASES = {
