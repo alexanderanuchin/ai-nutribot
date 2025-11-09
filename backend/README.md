@@ -2,6 +2,7 @@
 
 ## Seeding the catalogue
 
+
 ```
 USE_SQLITE=1 python manage.py migrate
 USE_SQLITE=1 python manage.py load_seeds
