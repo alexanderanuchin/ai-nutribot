@@ -1,3 +1,7 @@
+## 2025-11-16 – Continuous integration workflow (pending)
+
+- Added GitHub Actions CI covering security audits, linting, and frontend testing with caching on Python 3.12 and Node 22. See [DIFF 2025-11-16](./DIFF.codex.md#2025-11-16--codexinfraci-workflow-pending).
+
 ## 2025-11-09 – Dependency security refresh (pending)
 
 - Regenerated Python lock files and raised the frontend toolchain (Vite 6.4 + Vitest 4) to clear pip/npm audits. See [DIFF 2025-11-09](./DIFF.codex.md#2025-11-09--codexsecuritydependency-refresh-pending).

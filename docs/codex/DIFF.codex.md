@@ -1,3 +1,13 @@
+## 2025-11-16 – codex/infra/ci-workflow (pending)
+
+**Summary:** Introduced GitHub Actions CI pipeline with cached security audits and frontend/backend quality checks on Python 3.12 and Node 22 runners.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | .github/workflows/ci.yml | Provide converged CI pipeline with concurrency-safe audits and quality checks for monorepo services. | Infra CI | No |
+| modify | docs/codex/CHANGELOG.codex.md | Register CI workflow milestone per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append traceability record for CI workflow introduction. | Docs | No |
+
 ## 2025-11-09 – codex/security/dependency-refresh (pending)
 
 **Summary:** Regenerated backend/bot lock files and upgraded the frontend build toolchain (Vite 6.4 + Vitest 4) to clear pip/npm audit findings while enforcing Node 20.19+ runtime support.
