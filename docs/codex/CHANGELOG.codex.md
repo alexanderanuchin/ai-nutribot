@@ -1,3 +1,7 @@
+## 2025-11-15 – Container hardening (pending)
+
+- Hardened backend, bot, and frontend containers with multi-stage builds, non-root execution, and health probes, and refined backend health/migration bootstrap for stability. See [DIFF 2025-11-15](./DIFF.codex.md#2025-11-15--codexinfracontainer-hardening-pending).
+
 ## 2025-11-08 – Security & quality audit baseline (pending)
 
 - Published `CODEX_AUDIT_REPORT.md` and captured actionable findings. See [DIFF 2025-11-08](./DIFF.codex.md#2025-11-08--codexdocsfull-audit-pending).

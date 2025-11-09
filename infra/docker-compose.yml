@@ -46,7 +46,7 @@ services:
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
-    command: ["bash", "-lc", "celery -A nutribot worker -l info -Q default,feed.ingestion"]
+    command: ["/opt/venv/bin/celery", "-A", "nutribot", "worker", "-l", "info", "-Q", "default,feed.ingestion"]
     depends_on:
       - backend
       - redis
@@ -61,7 +61,7 @@ services:
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
-    command: ["bash", "-lc", "celery -A nutribot beat -l info"]
+    command: ["/opt/venv/bin/celery", "-A", "nutribot", "beat", "-l", "info", "-s", "/app/run/celerybeat-schedule"]
     depends_on:
       - backend
       - redis
@@ -69,6 +69,8 @@ services:
   bot:
     build: ../bot
     env_file: .env
+    environment:
+      BOT_HEALTHCHECK_URL: ${BOT_HEALTHCHECK_URL:-http://backend:8000/metrics}
     depends_on:
       - backend
 

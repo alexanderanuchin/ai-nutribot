@@ -1,10 +1,47 @@
 services:
   backend:
+    # В dev запускаемся от root, чтобы иметь запись в bind-монтируемый /app.
+    # Продовый контейнер по-прежнему бежит как non-root (см. Dockerfile).
+    user: "0:0"
+
     volumes:
       - ../backend:/app
+
     environment:
       DJANGO_DEBUG: "1"
-    command: ["bash","-lc","python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        set -e
+
+        # Жёсткий PATH (даже если исходный пуст), чтобы не повторить "mkdir: not found"
+        export PATH="/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
+
+        # Файлы будем создавать group-writeable (удобнее на общих томах)
+        umask 0002
+
+        # Гарантируем пакеты миграций (абсолютные пути, без завязки на PATH)
+        for a in users catalog nutrition orders; do
+          /bin/mkdir -p "./apps/${a}/migrations"
+          [ -f "./apps/${a}/migrations/__init__.py" ] || /usr/bin/touch "./apps/${a}/migrations/__init__.py"
+        done
+
+        # Самопроверка окружения (видно venv и версию Django)
+        python -m pip -V
+        python - <<'PY'
+        import django, sys
+        sys.stdout.write(f"Django {django.get_version()}\n")
+        PY
+
+        # Миграции
+        python manage.py makemigrations users --noinput || true
+        python manage.py makemigrations --noinput || true
+        python manage.py migrate --noinput
+
+        # Dev-сервер Django. В проде остаётся entrypoint + gunicorn.
+        exec python manage.py runserver 0.0.0.0:8000
 
   bot:
     volumes:
@@ -17,4 +54,3 @@ services:
     command: ["npm","run","dev","--","--host","0.0.0.0"]
     ports:
       - "5173:5173"
-

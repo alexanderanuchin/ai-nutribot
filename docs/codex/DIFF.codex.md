@@ -1,3 +1,19 @@
+## 2025-11-15 – codex/infra/container-hardening (pending)
+
+**Summary:** Hardened runtime containers for backend, bot, and frontend services with multi-stage builds, non-root execution, explicit health probes, and compose alignment for venv usage.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/Dockerfile | Adopt multi-stage build with isolated venv, non-root user, dedicated runtime dir, and resilient health probe fallback between `/healthz` and `/metrics`. | Backend infra | Yes (rebuild backend image) |
+| modify | backend/entrypoint.sh | Ensure POSIX sh compatibility, prefer `/opt/venv/bin`, and invoke manage.py commands via absolute interpreter. | Backend runtime | Yes (rebuild backend image) |
+| modify | bot/Dockerfile | Introduce multi-stage build, copy venv, drop root privileges, and wire Python healthcheck module. | Bot infra | Yes (rebuild bot image) |
+| modify | bot/config.py | Prefer `BACKEND_API_URL` while keeping legacy aliases for backward compatibility. | Bot config | Bot restart |
+| create | bot/healthcheck.py | Provide HTTP health probe that validates backend availability for Docker HEALTHCHECK. | Bot ops | Bot restart |
+| modify | frontend/Dockerfile | Split dependency install/runtime, run dev server as non-root, and add curl-based health probe. | Frontend dev infra | Yes (rebuild frontend image) |
+| modify | infra/docker-compose.yml | Invoke Celery via `/opt/venv/bin`, add explicit beat schedule path under `/app/run`, and pass `BOT_HEALTHCHECK_URL` for explicit probe target. | Compose | Restart celery/bot |
+| modify | docs/codex/CHANGELOG.codex.md | Reference container hardening milestone for traceability. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Log container hardening artefacts per Codex journal policy. | Docs | No |
+
 ## 2025-11-08 – codex/docs/full-audit (pending)
 
 **Summary:** Recorded repository-wide security & quality audit baseline and published CODEX_AUDIT_REPORT.

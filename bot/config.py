@@ -8,11 +8,28 @@ from typing import Iterable, Tuple
 _DEF_BACKEND = "http://backend:8000"
 
 
+_DEF_API_KEYS = (
+    "BACKEND_API_URL",
+    "BACKEND_BASE_URL",
+    "API_BASE",
+    "BACKEND_URL",
+)
+
+
 def _clean_backend_url(raw: str | None) -> str:
     value = (raw or "").strip().rstrip("/")
     if value.endswith("/api"):
         value = value[:-4]
     return value or _DEF_BACKEND
+
+
+def resolve_backend_url() -> str:
+    for key in _DEF_API_KEYS:
+        candidate = os.getenv(key)
+        value = _clean_backend_url(candidate)
+        if value != _DEF_BACKEND or candidate:
+            return value
+    return _DEF_BACKEND
 
 
 def _parse_admin_ids(raw: str | None) -> Tuple[int, ...]:
@@ -46,11 +63,7 @@ class Config:
     def load(cls) -> "Config":
         token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or ""
         bot_key = os.getenv("BOT_KEY") or os.getenv("BOT_INTERNAL_KEY") or "super-secret-bot-key"
-        backend_base_url = _clean_backend_url(
-            os.getenv("BACKEND_BASE_URL")
-            or os.getenv("API_BASE")
-            or os.getenv("BACKEND_URL")
-        )
+        backend_base_url = resolve_backend_url()
         webapp_url = os.getenv("WEBAPP_URL", "http://localhost:5173/")
         bot_username = os.getenv("BOT_USERNAME") or os.getenv("TELEGRAM_BOT_USERNAME") or ""
         throttle_limit = int(os.getenv("BOT_THROTTLE_LIMIT", "3"))
@@ -68,4 +81,4 @@ class Config:
         )
 
 
-__all__ = ["Config"]
+__all__ = ["Config", "resolve_backend_url", "_DEF_BACKEND", "_DEF_API_KEYS", "_clean_backend_url"]
