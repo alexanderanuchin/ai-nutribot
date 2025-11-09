@@ -1,3 +1,18 @@
+## 2025-11-09 – codex/security/dependency-refresh (pending)
+
+**Summary:** Regenerated backend/bot lock files and upgraded the frontend build toolchain (Vite 6.4 + Vitest 4) to clear pip/npm audit findings while enforcing Node 20.19+ runtime support.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/requirements.txt | Raise `djangorestframework-simplejwt` to the patched 5.5 series for JWT security fixes. | Backend deps | Yes (rebuild backend image) |
+| create | backend/requirements.lock | Capture deterministic backend dependency graph via `pip-compile`. | Backend deps | Yes (rebuild backend image) |
+| modify | bot/requirements.txt | Bump `aiohttp` to 3.12 for upstream CVE remediation. | Bot deps | Yes (rebuild bot image) |
+| create | bot/requirements.lock | Lock bot dependencies for reproducible deploys. | Bot deps | Yes (rebuild bot image) |
+| modify | frontend/package.json | Enforce Node 20.19+/22 engines and upgrade Vite/vitest/react tooling to vulnerability-free releases. | Frontend build | npm install |
+| modify | frontend/package-lock.json | Refresh lock graph after dependency upgrades. | Frontend build | npm install |
+| modify | docs/codex/CHANGELOG.codex.md | Log dependency refresh milestone per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record dependency security refresh artefacts for traceability. | Docs | No |
+
 ## 2025-11-15 – codex/infra/container-hardening (pending)
 
 **Summary:** Hardened runtime containers for backend, bot, and frontend services with multi-stage builds, non-root execution, explicit health probes, and compose alignment for venv usage.

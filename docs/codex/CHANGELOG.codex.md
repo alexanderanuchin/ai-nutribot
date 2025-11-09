@@ -1,3 +1,7 @@
+## 2025-11-09 – Dependency security refresh (pending)
+
+- Regenerated Python lock files and raised the frontend toolchain (Vite 6.4 + Vitest 4) to clear pip/npm audits. See [DIFF 2025-11-09](./DIFF.codex.md#2025-11-09--codexsecuritydependency-refresh-pending).
+
 ## 2025-11-15 – Container hardening (pending)
 
 - Hardened backend, bot, and frontend containers with multi-stage builds, non-root execution, and health probes, and refined backend health/migration bootstrap for stability. See [DIFF 2025-11-15](./DIFF.codex.md#2025-11-15--codexinfracontainer-hardening-pending).
