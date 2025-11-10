@@ -30,8 +30,8 @@ export function SegmentedControl({
       value={value}
       onValueChange={onValueChange}
       className={clsx(
-        'inline-flex items-center gap-1 rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1',
-        wrap && 'flex-wrap',
+        wrap ? 'flex w-full max-w-full flex-wrap' : 'inline-flex',
+        'items-center gap-1 rounded-2xl border border-border/70 bg-card/80 p-1 shadow-level-1',
         className,
       )}
       aria-label="Переключатель сортировки"
@@ -41,7 +41,7 @@ export function SegmentedControl({
           key={option.value}
           value={option.value}
           className={clsx(
-            'flex min-h-[2.75rem] min-w-[3.25rem] items-center justify-center rounded-xl px-3 py-1.5 text-sm font-semibold text-muted-foreground transition data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-level-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex min-h-[2.75rem] min-w-[3.25rem] items-center justify-center whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-semibold text-muted-foreground transition data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-level-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             itemClassName,
           )}
         >
