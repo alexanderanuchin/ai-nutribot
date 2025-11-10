@@ -1,3 +1,6 @@
+import react from 'eslint-plugin-react'
+import reactHooks from 'eslint-plugin-react-hooks'
+import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 const colorLiteralMessage =
@@ -8,14 +11,36 @@ export default [
     ignores: ['dist', 'node_modules'],
   },
   {
-    files: ['src/**/*.{ts,tsx}'],
+    files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: {
+        ecmaFeatures: { jsx: true },
         ecmaVersion: 'latest',
         sourceType: 'module',
-        ecmaFeatures: { jsx: true },
       },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.jest,
+        ...globals.vitest,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tseslint.plugin,
+      react,
+      'react-hooks': reactHooks,
+    },
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
+    rules: {
+      'react/jsx-uses-react': 'off',
+      'react/react-in-jsx-scope': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'off',
     },
   },
   {
@@ -24,7 +49,8 @@ export default [
       'no-restricted-syntax': [
         'error',
         {
-          selector: "Literal[value=/^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/]",
+          selector:
+            "Literal[value=/^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/]",
           message: colorLiteralMessage,
         },
         {
@@ -36,7 +62,8 @@ export default [
           message: colorLiteralMessage,
         },
         {
-          selector: 'TemplateLiteral[expressions.length=0][quasis.0.value.raw=/#[0-9A-Fa-f]{3,8}/]',
+          selector:
+            'TemplateLiteral[expressions.length=0][quasis.0.value.raw=/#[0-9A-Fa-f]{3,8}/]',
           message: colorLiteralMessage,
         },
         {
@@ -51,4 +78,3 @@ export default [
     },
   },
 ]
-

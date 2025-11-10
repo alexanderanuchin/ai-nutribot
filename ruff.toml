@@ -1,17 +1,28 @@
-[tool.ruff]
 line-length = 100
 indent-width = 4
 target-version = "py311"
+extend-exclude = [
+  "backend/apps/migrations",
+]
+respect-gitignore = true
 
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+[lint]
+select = [
+  "E",
+  "F",
+  "I",
+  "UP",
+]
 ignore = []
 fixable = ["ALL"]
 
-[tool.ruff.lint.isort]
-known-first-party = ["apps", "nutribot"]
+[lint.isort]
+known-first-party = ["apps", "bot", "nutribot"]
 
-[tool.ruff.format]
+[lint.per-file-ignores]
+"backend/apps/**/migrations/*.py" = ["ALL"]
+
+[format]
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"

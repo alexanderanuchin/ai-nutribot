@@ -1,3 +1,26 @@
+## 2025-11-17 – codex/infra/lint-style (pending)
+
+**Summary:** Unified Python and frontend lint/format configurations by introducing Ruff-wide
+exclusions and React-aware ESLint/Prettier setup to standardise code style enforcement across the
+monorepo.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | ruff.toml | Extend Ruff to cover backend/bot modules with shared exclusions and
+formatting defaults. | Python linting | No |
+| modify | frontend/eslint.config.mjs | Adopt flat ESLint config with React/hook plugins and
+shared env defaults. | Frontend linting | No |
+| create | frontend/prettier.config.mjs | Provide Prettier formatting baseline aligned with project
+print width and quoting style. | Frontend formatting | No |
+| modify | frontend/package.json | Wire unified lint/format scripts and add globals dependency for
+lint config. | Frontend tooling | npm install |
+| modify | frontend/package-lock.json | Lock updated dev dependency graph after lint tooling
+changes. | Frontend tooling | npm install |
+| modify | docs/codex/CHANGELOG.codex.md | Record lint/style consolidation milestone per Codex
+changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append traceability entry for lint/style standardisation. |
+Docs | No |
+
 ## 2025-11-16 – codex/infra/ci-workflow (pending)
 
 **Summary:** Introduced GitHub Actions CI pipeline with cached security audits and frontend/backend quality checks on Python 3.12 and Node 22 runners.
