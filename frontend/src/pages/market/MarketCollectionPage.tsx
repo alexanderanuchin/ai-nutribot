@@ -290,7 +290,7 @@ function MobileSummaryBar({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 flex items-start gap-3 border-t border-border/70 bg-card/95 px-4 py-3 shadow-level-3 backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex items-start justify-between gap-3 rounded-t-2xl border border-border/70 bg-card/95 px-4 py-3 shadow-level-3 backdrop-blur lg:hidden box-border max-w-[100vw] [overflow-x:clip]"
       style={{ paddingBottom: `calc(${safeArea.bottom}px + 0.75rem)` }}
     >
       <div className="flex flex-col gap-1">

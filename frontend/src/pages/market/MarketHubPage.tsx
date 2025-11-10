@@ -104,14 +104,14 @@ export function MarketHubPage() {
       </MarketPageHeader>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h2 className="text-headline font-semibold text-foreground">Готовые программы питания</h2>
             <p className="text-sm text-muted-foreground">
               Сборник планов от нутрициологов с AI-подсказками — стартуйте за пару минут.
             </p>
           </div>
-          <Link to="/market/meal-plans" className={ghostLinkClass}>
+          <Link to="/market/meal-plans" className={`${ghostLinkClass} shrink-0`}>
             Все программы
             <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -119,7 +119,7 @@ export function MarketHubPage() {
         {mealPlansQuery.isLoading ? (
           <MarketListSkeleton variant="recipes" count={3} />
         ) : mealPlansQuery.data?.results?.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {mealPlansQuery.data.results.map((plan: MealPlan) => (
               <MealPlanCard key={plan.id} plan={plan} to={`/market/meal-plans/${plan.id}`} />
             ))}
@@ -132,12 +132,12 @@ export function MarketHubPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h2 className="text-headline font-semibold text-foreground">{MARKET_RESOURCE_TITLE.recipes}</h2>
             <p className="text-sm text-muted-foreground">{MARKET_RESOURCE_DESCRIPTION.recipes}</p>
           </div>
-          <Link to="/market/recipes" className={ghostLinkClass}>
+          <Link to="/market/recipes" className={`${ghostLinkClass} shrink-0`}>
             Все рецепты
             <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -145,7 +145,7 @@ export function MarketHubPage() {
         {recipesQuery.isLoading ? (
           <MarketListSkeleton variant="recipes" count={3} />
         ) : recipesQuery.data?.items?.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {recipesQuery.data.items.map(item => (
               <RecipeCard key={item.id} item={item} />
             ))}
@@ -158,12 +158,12 @@ export function MarketHubPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h2 className="text-headline font-semibold text-foreground">{MARKET_RESOURCE_TITLE.products}</h2>
             <p className="text-sm text-muted-foreground">{MARKET_RESOURCE_DESCRIPTION.products}</p>
           </div>
-          <Link to="/market/products" className={ghostLinkClass}>
+          <Link to="/market/products" className={`${ghostLinkClass} shrink-0`}>
             Все товары
             <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
           </Link>
@@ -171,7 +171,7 @@ export function MarketHubPage() {
         {productsQuery.isLoading ? (
           <MarketListSkeleton variant="products" count={3} />
         ) : productsQuery.data?.items?.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {productsQuery.data.items.map(item => (
               <ProductCard key={item.id} item={item} />
             ))}
@@ -184,12 +184,12 @@ export function MarketHubPage() {
       </section>
 
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
             <h2 className="text-headline font-semibold text-foreground">{MARKET_RESOURCE_TITLE.stores}</h2>
             <p className="text-sm text-muted-foreground">{MARKET_RESOURCE_DESCRIPTION.stores}</p>
           </div>
-          <Link to="/market/stores" className={ghostLinkClass}>
+          <Link to="/market/stores" className={`${ghostLinkClass} shrink-0`}>
             Все магазины
             <ArrowRightIcon className="h-4 w-4" aria-hidden="true" />
           </Link>

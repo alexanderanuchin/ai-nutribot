@@ -69,7 +69,7 @@ export function WalletBadge({ className }: WalletBadgeProps) {
             </Dialog.Overlay>
             <Dialog.Content asChild>
               <motion.div
-                className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md rounded-t-3xl border border-border/80 bg-background/98 shadow-2xl"
+                className="fixed inset-x-0 bottom-0 z-50 mx-auto rounded-t-3xl border border-border/80 bg-background/98 shadow-2xl box-border max-w-[100vw] [overflow-x:clip]"
                 style={safeArea}
                 initial={{ y: '100%' }}
                 animate={{ y: 0 }}

@@ -20,7 +20,8 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 shadow-2xl backdrop-blur-xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 shadow-2xl backdrop-blur-xl lg:hidden
+                  box-border max-w-[100vw] [overflow-x:clip]"
       style={safeArea}
     >
       <div className="relative flex items-center justify-around gap-2">
@@ -48,7 +49,7 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
           <Dialog.Trigger asChild>
             <motion.button
               type="button"
-              className="absolute top-[-3.5rem] left-[1rem] inline-flex h-fit w-fit -translate-x-1/2 items-center justify-center rounded-full bg-transparent text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary p-0"
+              className="absolute -top-14 left-4 inline-flex h-fit w-fit translate-x-0 items-center justify-center rounded-full bg-transparent text-primary-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary p-0"
               aria-label="AI быстрые действия"
               whileTap={{ scale: 0.94 }}
               whileHover={{ scale: 1.05 }}
