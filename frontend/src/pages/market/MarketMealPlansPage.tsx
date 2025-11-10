@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { Loader2Icon, SparklesIcon } from 'lucide-react'
 
@@ -6,8 +6,10 @@ import { fetchMealPlans } from '../../features/meal-plans/api'
 import type { MealPlan } from '../../types/meal-plan'
 import MealPlanCard from '../../features/market/cards/MealPlanCard'
 import MarketPageHeader from '../../features/market/components/MarketPageHeader'
+import { MarketSummarySidebar, MarketSummaryMobileBar } from '../../features/market/components/MarketSummary'
 import { useDebouncedValue } from '../../hooks/useDebouncedValue'
 import { useSafeArea } from '../../hooks/useSafeArea'
+import { useMarketCheckout } from '../../features/market/hooks/useMarketCheckout'
 import { Badge, Button, Card, EmptyState, RangeSlider, SearchInput, SegmentedControl } from '../../components/ui'
 
 const GOAL_OPTIONS = [
@@ -53,6 +55,14 @@ function useMealPlanFilters() {
 export function MarketMealPlansPage() {
   const safeArea = useSafeArea({ inset: 0, edges: ['bottom'] })
   const filters = useMealPlanFilters()
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const { cartTotals, planTotals, insights, checkoutMode, handleCheckoutRub, handleCheckoutCalo } =
+    useMarketCheckout()
+  const handleScrollToFilters = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+  const handleFocusSearch = () => {
+    searchInputRef.current?.focus()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const queryKey = useMemo(
     () => [
@@ -119,119 +129,147 @@ export function MarketMealPlansPage() {
     filters.calories[1] < DEFAULT_CALORIE_RANGE[1]
 
   return (
-    <div className="flex flex-col gap-6" style={safeArea}>
-      <MarketPageHeader
-        title="Готовые программы питания"
-        description="Подборки рационов от нутрициологов и фитнес-кураторов: выберите цель, длительность и баланс калорий."
-        action={
-          query.data?.pages?.[0]?.count ? (
-            <Badge tone="primary">{query.data.pages[0].count.toLocaleString('ru-RU')} планов</Badge>
-          ) : null
-        }
-      />
+    <div className="flex flex-col gap-6 pb-28 lg:pb-20" style={safeArea}>
+      <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start xl:gap-8">
+        <div className="flex flex-col gap-6">
+          <MarketPageHeader
+            title="Готовые программы питания"
+            description="Подборки рационов от нутрициологов и фитнес-кураторов: выберите цель, длительность и баланс калорий."
+            action={
+              query.data?.pages?.[0]?.count ? (
+                <Badge tone="primary">{query.data.pages[0].count.toLocaleString('ru-RU')} планов</Badge>
+              ) : null
+            }
+          />
 
-      <Card className="flex flex-col gap-6 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-level-2">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-1 flex-col gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Поиск</span>
-            <SearchInput
-              value={filters.search}
-              onChange={event => filters.setSearch(event.target.value)}
-              onClear={() => filters.setSearch('')}
-              placeholder="Введите цель, ингредиент или описание"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-            <Button
-              variant="secondary"
-              size="sm"
-              className="w-full min-w-[10rem] sm:w-auto"
-              disabled={!hasActiveFilters}
-              onClick={handleResetFilters}
-            >
-              Сбросить фильтры
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Цель</span>
-            <SegmentedControl
-              value={filters.goal}
-              onValueChange={value => filters.setGoal(value ?? '')}
-              options={GOAL_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
-              wrap
-              className="w-full gap-2"
-              itemClassName="flex-1 basis-[calc(50%-0.5rem)] sm:basis-auto"
-            />
-          </div>
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Длительность</span>
-            <SegmentedControl
-              value={filters.duration}
-              onValueChange={value => filters.setDuration(value ?? '')}
-              options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
-              wrap
-              className="w-full gap-2"
-              itemClassName="flex-1 basis-[calc(50%-0.5rem)] sm:basis-auto"
-            />
-          </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Калорийность</span>
-              <span className="text-xs text-muted-foreground">
-                {filters.calories[0]} – {filters.calories[1]} ккал/день
-              </span>
+          <Card className="flex flex-col gap-6 rounded-3xl border border-border/70 bg-card/80 p-5 shadow-level-2">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-1 flex-col gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Поиск</span>
+                <SearchInput
+                  ref={searchInputRef}
+                  value={filters.search}
+                  onChange={event => filters.setSearch(event.target.value)}
+                  onClear={() => filters.setSearch('')}
+                  placeholder="Введите цель, ингредиент или описание"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="w-full min-w-[10rem] sm:w-auto"
+                  disabled={!hasActiveFilters}
+                  onClick={handleResetFilters}
+                >
+                  Сбросить фильтры
+                </Button>
+              </div>
             </div>
-            <RangeSlider
-              value={filters.calories}
-              onValueChange={value => filters.setCalories([value[0], value[1]])}
-              min={CALORIE_RANGE[0]}
-              max={CALORIE_RANGE[1]}
-              step={50}
-              className="px-1"
+
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              <div className="flex flex-col gap-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Цель</span>
+                <SegmentedControl
+                  value={filters.goal}
+                  onValueChange={value => filters.setGoal(value ?? '')}
+                  options={GOAL_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                  wrap
+                  className="w-full gap-2"
+                  itemClassName="flex-1 basis-[calc(50%-0.5rem)] sm:basis-auto"
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Длительность</span>
+                <SegmentedControl
+                  value={filters.duration}
+                  onValueChange={value => filters.setDuration(value ?? '')}
+                  options={DURATION_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                  wrap
+                  className="w-full gap-2"
+                  itemClassName="flex-1 basis-[calc(50%-0.5rem)] sm:basis-auto"
+                />
+              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-[0.3em] text-muted-foreground">Калорийность</span>
+                  <span className="text-xs text-muted-foreground">
+                    {filters.calories[0]} – {filters.calories[1]} ккал/день
+                  </span>
+                </div>
+                <RangeSlider
+                  value={filters.calories}
+                  onValueChange={value => filters.setCalories([value[0], value[1]])}
+                  min={CALORIE_RANGE[0]}
+                  max={CALORIE_RANGE[1]}
+                  step={50}
+                  className="px-1"
+                />
+              </div>
+            </div>
+          </Card>
+
+          {query.isLoading ? (
+            <div className="flex min-h-[16rem] items-center justify-center">
+              <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+            </div>
+          ) : query.isError ? (
+            <Card className="border-destructive/40 bg-destructive/10 p-5 text-destructive">
+              Не удалось загрузить программы питания. Попробуйте обновить страницу.
+            </Card>
+          ) : plans.length === 0 ? (
+            <EmptyState
+              title="Пока нет подходящих программ"
+              description="Измените фильтры или вернитесь позже — мы готовим новые подборки."
+              icon={<SparklesIcon className="h-6 w-6" aria-hidden="true" />}
             />
-          </div>
-        </div>
-      </Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {plans.map((plan: MealPlan) => (
+                <MealPlanCard key={plan.id} plan={plan} to={`/market/meal-plans/${plan.id}`} />
+              ))}
+            </div>
+          )}
 
-      {query.isLoading ? (
-        <div className="flex min-h-[16rem] items-center justify-center">
-          <Loader2Icon className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          {query.hasNextPage ? (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="secondary"
+                size="lg"
+                onClick={() => query.fetchNextPage()}
+                loading={query.isFetchingNextPage}
+              >
+                Показать ещё
+              </Button>
+            </div>
+          ) : null}
         </div>
-      ) : query.isError ? (
-        <Card className="border-destructive/40 bg-destructive/10 p-5 text-destructive">
-          Не удалось загрузить программы питания. Попробуйте обновить страницу.
-        </Card>
-      ) : plans.length === 0 ? (
-        <EmptyState
-          title="Пока нет подходящих программ"
-          description="Измените фильтры или вернитесь позже — мы готовим новые подборки."
-          icon={<SparklesIcon className="h-6 w-6" aria-hidden="true" />}
-        />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {plans.map((plan: MealPlan) => (
-            <MealPlanCard key={plan.id} plan={plan} to={`/market/meal-plans/${plan.id}`} />
-          ))}
-        </div>
-      )}
 
-      {query.hasNextPage ? (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="secondary"
-            size="lg"
-            onClick={() => query.fetchNextPage()}
-            loading={query.isFetchingNextPage}
-          >
-            Показать ещё
-          </Button>
-        </div>
-      ) : null}
+        <aside className="hidden xl:block xl:sticky xl:top-28">
+          <MarketSummarySidebar
+            cart={cartTotals}
+            plan={planTotals}
+            insights={insights}
+            onCheckoutRub={handleCheckoutRub}
+            onCheckoutCalo={handleCheckoutCalo}
+            checkoutMode={checkoutMode}
+          />
+        </aside>
+      </div>
+
+      <MarketSummaryMobileBar
+        cart={cartTotals}
+        plan={planTotals}
+        insights={insights}
+        onFilters={handleScrollToFilters}
+        onSearch={handleFocusSearch}
+        onCheckoutRub={handleCheckoutRub}
+        onCheckoutCalo={handleCheckoutCalo}
+        checkoutMode={checkoutMode}
+      />
     </div>
   )
+
 }
 
 export default MarketMealPlansPage

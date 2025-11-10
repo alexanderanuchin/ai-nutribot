@@ -97,6 +97,12 @@ export interface MealPlan {
 
 export type MealPlanListResponse = MarketPaginatedResponse<MealPlan>
 
+export interface MealPlanPurchaseResponse {
+  plan: MealPlan
+  wallet_transaction_id: number | null
+  price_stars: string
+}
+
 export interface MealPlanQueryParams {
   scope?: 'owned' | 'public'
   from?: string

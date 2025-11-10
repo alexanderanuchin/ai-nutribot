@@ -1,3 +1,7 @@
+## 2025-11-20 – Marketplace cart integration (pending)
+
+- Shared checkout logic and cart summaries across marketplace pages so programs support full purchases and the mobile cart bar clears the tab bar. See [DIFF 2025-11-20](./DIFF.codex.md#2025-11-20--codexfrontendmarket-cart-integration-pending).
+
 ## 2025-11-18 – Backend typing bootstrap (pending)
 
 - Wired mypy with Django/DRF stubs, annotated hot-path services, and exposed a `make typecheck`

@@ -1,3 +1,18 @@
+## 2025-11-20 – codex/frontend/market-cart-integration (pending)
+
+**Summary:** Unified marketplace checkout state, restored the cart summary on the meal plan programs page, and lifted the mobile cart bar above the tab bar for consistent purchasing across sections.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | frontend/src/features/market/hooks/useMarketCheckout.ts | Centralise cart totals, wallet logic, and checkout mutations for reuse across marketplace pages. | Frontend UX | No |
+| create | frontend/src/features/market/components/MarketSummary.tsx | Share desktop/mobile cart & plan summary UI between catalogue screens. | Frontend UX | No |
+| modify | frontend/src/pages/market/MarketCollectionPage.tsx | Consume the shared checkout hook and summary components to simplify state and keep behaviour consistent. | Frontend UX | No |
+| modify | frontend/src/pages/market/MarketMealPlansPage.tsx | Add cart summary controls, refocusable search, and responsive layout so programs support end-to-end purchase flows. | Frontend UX | No |
+| modify | frontend/src/features/market/constants.ts | Refresh the programs navigation description to highlight expert-curated plans. | Frontend UX | No |
+| modify | frontend/src/components/nav/MobileTabBar.tsx | Measure and expose tab bar height so floating cart bars clear the mobile navigation. | Frontend UX | No |
+| modify | docs/codex/DIFF.codex.md | Log cart integration updates per Codex audit policy. | Docs | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the marketplace cart integration milestone. | Docs | No |
+
 ## 2025-11-19 – codex/frontend/navdrawer-theming (pending)
 
 **Summary:** Normalised light-theme colours for the mobile navigation drawer so inactive buttons keep the intended neutral text tone while hovering and focusing.

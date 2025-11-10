@@ -5,6 +5,7 @@ import type {
   MealPlanItem,
   MealPlanItemPayload,
   MealPlanListResponse,
+  MealPlanPurchaseResponse,
   MealPlanQueryParams,
   MealPlanUpdatePayload,
 } from '../../types/meal-plan'
@@ -89,6 +90,11 @@ export async function updateMealPlan(planId: number, payload: MealPlanUpdatePayl
 
 export async function deleteMealPlan(planId: number): Promise<void> {
   await api.delete(`/v1/market/meal-plans/${planId}/`)
+}
+
+export async function purchaseMealPlan(planId: number): Promise<MealPlanPurchaseResponse> {
+  const { data } = await api.post<MealPlanPurchaseResponse>(`/v1/market/meal-plans/${planId}/purchase/`)
+  return data
 }
 
 function normalizeItemPayload(payload: MealPlanItemPayload) {

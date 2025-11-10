@@ -19,29 +19,23 @@ vi.mock('../../features/market/hooks/useMarketEvents', () => ({
   useMarketEvents: () => undefined,
 }))
 
-const cartTotals = { count: 0, quantity: 0, amount: 0, currency: null }
-const cartStoreState = {
-  ...cartTotals,
-  items: {},
-  hydrated: true,
-  serverCart: null as { id: number; storeId: number; currency: string } | null,
-  clear: vi.fn(),
-  setServerCart: vi.fn(),
+const checkoutMock = {
+  cartTotals: { count: 0, quantity: 0, amount: 0, currency: null },
+  planTotals: { count: 0, servings: 0, calories: 0 },
+  insights: {
+    caloEquivalent: null,
+    caloRate: null,
+    caloBalance: null,
+    canPayWithCalo: false,
+    canCheckout: false,
+  },
+  checkoutMode: null as 'rub' | 'calo' | null,
+  handleCheckoutRub: vi.fn(),
+  handleCheckoutCalo: vi.fn(),
 }
-const planTotals = { count: 0, servings: 0, calories: 0 }
 
-vi.mock('../../features/market/stores/cartStore', () => ({
-  useMarketCartStore: (selector?: (state: typeof cartStoreState) => unknown) => {
-    return selector ? selector(cartStoreState) : cartStoreState
-  },
-  selectCartTotals: () => cartTotals,
-}))
-
-vi.mock('../../features/market/stores/planStore', () => ({
-  useMarketPlanStore: (selector?: (state: typeof planTotals) => unknown) => {
-    return selector ? selector(planTotals) : planTotals
-  },
-  selectPlanTotals: () => planTotals,
+vi.mock('../../features/market/hooks/useMarketCheckout', () => ({
+  useMarketCheckout: () => checkoutMock,
 }))
 
 describe('MarketCollectionPage mobile filters', () => {

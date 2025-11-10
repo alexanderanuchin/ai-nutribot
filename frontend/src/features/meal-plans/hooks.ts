@@ -7,6 +7,7 @@ import {
   deleteMealPlanItem,
   fetchMealPlan,
   fetchMealPlans,
+  purchaseMealPlan,
   updateMealPlan,
   updateMealPlanItem,
 } from './api'
@@ -16,6 +17,7 @@ import type {
   MealPlanItem,
   MealPlanItemPayload,
   MealPlanListResponse,
+  MealPlanPurchaseResponse,
   MealPlanQueryParams,
   MealPlanUpdatePayload,
 } from '../../types/meal-plan'
@@ -105,6 +107,30 @@ export function useDeleteMealPlanMutation(
       if (options?.onSuccess) {
         options.onSuccess(_result, planId, context)
       }
+    },
+    ...options,
+  })
+}
+
+export function usePurchaseMealPlanMutation(
+  planId: number,
+  options?: UseMutationOptions<MealPlanPurchaseResponse, unknown, void>,
+) {
+  const queryClient = useQueryClient()
+  return useMutation<MealPlanPurchaseResponse, unknown, void>({
+    mutationFn: () => purchaseMealPlan(planId),
+    onSuccess: (response, variables, context) => {
+      // Обновить кэш детали
+      queryClient.setQueryData(mealPlanKeys.detail(planId), response.plan)
+      // И обновить кэш списков
+      queryClient.setQueriesData<MealPlanListResponse>({ queryKey: mealPlanKeys.lists() }, previous => {
+        if (!previous) return previous
+        return {
+          ...previous,
+          results: previous.results.map(item => (item.id === response.plan.id ? response.plan : item)),
+        }
+      })
+      options?.onSuccess?.(response, variables, context)
     },
     ...options,
   })

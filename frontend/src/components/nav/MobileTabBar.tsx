@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import * as Dialog from '@radix-ui/react-dialog'
 import Lottie from 'lottie-react'
@@ -17,9 +17,41 @@ export function MobileTabBar({ onOpenCommand }: MobileTabBarProps) {
   const { isItemActive } = useActiveRoute()
   const safeArea = useSafeArea({ inset: 12, edges: ['bottom', 'left', 'right'] })
   const [fabOpen, setFabOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined
+    }
+    const node = containerRef.current
+    if (!node) {
+      return undefined
+    }
+    const updateHeight = () => {
+      const height = node.getBoundingClientRect().height
+      document.documentElement.style.setProperty('--mobile-tab-bar-height', `${height}px`)
+    }
+    updateHeight()
+    const resizeObserver = 'ResizeObserver' in window ? new ResizeObserver(() => updateHeight()) : null
+    if (resizeObserver) {
+      resizeObserver.observe(node)
+    }
+    window.addEventListener('resize', updateHeight)
+    window.addEventListener('orientationchange', updateHeight)
+    return () => {
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      }
+      window.removeEventListener('resize', updateHeight)
+      window.removeEventListener('orientationchange', updateHeight)
+      document.documentElement.style.removeProperty('--mobile-tab-bar-height')
+    }
+  }, [])
+
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 shadow-2xl backdrop-blur-xl lg:hidden
                   box-border max-w-[100vw] [overflow-x:clip]"
       style={safeArea}

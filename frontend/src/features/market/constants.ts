@@ -36,7 +36,7 @@ export const MARKET_SECTIONS: Array<{
   {
     id: 'mealplans',
     label: 'Программы',
-    description: 'Готовые планы питания',
+    description: 'Планы от нутрициологов',
     to: '/market/meal-plans',
   },
   {

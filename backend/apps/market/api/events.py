@@ -1,91 +1,104 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+import time
+from typing import Generator, List, Optional, Sequence
 
-from django.http import StreamingHttpResponse
-from rest_framework import permissions
-from rest_framework.exceptions import AuthenticationFailed, ValidationError
+from django.http import StreamingHttpResponse, HttpRequest, HttpResponse
+from django.utils.encoding import force_str
+
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
+from rest_framework import status
+from rest_framework.response import Response
 
-from apps.feed.authentication import authenticate_access_token, extract_token_from_request
-from apps.feed.events import FeedEvent, format_sse, get_event_broker
-from apps.common.renderers import EventStreamRenderer
-from nutribot.middleware import get_request_id
+from apps.feed.authentication import extract_token_from_request, authenticate_access_token
+from apps.feed.events import get_event_broker, format_sse
 
-logger = logging.getLogger("market.api.events")
+logger = logging.getLogger(__name__)
 
+# Supported marketplace resources and their event group names
 RESOURCE_TO_GROUP = {
     "recipes": "market.recipes",
     "products": "market.products",
     "stores": "market.stores",
 }
+DEFAULT_GROUPS: Sequence[str] = tuple(RESOURCE_TO_GROUP.values())
+KEEPALIVE_EVENT = "market.keepalive"
+
+
+def _resolve_groups(resource_param: Optional[str]) -> List[str]:
+    if not resource_param:
+        return list(DEFAULT_GROUPS)
+    resource = resource_param.strip().lower()
+    if resource not in RESOURCE_TO_GROUP:
+        return list(DEFAULT_GROUPS)
+    return [RESOURCE_TO_GROUP[resource]]
+
+
+def _market_event_stream(*, groups: Sequence[str], user_id: int) -> Generator[bytes, None, None]:
+    """Yield Server-Sent Events for given broker groups and user.
+    This function is careful to never raise inside the generator to avoid 500s.
+    """
+    # Initial reconnection advice for the client (5s)
+    yield f"retry: {5000}\n".encode("utf-8")
+    # Initial keepalive so the UI shows 'connected'
+    yield format_sse({}, event=KEEPALIVE_EVENT)
+
+    broker = None
+    subscription = None
+    try:
+        broker = get_event_broker()
+        subscription = broker.subscribe(groups=list(groups), user_id=user_id)
+        # Stream events
+        for event in broker.iter_events(subscription):
+            try:
+                event_name = getattr(event, "group", None) or KEEPALIVE_EVENT
+                payload = getattr(event, "payload", {}) or {}
+                yield format_sse(payload, event=force_str(event_name))
+            except Exception as exc:
+                logger.warning("market events: failed to format event: %s", exc, exc_info=True)
+    except Exception as exc:
+        # If broker fails (e.g., not configured), downgrade to periodic keepalives
+        logger.error("market events: broker unavailable: %s", exc, exc_info=True)
+        while True:
+            time.sleep(15)
+            yield format_sse({}, event=KEEPALIVE_EVENT)
+    finally:
+        try:
+            if broker and subscription is not None:
+                broker.unsubscribe(subscription)
+        except Exception:
+            pass
 
 
 class MarketEventStreamView(APIView):
-    """Proxy SSE endpoint exposing marketplace events."""
+    """SSE endpoint for marketplace realtime events.
 
-    permission_classes = [permissions.AllowAny]
-    authentication_classes: list[type] = []
-    renderer_classes = [EventStreamRenderer]
+    Usage (browser EventSource):
+        GET /api/v1/market/events/?token=<JWT>&resource=recipes
+    """
+    permission_classes = [AllowAny]  # We'll authenticate manually using the ?token param
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request: HttpRequest) -> HttpResponse:
+        # 1) Authenticate from query/header
         token = extract_token_from_request(request)
         if not token:
-            raise AuthenticationFailed("Authentication credentials were not provided.")
-        user = authenticate_access_token(token)
-        request.user = user
+            return Response({"detail": "Missing access token"}, status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            user = authenticate_access_token(token)
+        except Exception as exc:
+            logger.info("market events: invalid token: %s", exc)
+            return Response({"detail": "Invalid token"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        resource = request.query_params.get("resource")
-        if resource:
-            if resource not in RESOURCE_TO_GROUP:
-                raise ValidationError({"resource": "Unsupported resource"})
-            group_filter = RESOURCE_TO_GROUP[resource]
-        else:
-            group_filter = None
+        # 2) Resolve target event groups
+        groups = _resolve_groups(request.GET.get("resource"))
 
-        broker = get_event_broker()
-        subscriber_id, queue = broker.subscribe()
-        rid = getattr(request, "request_id", get_request_id())
-
-        logger.info(
-            "market events stream subscribed",
-            extra={
-                "rid": rid,
-                "user_id": user.id,
-                "subscriber_id": subscriber_id,
-                "resource": resource or "*",
-            },
-        )
-
-        def event_stream() -> Iterable[bytes]:
-            try:
-                yield b":ok\n\n"
-                for event in broker.iter_events(queue):
-                    group_name = event.group_name
-                    if group_name == "feed.keepalive":
-                        keepalive = FeedEvent(group_name="market.keepalive", payload=event.payload)
-                        yield from format_sse(keepalive)
-                        continue
-                    if not group_name.startswith("market."):
-                        continue
-                    if group_filter and group_name != group_filter:
-                        continue
-                    yield from format_sse(event)
-            finally:
-                broker.unsubscribe(subscriber_id)
-                logger.debug(
-                    "market events stream disconnected",
-                    extra={
-                        "rid": rid,
-                        "user_id": user.id,
-                        "subscriber_id": subscriber_id,
-                        "resource": resource or "*",
-                    },
-                )
-
-        response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+        # 3) Build streaming response
+        stream = _market_event_stream(groups=groups, user_id=getattr(user, "id", 0))
+        response = StreamingHttpResponse(stream, content_type="text/event-stream; charset=utf-8", status=200)
+        # Hardening / buffering control for proxies
         response["Cache-Control"] = "no-cache"
-        response["Connection"] = "keep-alive"
         response["X-Accel-Buffering"] = "no"
+        response["Connection"] = "keep-alive"
         return response
