@@ -1,3 +1,12 @@
+## 2025-11-19 – codex/frontend/navdrawer-theming (pending)
+
+**Summary:** Normalised light-theme colours for the mobile navigation drawer so inactive buttons keep the intended neutral text tone while hovering and focusing.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/nav/NavDrawer.tsx | Force neutral text colours for inactive drawer links to avoid primary-colour bleed on light theme hovers. | Frontend UX | No |
+| modify | docs/codex/DIFF.codex.md | Log navigation drawer colour fix per Codex audit policy. | Docs | No |
+
 ## 2025-11-18 – codex/infra/mypy-bootstrap (pending)
 
 **Summary:** Enabled mypy with Django-aware stubs, tightened typing around logging/ETL utilities,

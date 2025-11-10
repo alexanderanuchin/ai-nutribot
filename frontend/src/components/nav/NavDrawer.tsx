@@ -134,7 +134,7 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
                               'flex items-center gap-3 rounded-2xl border px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
                               active
                                 ? 'border-primary/70 bg-primary/10 text-primary'
-                                : 'border-transparent bg-transparent hover:border-border/70 hover:bg-muted/10',
+                                : 'border-transparent bg-transparent text-foreground hover:border-border/70 hover:bg-muted/10 hover:text-foreground focus-visible:text-foreground',
                             )}
                             aria-current={active ? 'page' : undefined}
                           >
@@ -160,21 +160,21 @@ export function NavDrawer({ open, onOpenChange, onLogout }: NavDrawerProps) {
                           {section.items.map(item => {
                             const active = isItemActive(item)
                             const Icon = item.icon
-                            return (
-                              <AppLink
-                                key={item.id}
-                                to={item.path ?? '#'}
-                                onClick={() => onOpenChange(false)}
-                                className={clsx(
-                                  'flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
-                                  active
-                                    ? 'border-primary/70 bg-primary/10 text-primary'
-                                    : 'border-transparent bg-transparent hover:border-border/60 hover:bg-muted/10',
-                                )}
-                                aria-current={active ? 'page' : undefined}
-                              >
-                                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/20 text-muted-foreground">
-                                  <Icon className="h-4 w-4" aria-hidden="true" />
+                          return (
+                            <AppLink
+                              key={item.id}
+                              to={item.path ?? '#'}
+                              onClick={() => onOpenChange(false)}
+                              className={clsx(
+                                'flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
+                                active
+                                  ? 'border-primary/70 bg-primary/10 text-primary'
+                                  : 'border-transparent bg-transparent text-foreground hover:border-border/60 hover:bg-muted/10 hover:text-foreground focus-visible:text-foreground',
+                              )}
+                              aria-current={active ? 'page' : undefined}
+                            >
+                              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/20 text-muted-foreground">
+                                <Icon className="h-4 w-4" aria-hidden="true" />
                                 </span>
                                 <div className="flex flex-col">
                                   <span className="font-medium text-foreground">{item.label}</span>
