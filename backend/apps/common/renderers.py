@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Mapping
 
 from rest_framework.renderers import BaseRenderer
 
@@ -18,7 +18,7 @@ class EventStreamRenderer(BaseRenderer):
         self,
         data: Any,
         accepted_media_type: str | None = None,
-        renderer_context: dict[str, Any] | None = None,
+        renderer_context: Mapping[str, Any] | None = None,
     ) -> bytes:  # pragma: no cover - streaming bypasses rendering
         if data is None:
             return b""

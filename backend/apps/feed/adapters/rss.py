@@ -82,7 +82,7 @@ def _pick_first(entry: Any, *keys: str, default: str | None = None) -> str | Non
     for key in keys:
         value = entry.get(key)
         if value:
-            return value
+            return str(value)
     return default
 
 

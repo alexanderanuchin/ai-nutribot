@@ -30,6 +30,16 @@ Menu generation tasks are executed by Celery. Ensure Redis is running (see `REDI
 USE_SQLITE=1 celery -A nutribot worker -l info -Q nutrition,celery
 ```
 
+## Static typing
+
+Run the focused mypy suite against the Django infrastructure and ETL/service helpers:
+
+```
+make typecheck
+```
+
+The target pre-configures `PYTHONPATH` and debug-friendly secrets so the checks can run without extra environment setup.
+
 The nutrition endpoints rely on the following environment variables:
 
 - `REDIS_URL` — broker/result backend for Celery (defaults to `redis://redis:6379/0`).

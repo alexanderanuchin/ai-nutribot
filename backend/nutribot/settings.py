@@ -3,7 +3,7 @@ import os
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, cast
 
 from corsheaders.defaults import default_headers
 from kombu import Exchange, Queue
@@ -276,7 +276,7 @@ if JAZZMIN_AVAILABLE:  # pragma: no cover - optional skin
     }
 
 
-def _load_feed_sources() -> list[dict]:
+def _load_feed_sources() -> list[dict[str, object]]:
     raw_value = os.getenv("FEED_INGESTION_SOURCES", "[]")
     if not raw_value:
         return []
@@ -286,7 +286,7 @@ def _load_feed_sources() -> list[dict]:
         raise RuntimeError("FEED_INGESTION_SOURCES must be a valid JSON array") from exc
     if not isinstance(data, list):  # pragma: no cover - configuration issue
         raise RuntimeError("FEED_INGESTION_SOURCES must be a JSON array")
-    return data
+    return cast(list[dict[str, object]], data)
 
 
 def _split_env_list(env_name: str, default: tuple[str, ...]) -> tuple[str, ...]:

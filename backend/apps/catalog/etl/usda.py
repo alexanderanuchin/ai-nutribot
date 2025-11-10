@@ -72,6 +72,17 @@ FISH_KEYWORDS: tuple[str, ...] = (
 )
 
 
+def _coerce_float(value: object) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
 @dataclass(frozen=True)
 class NutrientProfile:
     """A normalized view of macro nutrient information for a menu item."""
@@ -128,7 +139,7 @@ class USDAFoodExtractor:
         self.timeout = timeout
         self.user_agent = user_agent
 
-    def fetch(self) -> list[dict]:
+    def fetch(self) -> list[dict[str, object]]:
         request = Request(self.source_url, headers={"User-Agent": self.user_agent})
         try:
             with urlopen(request, timeout=self.timeout) as response:
@@ -141,9 +152,16 @@ class USDAFoodExtractor:
         except URLError as exc:
             raise RuntimeError("Failed to reach USDA dataset host") from exc
         try:
-            return json.loads(payload)
+            data = json.loads(payload)
         except json.JSONDecodeError as exc:
             raise RuntimeError("Received malformed USDA dataset JSON") from exc
+        if not isinstance(data, list):
+            raise RuntimeError("Unexpected USDA dataset format")
+        normalized: list[dict[str, object]] = []
+        for row in data:
+            if isinstance(row, dict):
+                normalized.append({str(key): value for key, value in row.items()})
+        return normalized
 
 
 class USDAFoodTransformer:
@@ -223,10 +241,8 @@ class USDAFoodTransformer:
                 continue
             description = str(nutrient.get("description") or "")
             units = str(nutrient.get("units") or "")
-            value = nutrient.get("value")
-            try:
-                numeric = float(value)
-            except (TypeError, ValueError):
+            numeric = _coerce_float(nutrient.get("value"))
+            if numeric is None:
                 continue
             if description == "Energy" and units == "kcal":
                 calories = numeric
@@ -472,7 +488,7 @@ class USDAFoodImporter:
                 "preview": preview,
             }
         created, updated = self.loader.load(items)
-        summary = {
+        summary: dict[str, object] = {
             "created": created,
             "updated": updated,
             "total": created + updated,

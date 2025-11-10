@@ -27,3 +27,7 @@ langdetect==1.0.*
 pytest==8.*
 pytest-django==4.*
 ruff==0.5.*
+mypy==1.13.*
+django-stubs==5.1.*
+djangorestframework-stubs==3.15.*
+django-stubs-ext==5.1.*

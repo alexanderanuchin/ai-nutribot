@@ -14,14 +14,22 @@ from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from django.conf import settings
 from django.core.asgi import get_asgi_application
+from typing import Any, Mapping
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nutribot.settings")
 
 django_asgi_app = get_asgi_application()
 
 if not settings.DEBUG:
-    default_layer = settings.CHANNEL_LAYERS.get("default", {})
-    backend_path = default_layer.get("BACKEND", "")
+    channel_layers = getattr(settings, "CHANNEL_LAYERS", {}) or {}
+    default_layer: Mapping[str, Any]
+    if isinstance(channel_layers, Mapping):
+        default_layer = channel_layers.get("default", {}) or {}
+    else:
+        default_layer = {}
+    backend_path = ""
+    if isinstance(default_layer, Mapping):
+        backend_path = str(default_layer.get("BACKEND", ""))
     if backend_path.endswith("InMemoryChannelLayer"):
         raise RuntimeError(
             "Redis channel layer must be configured in production. Set REDIS_URL."

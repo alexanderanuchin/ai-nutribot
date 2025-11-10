@@ -1,3 +1,8 @@
+## 2025-11-18 – Backend typing bootstrap (pending)
+
+- Wired mypy with Django/DRF stubs, annotated hot-path services, and exposed a `make typecheck`
+  target for reproducible checks. See [DIFF 2025-11-18](./DIFF.codex.md#2025-11-18--codexinframypy-bootstrap-pending).
+
 ## 2025-11-17 – Lint/style standardisation (pending)
 
 - Adopted shared Ruff excludes plus React-aware ESLint and Prettier configs for consistent

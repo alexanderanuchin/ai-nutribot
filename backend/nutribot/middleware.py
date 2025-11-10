@@ -8,7 +8,7 @@ import sys
 import time
 import uuid
 from contextvars import ContextVar
-from typing import Any, Dict
+from typing import Any, Callable, Literal
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
@@ -47,7 +47,7 @@ class JsonLogFormatter(logging.Formatter):
     """Simple JSON formatter that injects request id."""
 
     def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - logging
-        base: Dict[str, Any] = {
+        base: dict[str, object] = {
             "timestamp": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "name": record.name,
@@ -78,25 +78,27 @@ class ColoredConsoleFormatter(logging.Formatter):
     }
 
     def __init__(
-            self,
-            fmt: str | None = None,
-            datefmt: str | None = None,
-            style: str = "%",
-            use_color: bool | None = None,
-            format: str | None = None,
-            **kwargs: Any,
-    ):
+        self,
+        fmt: str | None = None,
+        datefmt: str | None = None,
+        style: Literal["%", "{", "$"] = "%",
+        use_color: bool | None = None,
+        format: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         if format and not fmt:
             fmt = format
-        super().__init__(fmt=fmt, datefmt=datefmt, style=style)
+        super().__init__(fmt=fmt, datefmt=datefmt, style=style, **kwargs)
         if use_color is None:
             handlers = getattr(logging.getLogger(), "handlers", [])
-            stream_obj = handlers[0].stream if handlers and hasattr(handlers[0], "stream") else None
+            stream_obj = (
+                handlers[0].stream if handlers and hasattr(handlers[0], "stream") else None
+            )
             if stream_obj and hasattr(stream_obj, "isatty"):
                 use_color = bool(stream_obj.isatty())
             else:
                 use_color = sys.stderr.isatty()
-        self.use_color = use_color
+        self.use_color = bool(use_color)
 
     def format(self, record: logging.LogRecord) -> str:  # pragma: no cover - logging cosmetics
         record.request_id = getattr(record, "request_id", get_request_id("-"))
@@ -121,7 +123,7 @@ class ColoredConsoleFormatter(logging.Formatter):
 class RequestIDMiddleware:
     """Ensure that every request has a correlation id and log safe metadata."""
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
         self.logger = logging.getLogger("audit.http")
         self.log_safe_headers = getattr(settings, "LOG_SAFE_HEADERS", True)
@@ -135,16 +137,16 @@ class RequestIDMiddleware:
         request.request_id = rid  # type: ignore[attr-defined]
 
         start = time.perf_counter()
-        request_snapshot: Dict[str, Any] | None = None
+        request_snapshot: dict[str, object] | None = None
         if self.log_safe_headers:
             request_snapshot = self._make_request_snapshot(request)
 
         try:
-            response = self.get_response(request)
+            response: HttpResponse = self.get_response(request)
         except Exception as exc:
             duration_ms = (time.perf_counter() - start) * 1000
             if self.log_safe_headers:
-                log_extra = {
+                log_extra: dict[str, object] = {
                     "rid": rid,
                     "request_id": rid,
                     "method": request.method,
@@ -183,9 +185,9 @@ class RequestIDMiddleware:
         _request_id_var.reset(token)
         return response
 
-    def _make_request_snapshot(self, request: HttpRequest) -> Dict[str, Any]:
+    def _make_request_snapshot(self, request: HttpRequest) -> dict[str, object]:
         headers = request.headers
-        snapshot: Dict[str, Any] = {
+        snapshot: dict[str, object] = {
             "authorization": summarize_header(headers.get("Authorization")),
             "telegram_init_data": summarize_header(headers.get("X-Telegram-Init-Data")),
             "idempotency_key": summarize_header(headers.get("Idempotency-Key")),

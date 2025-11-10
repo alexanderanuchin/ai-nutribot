@@ -1,3 +1,25 @@
+## 2025-11-18 – codex/infra/mypy-bootstrap (pending)
+
+**Summary:** Enabled mypy with Django-aware stubs, tightened typing around logging/ETL utilities,
+and added a reproducible `make typecheck` target for backend contributors.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/requirements.txt | Add mypy and Django/DRF stub packages for local installs. | Backend tooling | Reinstall backend deps |
+| modify | backend/requirements.lock | Regenerate lock file with type-checking dependencies. | Backend tooling | Reinstall backend deps |
+| modify | mypy.ini | Configure Django plugin, strict optional checks, and tuned follow-imports. | Backend typing | No |
+| modify | backend/nutribot/settings.py | Type-safe feed source loader for mypy coverage. | Backend config | No |
+| modify | backend/apps/feed/adapters/rss.py | Ensure helper returns canonical strings. | Backend services | No |
+| modify | backend/apps/catalog/etl/usda.py | Harden numeric parsing and summary typing for ETL. | Backend services | No |
+| modify | backend/nutribot/middleware.py | Annotate request logging middleware and formatters. | Backend infra | No |
+| modify | backend/nutribot/asgi.py | Guard channel layer lookup for type checking. | Backend infra | No |
+| modify | backend/apps/common/renderers.py | Align renderer override signature with DRF stubs. | Backend API | No |
+| modify | backend/apps/feed/events.py | Introduce typed feed event broker and payload protocol. | Backend services | No |
+| create | Makefile | Provide `make typecheck` helper wrapping mypy env wiring. | Developer ergonomics | No |
+| modify | backend/README.md | Document the new type checking workflow. | Docs | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record typing bootstrap milestone. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append traceability entry for mypy integration. | Docs | No |
+
 ## 2025-11-17 – codex/infra/lint-style (pending)
 
 **Summary:** Unified Python and frontend lint/format configurations by introducing Ruff-wide
