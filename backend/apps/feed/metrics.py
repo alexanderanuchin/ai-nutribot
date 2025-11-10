@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+# Храним типы как Any, чтобы mypy не ругался на вызовы конструкторов в строгом режиме,
+# когда prometheus_client отсутствует и подменяется no-op реализациями.
+_CounterType: Any
+_HistogramType: Any
+
 try:  # pragma: no cover - import fallback
-    from prometheus_client import Counter as _Counter
-    from prometheus_client import Histogram as _Histogram
+    from prometheus_client import Counter as _PrometheusCounter
+    from prometheus_client import Histogram as _PrometheusHistogram
+    _CounterType = _PrometheusCounter
+    _HistogramType = _PrometheusHistogram
 except ImportError:  # pragma: no cover - fallback when prometheus not installed
     class _NoopMetric:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -19,28 +26,31 @@ except ImportError:  # pragma: no cover - fallback when prometheus not installed
         def inc(self, amount: int | float = 1) -> None:
             return None
 
-    class _Counter(_NoopMetric):
+    class _FallbackCounter(_NoopMetric):
         pass
 
-    class _Histogram(_NoopMetric):
+    class _FallbackHistogram(_NoopMetric):
         pass
 
+    _CounterType = _FallbackCounter
+    _HistogramType = _FallbackHistogram
 
-FEED_INGESTION_DURATION = _Histogram(
+
+FEED_INGESTION_DURATION = _HistogramType(
     "feed_ingestion_duration_seconds",
     "Duration of feed ingestion runs in seconds.",
 )
-FEED_INGESTION_RUNS = _Counter(
+FEED_INGESTION_RUNS = _CounterType(
     "feed_ingestion_runs_total",
     "Number of feed ingestion runs partitioned by status.",
     ["status"],
 )
-FEED_INGESTION_ITEMS = _Counter(
+FEED_INGESTION_ITEMS = _CounterType(
     "feed_ingestion_items_total",
     "Number of feed items processed during ingestion grouped by result type.",
     ["result"],
 )
-FEED_INGESTION_SOURCE_FAILURES = _Counter(
+FEED_INGESTION_SOURCE_FAILURES = _CounterType(
     "feed_ingestion_source_failures_total",
     "Number of feed ingestion source failures partitioned by source name.",
     ["source"],
@@ -69,7 +79,7 @@ def record_ingestion_metrics(*, result: dict[str, Any], duration_seconds: float)
             FEED_INGESTION_ITEMS.labels(result=key).inc(value)
 
     for source in _iter_failed_sources(result.get("failed_sources")):
-        FEED_INGESTION_SOURCE_FAILURES.labels(source=source).inc()
+        FEED_INGESTION_SOURCE_FAILURES.labels(source=str(source)).inc()
 
 
 __all__ = [

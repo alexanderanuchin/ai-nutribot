@@ -6,21 +6,24 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from importlib import import_module
-from typing import Any, Dict, Iterable
+from types import TracebackType
+from typing import Any, Awaitable, Callable, Dict, Iterable, TypeVar
 
 logger = logging.getLogger("service.telegram.mtproto")
 
+T = TypeVar("T")
+
 # Lazy Telethon imports to avoid side effects during module import in tests
-TelegramClientCls = None
-StringSessionCls = None
-MemorySessionCls = None
-InputPeerSelfCls = None
-TLObjectCls = None
-GetStarsStatusRequestCls = None
-GetStarsTransactionsRequestCls = None
-GetStarsRevenueStatsRequestCls = None
-AuthKeyUnregisteredError = None
-RPCError = None
+TelegramClientCls: Any | None = None
+StringSessionCls: Any | None = None
+MemorySessionCls: Any | None = None
+InputPeerSelfCls: Any | None = None
+TLObjectCls: Any | None = None
+GetStarsStatusRequestCls: Any | None = None
+GetStarsTransactionsRequestCls: Any | None = None
+GetStarsRevenueStatsRequestCls: Any | None = None
+AuthKeyUnregisteredError: Any | None = None
+RPCError: Any | None = None
 
 
 def _ensure_telethon() -> None:
@@ -94,6 +97,7 @@ def _coerce_decimal(value: Any) -> Decimal:
     if isinstance(value, Decimal):
         return value
     try:
+        # через str, чтобы избежать проблем с float
         return Decimal(str(value))
     except Exception:  # pragma: no cover - defensive
         return Decimal("0")
@@ -113,15 +117,15 @@ class TelegramMTProtoClient:
     ) -> None:
         if not api_id or not api_hash:
             raise RuntimeError("TELEGRAM_MT_API_ID and TELEGRAM_MT_API_HASH must be configured")
-        self._api_id = api_id
-        self._api_hash = api_hash
-        self._session_string = session or ""
-        self._bot_token = bot_token or None
-        self._test_mode = test_mode
-        self._client = None
+        self._api_id: int = api_id
+        self._api_hash: str = api_hash
+        self._session_string: str = session or ""
+        self._bot_token: str | None = bot_token or None
+        self._test_mode: bool = test_mode
+        self._client: Any | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._previous_loop: asyncio.AbstractEventLoop | None = None
-        self._peer = None
+        self._peer: Any | None = None
 
     def __enter__(self) -> "TelegramMTProtoClient":
         _ensure_telethon()
@@ -154,7 +158,12 @@ class TelegramMTProtoClient:
         self._loop.run_until_complete(self._connect())
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         if self._client is not None and self._loop is not None:
             try:
                 self._loop.run_until_complete(self._client.disconnect())
@@ -200,7 +209,12 @@ class TelegramMTProtoClient:
             if self._session_string and isinstance(self._client.session, StringSessionCls):
                 self._session_string = self._client.session.save()
 
-    def _run(self, func, *args, **kwargs):
+    def _run(
+        self,
+        func: Callable[..., Awaitable[T]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> T:
         if self._client is None or self._loop is None:
             raise RuntimeError("MTProto client is not connected")
         return self._loop.run_until_complete(func(*args, **kwargs))
@@ -272,7 +286,8 @@ class TelegramMTProtoClient:
         return self._build_revenue_stats(response)
 
     def _build_status(self, payload: Any) -> StarsStatus:
-        data = _to_dict(payload) or {}
+        raw_data = _to_dict(payload)
+        data: Dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
         balance = int(data.get("balance") or 0)
         history = data.get("history") or []
         transactions = [self._build_transaction(item) for item in history]
@@ -280,7 +295,8 @@ class TelegramMTProtoClient:
         return StarsStatus(balance=balance, transactions=transactions, next_offset=next_offset)
 
     def _build_transaction(self, payload: Any) -> StarsTransaction:
-        data = _to_dict(payload) or {}
+        raw_data = _to_dict(payload)
+        data: Dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
         peer = data.get("peer") or {}
         peer_type = peer.get("_") if isinstance(peer, dict) else None
         peer_identifier = peer.get("app_store") or peer.get("bot_id") or peer.get("fragment_id")
@@ -298,7 +314,8 @@ class TelegramMTProtoClient:
         )
 
     def _build_revenue_stats(self, payload: Any) -> StarsRevenueStats:
-        data = _to_dict(payload) or {}
+        raw_data = _to_dict(payload)
+        data: Dict[str, Any] = raw_data if isinstance(raw_data, dict) else {}
         stars_sources: Iterable[Any] = []
         if "stars" in data:
             stars_sources = [data["stars"]]
@@ -308,7 +325,7 @@ class TelegramMTProtoClient:
         total_stars = 0
         for item in stars_sources:
             if isinstance(item, dict) and item.get("amount") is not None:
-                total_stars += int(item.get("amount"))
+                total_stars += int(_coerce_decimal(item.get("amount")))
             elif isinstance(item, (int, float)):
                 total_stars += int(item)
         revenue_info = data.get("revenue") or data.get("total_revenue") or data.get("revenue_rub") or {}
