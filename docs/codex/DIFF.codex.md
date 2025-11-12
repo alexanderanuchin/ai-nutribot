@@ -395,6 +395,17 @@ Docs | No |
 | modify | backend/apps/market/services/meal_plan_export.py | Include communication tone in specialist JSON and table CSV metadata for richer ADIME context. | Backend exports | No |
 | modify | backend/apps/market/tests/test_meal_plan_api.py | Extend export coverage to assert tone/review fields in CSV output. | Backend tests | No |
 | modify | frontend/src/features/meal-plans/components/PlanDescriptionCard.tsx | Show communication tone and review date sections with localisation in plan summary. | Frontend UX | No |
+## 2025-11-12 – codex/frontend/react-router-v7 (pending)
+
+**Summary:** Upgraded the SPA routing stack to React Router v7, resolving splat route warnings and aligning nested market routes with the new resolution semantics.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/package.json | Adopt React Router v7 to eliminate future-flag warnings and prepare for v7 defaults. | Frontend routing | npm install |
+| modify | frontend/package-lock.json | Regenerate lockfile with React Router v7 dependencies. | Frontend routing | npm install |
+| modify | frontend/src/App.tsx | Drop splat usage for the market layout so nested routes resolve under v7 semantics. | Frontend routing | No |
+| modify | docs/codex/DIFF.codex.md | Log React Router upgrade per Codex audit requirements. | Docs | No |
+
 ## 2025-11-12 – codex/frontend/meal-plan-workspace (pending)
 
 **Summary:** Restructure meal plan workspace with responsive tabs, rich recipe previews, and consistent confirmation dialogs.

@@ -72,7 +72,7 @@ export default function App(){
                   <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />
                   <Route path="/nutrition/builder" element={<ProtectedRoute><MealPlanBuilderPage /></ProtectedRoute>} />
                   <Route
-                    path="/market/*"
+                    path="/market"
                     element={(
                       <ProtectedRoute>
                         <MarketLayout />

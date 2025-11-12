@@ -39,3 +39,7 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
 ## 2025-11-12 – Premium marketplace monetisation (pending)
 
 - Added wallet-backed purchase flows for marketplace recipes and meal plans, granting access via RecipeAccess/MealPlanAccess models and exposing Star pricing in API responses. See [DIFF 2025-11-12](./DIFF.codex.md#2025-11-12--codexfullstackmarket-premium-pending).
+
+## 2025-11-12 – React Router v7 upgrade (pending)
+
+- Raised the SPA routing stack to React Router v7 and normalised nested market paths ahead of v7's relative splat defaults. See [DIFF 2025-11-12](./DIFF.codex.md#2025-11-12--codexfrontendreact-router-v7-pending).
