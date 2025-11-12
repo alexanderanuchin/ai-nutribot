@@ -1,7 +1,5 @@
-from collections.abc import Iterable
-
 import json
-from typing import Iterable
+from collections.abc import Iterable
 
 import pytest
 from django.urls import reverse
@@ -30,8 +28,7 @@ class DummyBroker:
         self.unsubscribed.append(subscriber_id)
 
     def iter_events(self, _queue: object):
-        for event in self._events:
-            yield event
+        yield from self._events
 
 
 @pytest.mark.django_db
@@ -91,8 +88,8 @@ def test_market_events_stream_filters_groups(monkeypatch, api_client, django_use
 
     assert response.status_code == status.HTTP_200_OK
     assert response["Cache-Control"] == "no-cache"
-    assert response["Connection"] == "keep-alive"
     assert response["X-Accel-Buffering"] == "no"
+    assert "Connection" not in response
 
     chunks = b"".join(response.streaming_content)
     body = chunks.decode("utf-8")
@@ -104,3 +101,71 @@ def test_market_events_stream_filters_groups(monkeypatch, api_client, django_use
     assert "event: feed.news" not in body
 
     assert broker.unsubscribed == [broker.subscriber_id]
+
+
+@pytest.mark.django_db
+def test_market_events_handles_byte_formatter(monkeypatch, api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="streamer2", password="secret123")
+    token = AccessToken.for_user(user)
+
+    events = [
+        FeedEvent(group_name="market.recipes", payload={"fresh_count": 2}),
+    ]
+    broker = DummyBroker(events)
+    monkeypatch.setattr("apps.market.api.events.get_event_broker", lambda: broker)
+
+    def byte_formatter(event: FeedEvent) -> bytes:
+        payload = json.dumps(event.payload, ensure_ascii=False).encode("utf-8")
+        return (
+            b"event: "
+            + event.group_name.encode("utf-8")
+            + b"\n"
+            + b"data: "
+            + payload
+            + b"\n\n"
+        )
+
+    monkeypatch.setattr("apps.market.api.events.format_sse", byte_formatter)
+
+    response = api_client.get(
+        reverse("market:market-events"),
+        {"resource": "recipes", "token": str(token)},
+        HTTP_ACCEPT="text/event-stream",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    chunks = list(response.streaming_content)
+    assert all(isinstance(chunk, bytes) for chunk in chunks)
+    body = b"".join(chunks).decode("utf-8")
+    assert "event: market.keepalive" in body
+    assert "event: market.recipes" in body
+
+
+@pytest.mark.django_db
+def test_market_events_fallbacks_on_invalid_chunks(monkeypatch, api_client, django_user_model):
+    user = django_user_model.objects.create_user(username="streamer3", password="secret123")
+    token = AccessToken.for_user(user)
+
+    events = [
+        FeedEvent(group_name="market.recipes", payload={"fresh_count": 3}),
+    ]
+    broker = DummyBroker(events)
+    monkeypatch.setattr("apps.market.api.events.get_event_broker", lambda: broker)
+
+    def invalid_formatter(event: FeedEvent):
+        return [b"event: broken\n", 255]
+
+    monkeypatch.setattr("apps.market.api.events.format_sse", invalid_formatter)
+
+    response = api_client.get(
+        reverse("market:market-events"),
+        {"resource": "recipes", "token": str(token)},
+        HTTP_ACCEPT="text/event-stream",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    chunks = list(response.streaming_content)
+    assert all(isinstance(chunk, bytes) for chunk in chunks)
+    body = b"".join(chunks).decode("utf-8")
+    assert "event: market.recipes" in body
+    assert "data: {\"fresh_count\": 3}" in body

@@ -1,3 +1,21 @@
+## 2025-11-12 – Marketplace SSE formatter adapter (pending)
+
+- Wrapped marketplace SSE formatting with a byte-normalising adapter and regression tests so mixed
+  formatter outputs no longer corrupt the stream over HTTP/2. See
+  [DIFF 2025-11-12](./DIFF.codex.md#2025-11-12--codexbackendmarket-sse-byte-adapter-pending).
+
+## 2025-11-23 – Feed realtime WebSocket cleanup (pending)
+
+- Deferred closing CONNECTING feed sockets until after the `open` event to silence Chrome
+  "connection closed" noise and refreshed realtime tests with richer mocks. See
+  [DIFF 2025-11-23](./DIFF.codex.md#2025-11-23--codexfrontendfeed-realtime-ws-cleanup-pending).
+
+## 2025-11-12 – Marketplace SSE renderer hardening (pending)
+
+- Added a DRF event-stream renderer, stricter validation, and removed hop-by-hop headers so
+  `/api/v1/market/events/` stays compatible with EventSource clients without 406/500 errors. See
+  [DIFF 2025-11-12](./DIFF.codex.md#2025-11-12--codexbackendmarket-sse-renderer-pending).
+
 ## 2025-11-20 – Marketplace cart integration (pending)
 
 - Shared checkout logic and cart summaries across marketplace pages so programs support full purchases and the mobile cart bar clears the tab bar. See [DIFF 2025-11-20](./DIFF.codex.md#2025-11-20--codexfrontendmarket-cart-integration-pending).

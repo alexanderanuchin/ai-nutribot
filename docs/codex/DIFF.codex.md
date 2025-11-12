@@ -1,6 +1,41 @@
+## 2025-11-12 – codex/backend/market-sse-byte-adapter (pending)
+
+**Summary:** Normalize marketplace SSE payload chunks so formatter outputs always reach clients as
+valid bytes, even when third-party hooks yield bare `bytes` or malformed iterables.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/api/events.py | Wrap feed formatter output so SSE streams always emit bytes and fall back to manual framing on formatter errors. | Backend realtime API | No |
+| modify | backend/apps/market/tests/test_events_api.py | Reproduce byte-returning and malformed chunk formatters to assert SSE responses stay valid bytes. | Backend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log the SSE formatter adapter per Codex changelog requirements. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record the SSE formatter adapter entry for audit traceability. | Docs | No |
+
+## 2025-11-23 – codex/frontend/feed-realtime-ws-cleanup (pending)
+
+**Summary:** Defers closing CONNECTING feed WebSockets to eliminate Chrome's "connection closed"
+noise during fast tab switches while keeping SSE fallbacks healthy and covered by richer tests.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/features/feed/hooks/useFeedRealtime.ts | Defer closing CONNECTING sockets until their `open` event before closing to avoid browser noise without regressing reconnect logic. | Frontend realtime | No |
+| modify | frontend/src/features/feed/hooks/useFeedRealtime.test.tsx | Strengthen mocks and async sequencing to verify deferred closes and SSE fallback delivery. | Frontend tests | No |
+| modify | docs/codex/DIFF.codex.md | Capture the feed realtime cleanup per Codex audit policy. | Docs | No |
+
 ## 2025-11-22 – codex/frontend/radix-aschild-compat (pending)
 
 **Summary:** Filtered Radix `asChild` control props out of shared UI kit primitives so they no longer leak onto DOM nodes and tr
+## 2025-11-12 – codex/backend/market-sse-renderer (pending)
+
+**Summary:** Restored marketplace SSE compatibility with DRF by adding an event-stream renderer,
+request-scoped logging, strict resource validation, and dropping hop-by-hop headers so EventSource
+clients receive proper responses instead of 406/500 errors.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/market/api/events.py | Attach an SSE renderer, authenticate failures via DRF exceptions, stream broker events with request-id logging, and omit hop-by-hop headers to satisfy EventSource negotiation. | Backend API | No |
+| modify | backend/apps/market/tests/test_events_api.py | Ensure SSE response tests reflect dropped `Connection` header so the regression stays covered. | Backend tests | No |
+| modify | docs/codex/DIFF.codex.md | Record SSE renderer compatibility fix per Codex audit policy. | Docs | No |
+
 igger React warnings.
 
 | Action | Path | Reason | Impact | Migrations / Restart |

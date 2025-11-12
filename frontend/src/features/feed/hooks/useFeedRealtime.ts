@@ -69,14 +69,74 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
 
     const disposeWs = (shouldClose = true) => {
       if (!ws) return
-      ws.onopen = null
-      ws.onmessage = null
-      ws.onerror = null
-      ws.onclose = null
-      if (shouldClose) {
-        ws.close()
-      }
+      const socket = ws
       ws = null
+
+      const detachHandlers = () => {
+        socket.onopen = null
+        socket.onmessage = null
+        socket.onerror = null
+        socket.onclose = null
+      }
+
+      if (!shouldClose) {
+        detachHandlers()
+        return
+      }
+
+      if (socket.readyState === WebSocket.CONNECTING) {
+        const closeOnOpen: EventListener = () => {
+          socket.removeEventListener?.('open', closeOnOpen)
+          detachHandlers()
+          try {
+            socket.close()
+          } catch (error) {
+            if (import.meta.env.DEV) {
+              console.debug('feed realtime: deferred websocket close failed', error)
+            }
+          }
+        }
+
+        socket.onopen = null
+        if (typeof socket.addEventListener === 'function') {
+          socket.addEventListener('open', closeOnOpen)
+        } else {
+          socket.onopen = closeOnOpen as unknown as (event: Event) => void
+        }
+        socket.onmessage = null
+        socket.onerror = null
+        socket.onclose = null
+        return
+      }
+
+      detachHandlers()
+
+      if (socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.close()
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.debug('feed realtime: websocket close failed', error)
+          }
+        }
+        return
+      }
+
+      if (socket.readyState === WebSocket.CLOSING) {
+        return
+      }
+
+      if (socket.readyState === WebSocket.CLOSED) {
+        return
+      }
+
+      try {
+        socket.close()
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.debug('feed realtime: websocket close failed', error)
+        }
+      }
     }
 
     const cleanup = () => {
