@@ -179,15 +179,19 @@ export const MarketSearch = forwardRef<MarketSearchHandle, MarketSearchProps>(fu
     staleTime: 30_000,
   })
 
+  const resultsLength = data?.results?.length ?? 0
+
   useEffect(() => {
-    if (!data?.results?.length) {
-      setActiveIndex(0)
-      return
-    }
-    if (activeIndex >= data.results.length) {
-      setActiveIndex(0)
-    }
-  }, [data?.results, activeIndex])
+    setActiveIndex(previousIndex => {
+      if (resultsLength === 0) {
+        return 0
+      }
+      if (previousIndex >= resultsLength || previousIndex < 0) {
+        return 0
+      }
+      return previousIndex
+    })
+  }, [resultsLength])
 
   const quickFilters = useMemo(() => {
     if (!data?.suggestions?.quick_filters) return []

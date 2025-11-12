@@ -46,7 +46,7 @@ import {
   useUpdateMealPlanItemMutation,
   useUpdateMealPlanMutation,
 } from '../hooks'
-import type { MealPlanItemPayload } from '../../../types/meal-plan'
+import type { MealPlan, MealPlanItemPayload } from '../../../types/meal-plan'
 import type { Goal } from '../../../types'
 import { useAuthContext } from '../../../providers/AuthProvider'
 import { useMediaQuery } from '../../../hooks/useMediaQuery'
@@ -78,12 +78,14 @@ function buildSlot(date: string | null, mealType: string | null): PlanSlot {
 
 type WorkspaceTab = 'schedule' | 'library'
 
+const EMPTY_MEAL_PLANS: ReadonlyArray<MealPlan> = []
+
 export function MealPlanBuilder() {
   const { notify } = useToast()
   const { profile } = useAuthContext()
   const params = useMemo(() => ({ scope: 'owned' as const, page_size: 50 }), [])
   const plansQuery = useMealPlansQuery(params, { keepPreviousData: true })
-  const plans = plansQuery.data?.results ?? []
+  const plans = plansQuery.data?.results ?? EMPTY_MEAL_PLANS
 
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null)
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
@@ -97,8 +99,10 @@ export function MealPlanBuilder() {
 
   useEffect(() => {
     if (plans.length === 0) {
-      setSelectedPlanId(null)
-      setComparisonSelection([])
+      if (selectedPlanId !== null) {
+        setSelectedPlanId(null)
+      }
+      setComparisonSelection(prev => (prev.length === 0 ? prev : []))
       return
     }
     if (selectedPlanId == null) {

@@ -97,15 +97,22 @@ export function CommandPanel() {
     }
   }, [open])
 
+  const filteredCount = filtered.length
+
   useEffect(() => {
-    if (filtered.length === 0) {
-      setActiveIndex(0)
-      return
-    }
-    if (activeIndex >= filtered.length) {
-      setActiveIndex(filtered.length - 1)
-    }
-  }, [activeIndex, filtered])
+    setActiveIndex(previousIndex => {
+      if (filteredCount === 0) {
+        return 0
+      }
+      if (previousIndex >= filteredCount) {
+        return filteredCount - 1
+      }
+      if (previousIndex < 0) {
+        return 0
+      }
+      return previousIndex
+    })
+  }, [filteredCount])
 
   useEffect(() => {
     if (listRef.current && filtered.length > 0) {

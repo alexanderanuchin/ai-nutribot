@@ -1,3 +1,15 @@
+## 2025-11-21 – codex/frontend/realtime-index-guards (pending)
+
+**Summary:** Hardened command palette and market search selection effects to clamp their
+highlighted indices with functional updates, preventing runaway re-renders when result
+lists shrink rapidly.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/nav/CommandPanel.tsx | Clamp the active command entry index via functional state updates so shrinking result sets cannot trigger repeated `setState` loops. | Frontend UX | No |
+| modify | frontend/src/features/market/components/MarketSearch.tsx | Normalise market search result index resets using range-safe updates to avoid redundant renders during rapid data refreshes. | Frontend UX | No |
+| modify | docs/codex/DIFF.codex.md | Record realtime selection guard refinements per Codex audit policy. | Docs | No |
+
 ## 2025-11-20 – codex/frontend/market-cart-integration (pending)
 
 **Summary:** Unified marketplace checkout state, restored the cart summary on the meal plan programs page, and lifted the mobile cart bar above the tab bar for consistent purchasing across sections.
@@ -422,6 +434,15 @@ Docs | No |
 | modify | frontend/src/features/meal-plans/components/RecipeLibrary.tsx | Wire detail modal triggers, persist state, and reuse new dialog. | Frontend UX | No |
 | modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Swap `window.confirm` for consistent ConfirmDialog workflow. | Frontend UX | No |
 | modify | frontend/src/features/meal-plans/components/MealPlanBuilder.tsx | Introduce responsive workspace tabs and reuse modal-driven flows. | Frontend UX | No |
+
+## 2025-11-12 – codex/frontend/meal-plan-builder-empty-loop (pending)
+
+**Summary:** Stop the meal plan builder from repeatedly re-rendering when no plans are loaded by guarding empty state resets and reusing a constant fallback list.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/features/meal-plans/components/MealPlanBuilder.tsx | Avoid reallocating empty selections while the plans query resolves to prevent infinite update depth errors. | Frontend UX | No |
+| modify | docs/codex/DIFF.codex.md | Record the meal plan builder state loop fix per Codex audit requirements. | Docs | No |
 
 ## 2025-11-12 – codex/fullstack/market-premium (pending)
 
