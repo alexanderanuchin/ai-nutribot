@@ -6,12 +6,13 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   variant?: 'primary' | 'surface' | 'ghost' | 'destructive'
   size?: 'sm' | 'md' | 'lg'
   active?: boolean
+  asChild?: boolean
 }
 
 const MotionButton = motion.button
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { className, variant = 'surface', size = 'md', active = false, ...props },
+  { className, variant = 'surface', size = 'md', active = false, asChild: _asChild, ...props },
   ref,
 ) {
   const shouldReduceMotion = useReducedMotion()

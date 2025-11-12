@@ -42,6 +42,7 @@ export interface ButtonProps
   loading?: boolean
   leadingIcon?: ReactNode
   trailingIcon?: ReactNode
+  asChild?: boolean
 }
 
 const MotionButton = motion.button
@@ -60,6 +61,7 @@ export const Button = forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPr
     href,
     target,
     rel,
+    asChild: _asChild,
     ...props
   },
   ref,

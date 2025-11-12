@@ -5,12 +5,13 @@ import clsx from 'clsx'
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   interactive?: boolean
   elevation?: 1 | 2 | 3
+  asChild?: boolean
 }
 
 const MotionDiv = motion.div
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
-  { className, interactive = false, elevation = 1, children, ...props },
+  { className, interactive = false, elevation = 1, children, asChild: _asChild, ...props },
   ref,
 ) {
   const shouldReduceMotion = useReducedMotion()

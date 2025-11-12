@@ -1,3 +1,15 @@
+## 2025-11-22 – codex/frontend/radix-aschild-compat (pending)
+
+**Summary:** Filtered Radix `asChild` control props out of shared UI kit primitives so they no longer leak onto DOM nodes and tr
+igger React warnings.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/components/ui/Button.tsx | Discard the `asChild` slot prop before forwarding DOM attributes to animated buttons/links to stop unsupported attribute warnings. | Frontend UI kit | No |
+| modify | frontend/src/components/ui/IconButton.tsx | Ignore Radix `asChild` when composing icon buttons so close triggers and overlays remain warning-free. | Frontend UI kit | No |
+| modify | frontend/src/components/ui/Card.tsx | Drop `asChild` from card props to prevent sheet/dialog contents rendered via Radix slots from leaking the flag into the DOM. | Frontend UI kit | No |
+| modify | docs/codex/DIFF.codex.md | Record Radix slot compatibility refinement per Codex audit requirements. | Docs | No |
+
 ## 2025-11-21 – codex/frontend/realtime-index-guards (pending)
 
 **Summary:** Hardened command palette and market search selection effects to clamp their
