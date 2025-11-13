@@ -138,6 +138,9 @@ describe('useFeedRealtime', () => {
     await flushEffects()
     const socket = MockWebSocket.instances[0]
     expect(socket).toBeDefined()
+    const expectedScheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const expectedUrl = `${expectedScheme}//${window.location.host}/ws/feed/?token=token&type=news`
+    expect(socket?.url).toBe(expectedUrl)
 
     act(() => {
       socket!.open()

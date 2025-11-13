@@ -1,3 +1,51 @@
+## 2025-11-25 – codex/backend/feed-ws-origin (pending)
+
+**Summary:** Allow intermediate proxies to forward `/ws/feed` with or without a leading slash
+and prove authenticated upgrades succeed via Channels without depending on Daphne.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/feed/routing.py | Accept an optional leading slash so CloudPub-originated WebSocket requests reach the feed consumer instead of Django's 404 handler. | Backend realtime | No |
+| modify | backend/tests/test_feed_websocket.py | Stub Daphne, spin up a ProtocolTypeRouter, and assert authenticated handshakes succeed with `/ws/feed` so regression surfaces in CI. | Backend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the proxy-tolerant routing and handshake test per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit trail entry. | Docs | No |
+
+## 2025-11-24 – codex/backend/feed-ws-routing (pending)
+
+**Summary:** Allow feed WebSocket connections to resolve with or without a trailing
+slash and cover the ASGI handshake with channel tests so `/ws/feed` no longer
+falls back to Django's 404 handler before SSE recovery.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/feed/routing.py | Accept optional trailing slashes on the feed WebSocket route so `/ws/feed` hits Channels instead of the HTTP 404 view. | Backend realtime | No |
+| create | backend/tests/test_feed_websocket.py | Assert authenticated connections succeed for `/ws/feed/` and `/ws/feed` to guard against regression. | Backend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the feed WebSocket routing fix in the changelog. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append audit entry for the feed WebSocket routing fix. | Docs | No |
+
+## 2025-11-24 – codex/frontend/feed-realtime-bases (pending)
+
+**Summary:** Align feed realtime base resolver expectations with the `/ws/` proxy,
+extend coverage so SSR and browser paths stay in sync, and assert the feed hook
+produces host-level WebSocket URLs.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | frontend/src/utils/realtime.test.ts | Cover HTTP/WS base resolution paths and update expectations away from the legacy `/api` suffix. | Frontend tests | No |
+| modify | frontend/src/features/feed/hooks/useFeedRealtime.test.tsx | Ensure the feed realtime hook dials `ws(s)://<host>/ws/...` with new resolver defaults. | Frontend realtime tests | No |
+| modify | frontend/src/utils/realtime.ts | Normalise file termination while validating resolver behaviour under the new proxy. | Frontend realtime | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record realtime base resolver coverage per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append audit entry for realtime base resolver adjustments. | Docs | No |
+
+## 2025-11-24 – codex/infra/feed-ws-proxy (pending)
+
+**Summary:** Route feed WebSocket traffic through Nginx so realtime clients can upgrade connections in production, and disable proxy buffering for SSE fallbacks to prevent protocol errors.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/nginx.conf | Proxy /ws/ requests to Django Channels with WebSocket headers and add unbuffered SSE passthrough for `/api/v1/*/events` so realtime clients stay connected. | Infra realtime | Reload Nginx |
+| modify | docs/codex/DIFF.codex.md | Record the WebSocket and SSE proxy hardening for audit traceability. | Docs | No |
+
 ## 2025-11-12 – codex/backend/market-sse-byte-adapter (pending)
 
 **Summary:** Normalize marketplace SSE payload chunks so formatter outputs always reach clients as

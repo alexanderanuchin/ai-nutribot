@@ -1,3 +1,28 @@
+## 2025-11-25 – Feed websocket origin tolerance (pending)
+
+- Let Channels accept `/ws/feed` whether or not a proxy strips the leading slash and
+  covered the authenticated handshake with a stubbed communicator test so we stop
+  logging three failed upgrade attempts before falling back to SSE. See
+  [DIFF 2025-11-25](./DIFF.codex.md#2025-11-25--codexbackendfeed-ws-origin-pending).
+
+## 2025-11-24 – Feed realtime websocket routing (pending)
+
+- Updated the Channels routing to accept `/ws/feed` alongside `/ws/feed/` and
+  added communicator tests so authenticated clients stop hitting Django's 404
+  handler before reconnecting via SSE. See
+  [DIFF 2025-11-24](./DIFF.codex.md#2025-11-24--codexbackendfeed-ws-routing-pending).
+
+## 2025-11-24 – Feed realtime base resolvers (pending)
+
+- Adjusted realtime base resolver tests to cover WebSocket and HTTP fallbacks,
+  and asserted the feed realtime hook now dials `wss://<host>/ws/...` so local
+  runs stop expecting the legacy `/api` suffix. See
+  [DIFF 2025-11-24](./DIFF.codex.md#2025-11-24--codexfrontendfeed-realtime-bases-pending).
+
+## 2025-11-24 – Feed realtime proxy hardening (pending)
+
+- Proxied /ws/ traffic through Nginx so feed realtime clients can establish WebSocket connections and added unbuffered SSE passthrough to avoid SSL protocol errors when falling back. See [DIFF 2025-11-24](./DIFF.codex.md#2025-11-24--codexinfrafeed-ws-proxy-pending).
+
 ## 2025-11-12 – Marketplace SSE formatter adapter (pending)
 
 - Wrapped marketplace SSE formatting with a byte-normalising adapter and regression tests so mixed
