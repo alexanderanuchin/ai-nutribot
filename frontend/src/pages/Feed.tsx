@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { RefreshCwIcon } from 'lucide-react'
 import { useLocation, useSearchParams } from 'react-router-dom'
@@ -188,7 +188,9 @@ export default function Feed() {
   const prevPullStateRef = useRef<typeof pullState>('idle')
   const bannerAutoHideTimerRef = useRef<number | null>(null)
   const lastBannerCountRef = useRef(0)
+  const isComponentMountedRef = useRef(true)
   const [bannerHidden, setBannerHidden] = useState(false)
+  const [manualRefreshPending, setManualRefreshPending] = useState(false)
   const autoRefreshRef = useRef(false)
   const isTouchDevice = useTouchDevice()
   const pullToRefreshEnabled = isTouchDevice
@@ -258,8 +260,8 @@ export default function Feed() {
     pullState !== 'refreshing' &&
     (pullToRefreshEnabled ? !isAtTop : true)
   const showManualRefreshButton = !pullToRefreshEnabled
-  const isManualRefreshInProgress = isFetching && !isFetchingNextPage
-  const isManualRefreshDisabled = isLoading || isManualRefreshInProgress || !isOnline
+  const isManualRefreshInProgress = manualRefreshPending
+  const isManualRefreshDisabled = isLoading || manualRefreshPending || !isOnline
   const manualRefreshLabel = !isOnline
     ? 'Нет соединения'
     : isManualRefreshInProgress
@@ -362,10 +364,10 @@ export default function Feed() {
   const refetchCurrentTab = useCallback(
     async (options?: { bust?: boolean }) => {
       const bust = options?.bust ?? false
-      if (bust) {
-        queryClient.setQueryData<InfiniteData<unknown> | undefined>(queryKey, undefined)
-      }
       try {
+        if (bust) {
+          await queryClient.invalidateQueries({ queryKey, exact: true, refetchType: 'none' })
+        }
         await refetch({ throwOnError: true })
         setPendingCounts(prev => ({ ...prev, [activeTab]: 0 }))
         return { ok: true as const }
@@ -675,21 +677,25 @@ export default function Feed() {
     if (!isOnline) setBannerHidden(true)
   }, [isOnline])
 
-  useEffect(() => () => {
-    clearPullAnimation()
-    if (settleTimerRef.current) {
-      window.clearTimeout(settleTimerRef.current)
-      settleTimerRef.current = null
-    }
-    if (feedbackTimerRef.current) {
-      window.clearTimeout(feedbackTimerRef.current)
-      feedbackTimerRef.current = null
-    }
-    if (bannerAutoHideTimerRef.current) {
-      window.clearTimeout(bannerAutoHideTimerRef.current)
-      bannerAutoHideTimerRef.current = null
-    }
-  }, [clearPullAnimation])
+  useEffect(
+    () => () => {
+      isComponentMountedRef.current = false
+      clearPullAnimation()
+      if (settleTimerRef.current) {
+        window.clearTimeout(settleTimerRef.current)
+        settleTimerRef.current = null
+      }
+      if (feedbackTimerRef.current) {
+        window.clearTimeout(feedbackTimerRef.current)
+        feedbackTimerRef.current = null
+      }
+      if (bannerAutoHideTimerRef.current) {
+        window.clearTimeout(bannerAutoHideTimerRef.current)
+        bannerAutoHideTimerRef.current = null
+      }
+    },
+    [clearPullAnimation]
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -816,7 +822,19 @@ export default function Feed() {
   }, [])
 
   const handleManualRefresh = useCallback(() => {
-    void refreshAndScrollToTop({ bust: true })
+    setManualRefreshPending(prev => {
+      if (prev) return prev
+      void (async () => {
+        try {
+          await refreshAndScrollToTop({ bust: true })
+        } finally {
+          if (isComponentMountedRef.current) {
+            setManualRefreshPending(false)
+          }
+        }
+      })()
+      return true
+    })
   }, [refreshAndScrollToTop])
 
   const handleRetryFetch = useCallback(() => {

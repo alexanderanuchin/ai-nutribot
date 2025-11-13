@@ -1,3 +1,7 @@
+## 2025-11-27 – Feed manual refresh resilience (pending)
+
+- Prevent manual feed refresh CTA from being locked by realtime refetches and document the change in the DIFF ledger. See [DIFF 2025-11-27](./DIFF.codex.md#2025-11-27--codexfrontendfeed-manual-refresh-pending).
+
 ## 2025-11-26 – Feed websocket allowed hosts (pending)
 
 - Enriched backend allowed hosts with origins from `DJANGO_CORS_ORIGINS`/`WEBAPP_URL`

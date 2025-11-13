@@ -1,3 +1,11 @@
+## 2025-11-27 – codex/frontend/feed-manual-refresh (pending)
+
+**Summary:** Keep the manual refresh CTA responsive even while realtime-driven refetches are running and avoid state updates after unmount.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/Feed.tsx | Track manual refresh progress locally and guard async cleanup so background refetches no longer disable the button. | Frontend UX | No |
+
 ## 2025-11-26 – codex/backend/feed-ws-allowed-hosts (pending)
 
 **Summary:** Auto-extend `ALLOWED_HOSTS` with frontend origins so feed WebSocket
