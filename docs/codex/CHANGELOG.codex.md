@@ -1,3 +1,10 @@
+## 2025-11-28 – Dual CloudPub/Caloiq domains (pending)
+
+- Trusted Caloiq wildcard origins alongside CloudPub defaults so backend CSRF/CORS checks
+  and the frontend dev proxy (including the apex `caloiq.ru` host) work without retuning
+  env vars during the switchover. See
+  [DIFF 2025-11-28](./DIFF.codex.md#2025-11-28--codexinfra-multi-domain-pending).
+
 ## 2025-11-27 – Feed manual refresh resilience (pending)
 
 - Prevent manual feed refresh CTA from being locked by realtime refetches and document the change in the DIFF ledger. See [DIFF 2025-11-27](./DIFF.codex.md#2025-11-27--codexfrontendfeed-manual-refresh-pending).

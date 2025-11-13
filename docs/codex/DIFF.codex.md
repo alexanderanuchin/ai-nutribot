@@ -1,3 +1,17 @@
+## 2025-11-28 – codex/infra/multi-domain (pending)
+
+**Summary:** Accept CloudPub and Caloiq published domains end-to-end so backend CSRF checks,
+CORS, and the frontend dev proxy recognise both without manual overrides.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/nutribot/settings.py | Trust Caloiq wildcard hosts for CSRF alongside CloudPub defaults so published sessions survive domain switchover. | Backend security | Restart backend |
+| modify | backend/tests/test_settings.py | Extend host parsing coverage to include Caloiq domains and confirm helper merges remain deterministic. | Backend tests | No |
+| modify | infra/.env.example | Document Caloiq in default CORS origins so deployments enable the new domain without manual tweaks. | Infra config | Restart backend |
+| modify | frontend/vite.config.ts | Allow Caloiq hostnames through the dev proxy (including `caloiq.ru`) and normalise the published host parsing for HMR so local previews work for both published domains. | Frontend tooling | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log the dual-domain enablement per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit trail entry for traceability. | Docs | No |
+
 ## 2025-11-27 – codex/frontend/feed-manual-refresh (pending)
 
 **Summary:** Keep the manual refresh CTA responsive even while realtime-driven refetches are running and avoid state updates after unmount.
