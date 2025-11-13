@@ -1,3 +1,29 @@
+## 2025-11-30 – codex/infra/feed-ws-asgi (pending)
+
+**Summary:** Run the Docker Compose backend through Uvicorn so feed WebSocket
+handshakes reach Channels during development and stretch the `/ws/` proxy
+timeouts to avoid idle disconnects when CloudPub holds open upgrades.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/docker-compose.override.yml | Switch `runserver` to `uvicorn nutribot.asgi:application --reload` so local stacks exercise the ASGI app instead of Django's WSGI dev server. | Backend dev infra | Restart backend |
+| modify | backend/README.md | Document the Uvicorn dev startup so manual checks follow the ASGI path required for `/ws/feed` upgrades. | Docs | No |
+| modify | infra/nginx.conf | Extend `/ws/` proxy timeouts to `1d` to keep idle feed WebSocket sessions connected behind CloudPub. | Infra realtime | Reload Nginx |
+
+## 2025-11-29 – codex/frontend/feed-realtime-handshake (pending)
+
+**Summary:** Degrade feed WebSocket handshake retries after the first refused
+upgrade so the console no longer logs three consecutive failures on every tab
+switch while keeping post-handshake reconnects and SSE fallback behaviour
+covered by tests.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/features/feed/hooks/useFeedRealtime.ts | Short-circuit WebSocket retries when the socket never opens, track open-close streaks separately from exponential backoff, and reset streaks on SSE fallback so navigation logs just one failure before switching transport. | Frontend realtime | No |
+| modify | frontend/src/features/feed/hooks/useFeedRealtime.test.tsx | Refresh realtime tests to assert immediate SSE fallback on handshake failures while preserving reconnect attempts after established sockets close. | Frontend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the feed realtime handshake fallback refinement per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit entry for realtime handshake fallback coverage. | Docs | No |
+
 ## 2025-11-28 – codex/infra/multi-domain (pending)
 
 **Summary:** Accept CloudPub and Caloiq published domains end-to-end so backend CSRF checks,

@@ -34,7 +34,8 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let closed = false
     let lastKeepAliveAt = Date.now()
-    let wsFailures = 0
+    let wsBackoffAttempt = 0
+    let wsCloseStreak = 0
     let sseFailures = 0
 
     type NewsEvent = Extract<FeedRealtimeEvent, { group: 'feed.news' }>
@@ -234,7 +235,8 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
         if (!closed) {
           sseFailures += 1
           if (sseFailures >= 4) {
-            wsFailures = 0
+            wsBackoffAttempt = 0
+            wsCloseStreak = 0
             void connectWebSocket()
           } else {
             scheduleReconnect('sse')
@@ -255,17 +257,30 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
       try {
         ws = new WebSocket(url)
       } catch (_error) {
-        wsFailures += 1
+        wsBackoffAttempt += 1
         sseFailures = 0
         void connectSse()
         return
       }
-      ws.onopen = () => {
-        wsFailures = 0
+      const socket = ws
+      if (!socket) {
+        return
       }
-      ws.onmessage = event => {
+      let handshakeCompleted = false
+
+      const isUnauthorizedClose = (code: number): boolean => code === 4401 || code === 4403
+
+      socket.onopen = () => {
+        handshakeCompleted = true
+        wsBackoffAttempt = 0
+      }
+      socket.onmessage = event => {
         try {
           const data = JSON.parse(event.data) as { type?: string; payload?: unknown; group?: string }
+          if (data.type === 'connected') {
+            wsCloseStreak = 0
+            return
+          }
           if (data.type === 'event' && data.payload && data.group) {
             const group = data.group as FeedRealtimeEvent['group']
             if (FEED_GROUPS.includes(group)) {
@@ -276,27 +291,54 @@ export function useFeedRealtime({ feed, onEvent }: UseFeedRealtimeOptions): void
           console.warn('feed realtime: invalid message', error)
         }
       }
-      ws.onclose = () => {
+      socket.onclose = event => {
         disposeWs(false)
-        if (!closed) {
-          wsFailures += 1
-          if (wsFailures >= 3) {
-            sseFailures = 0
-            void connectSse()
-          } else {
-            scheduleReconnect('ws')
-          }
+        if (closed) {
+          return
+        }
+        if (isUnauthorizedClose(event.code)) {
+          return
+        }
+        wsBackoffAttempt += 1
+        if (!handshakeCompleted) {
+          sseFailures = 0
+          void connectSse()
+          return
+        }
+        wsCloseStreak += 1
+        if (wsCloseStreak >= 3) {
+          wsCloseStreak = 0
+          sseFailures = 0
+          void connectSse()
+        } else {
+          scheduleReconnect('ws')
         }
       }
-      ws.onerror = () => {
-        ws?.close()
+      socket.onerror = () => {
+        if (!handshakeCompleted) {
+          try {
+            socket.close()
+          } catch (error) {
+            if (import.meta.env.DEV) {
+              console.debug('feed realtime: websocket close failed after error', error)
+            }
+          }
+          return
+        }
+        try {
+          socket.close()
+        } catch (error) {
+          if (import.meta.env.DEV) {
+            console.debug('feed realtime: websocket close failed after error', error)
+          }
+        }
       }
     }
 
     const scheduleReconnect = (transport: 'ws' | 'sse') => {
       if (closed) return
       clearReconnectTimer()
-      const attempt = transport === 'ws' ? wsFailures : sseFailures
+      const attempt = transport === 'ws' ? wsBackoffAttempt : sseFailures
       const delay = Math.min(1000 * 2 ** attempt, 30000)
       reconnectTimer = window.setTimeout(() => {
         if (transport === 'ws') {

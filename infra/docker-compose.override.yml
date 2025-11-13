@@ -40,8 +40,9 @@ services:
         python manage.py makemigrations --noinput || true
         python manage.py migrate --noinput
 
-        # Dev-сервер Django. В проде остаётся entrypoint + gunicorn.
-        exec python manage.py runserver 0.0.0.0:8000
+        # Dev-сервер теперь запускаем на uvicorn (ASGI), чтобы WebSocket
+        # апгрейды не прилипали к WSGI и не отдавали 404.
+        exec uvicorn nutribot.asgi:application --host 0.0.0.0 --port 8000 --reload
 
   bot:
     volumes:

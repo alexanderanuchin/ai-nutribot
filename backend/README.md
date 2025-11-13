@@ -49,7 +49,7 @@ The nutrition endpoints rely on the following environment variables:
 ### Quick manual check
 
 1. Run `python manage.py migrate` and `python manage.py load_seeds`.
-2. Start the Django dev server (`python manage.py runserver 0.0.0.0:8000`).
+2. Start the ASGI dev server via Uvicorn (`uvicorn nutribot.asgi:application --host 0.0.0.0 --port 8000 --reload`).
 3. Launch the Celery worker as shown above.
 4. Authorise via the WebApp or `/profile` flow, then in Telegram send `/plan` → выберите период → дождитесь генерации.
 5. Кнопками «Принять»/«Отклонить» проверьте обновление статуса, затем `/history` для просмотра последних планов.
@@ -81,7 +81,7 @@ Simple JWT is configured to sign access and refresh tokens with the value of the
 3. Запустите сервер разработки и откройте `http://127.0.0.1:8000/admin`.
 
    ```bash
-   USE_SQLITE=1 python manage.py runserver 0.0.0.0:8000
+   USE_SQLITE=1 uvicorn nutribot.asgi:application --host 0.0.0.0 --port 8000 --reload
    ```
 
 ### Роли и права

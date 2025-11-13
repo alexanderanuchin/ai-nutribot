@@ -188,8 +188,7 @@ describe('useFeedRealtime', () => {
     })
   })
 
-  it('falls back to SSE after repeated websocket failures', async () => {
-    vi.useFakeTimers()
+  it('falls back to SSE if websocket never opens', async () => {
     const handler = vi.fn()
 
     render(<TestComponent feed="news" onEvent={handler} />)
@@ -200,6 +199,23 @@ describe('useFeedRealtime', () => {
       MockWebSocket.instances[0].close()
     })
     await flushEffects()
+
+    expect(MockEventSource.instances).toHaveLength(1)
+  })
+
+  it('retries websocket reconnects after established connections close', async () => {
+    vi.useFakeTimers()
+    const handler = vi.fn()
+
+    render(<TestComponent feed="news" onEvent={handler} />)
+    await flushEffects()
+    expect(MockWebSocket.instances).toHaveLength(1)
+
+    act(() => {
+      MockWebSocket.instances[0].open()
+      MockWebSocket.instances[0].close()
+    })
+    await flushEffects()
     act(() => {
       vi.runOnlyPendingTimers()
     })
@@ -207,6 +223,7 @@ describe('useFeedRealtime', () => {
     expect(MockWebSocket.instances).toHaveLength(2)
 
     act(() => {
+      MockWebSocket.instances[1].open()
       MockWebSocket.instances[1].close()
     })
     await flushEffects()
@@ -217,6 +234,7 @@ describe('useFeedRealtime', () => {
     expect(MockWebSocket.instances).toHaveLength(3)
 
     act(() => {
+      MockWebSocket.instances[2].open()
       MockWebSocket.instances[2].close()
     })
     await flushEffects()
@@ -229,7 +247,6 @@ describe('useFeedRealtime', () => {
   })
 
   it('handles SSE named events and message fallback payloads', async () => {
-    vi.useFakeTimers()
     const handler = vi.fn()
 
     render(<TestComponent feed="news" onEvent={handler} />)
@@ -237,27 +254,6 @@ describe('useFeedRealtime', () => {
 
     act(() => {
       MockWebSocket.instances[0].close()
-    })
-    act(() => {
-      vi.runOnlyPendingTimers()
-    })
-    await flushEffects()
-
-    act(() => {
-      MockWebSocket.instances[1].close()
-    })
-    await flushEffects()
-    act(() => {
-      vi.runOnlyPendingTimers()
-    })
-    await flushEffects()
-
-    act(() => {
-      MockWebSocket.instances[2].close()
-    })
-    await flushEffects()
-    act(() => {
-      vi.runOnlyPendingTimers()
     })
     await flushEffects()
 

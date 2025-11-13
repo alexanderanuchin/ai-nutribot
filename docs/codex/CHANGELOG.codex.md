@@ -1,3 +1,18 @@
+## 2025-11-30 – Feed websocket ASGI dev server (pending)
+
+- Swapped the Docker Compose dev backend to Uvicorn and documented the ASGI
+  startup so `/ws/feed` handshakes reach Channels instead of Django's WSGI
+  handler, and stretched the Nginx `/ws/` proxy timeouts to keep idle
+  connections alive behind CloudPub. See
+  [DIFF 2025-11-30](./DIFF.codex.md#2025-11-30--codexinfrafeed-ws-asgi-pending).
+
+## 2025-11-29 – Feed realtime handshake fallback (pending)
+
+- Dial WebSocket retries back to a single attempt when the handshake never
+  opens, letting the feed hook fall back to SSE immediately while keeping
+  reconnects for sockets that previously connected. See
+  [DIFF 2025-11-29](./DIFF.codex.md#2025-11-29--codexfrontendfeed-realtime-handshake-pending).
+
 ## 2025-11-28 – Dual CloudPub/Caloiq domains (pending)
 
 - Trusted Caloiq wildcard origins alongside CloudPub defaults so backend CSRF/CORS checks
