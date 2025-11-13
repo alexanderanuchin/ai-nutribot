@@ -7,6 +7,49 @@ export function tg() {
   return (window as any).Telegram?.WebApp
 }
 
+const MIN_VERTICAL_SWIPE_CONTROL_VERSION = '6.1'
+
+function parseVersionParts(version: string): number[] {
+  return version
+    .split('.')
+    .map((part) => {
+      const parsed = Number.parseInt(part, 10)
+      return Number.isNaN(parsed) ? 0 : parsed
+    })
+}
+
+function compareVersionStrings(current: string, minimum: string): number {
+  const currentParts = parseVersionParts(current)
+  const minimumParts = parseVersionParts(minimum)
+  const maxLength = Math.max(currentParts.length, minimumParts.length)
+  for (let index = 0; index < maxLength; index += 1) {
+    const currentValue = currentParts[index] ?? 0
+    const minimumValue = minimumParts[index] ?? 0
+    if (currentValue > minimumValue) return 1
+    if (currentValue < minimumValue) return -1
+  }
+  return 0
+}
+
+export function supportsVerticalSwipeControl(webApp = tg()): boolean {
+  if (!webApp) return false
+  const hasControlMethods =
+    typeof webApp.disableVerticalSwipes === 'function' && typeof webApp.enableVerticalSwipes === 'function'
+  if (!hasControlMethods) {
+    return false
+  }
+  if (typeof webApp.isVersionAtLeast === 'function') {
+    try {
+      return webApp.isVersionAtLeast(MIN_VERTICAL_SWIPE_CONTROL_VERSION)
+    } catch {}
+  }
+  const version = typeof webApp.version === 'string' ? webApp.version : ''
+  if (!version) {
+    return false
+  }
+  return compareVersionStrings(version, MIN_VERTICAL_SWIPE_CONTROL_VERSION) >= 0
+}
+
 export function initTheme() {
   const webApp = tg()
   if (webApp) {
@@ -34,7 +77,7 @@ function logWebAppEnvironment(initData: string | null): void {
     initDataPreview: preview,
     url,
   }
-  console.info('[telegram/env] detection', payload)
+  debugLog('telegram/env', 'environment detection', payload)
   void sendApplicationLog({
     level: 'INFO',
     logger: 'webapp.telegram.environment',

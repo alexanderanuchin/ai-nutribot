@@ -1,3 +1,16 @@
+## 2025-11-26 – codex/backend/feed-ws-allowed-hosts (pending)
+
+**Summary:** Auto-extend `ALLOWED_HOSTS` with frontend origins so feed WebSocket
+handshakes succeed on CloudPub without exhausting the retry budget before
+falling back to SSE.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/nutribot/settings.py | Include hosts parsed from `DJANGO_CORS_ORIGINS`/`WEBAPP_URL` so Channels accepts CloudPub websocket origins without changing `_parse_allowed_hosts`'s contract. | Backend realtime | Restart backend |
+| modify | backend/tests/test_settings.py | Cover allowed-host parsing helpers and the `_extend_allowed_hosts` layer to ensure environment-provided origins surface in runtime defaults. | Backend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Capture the allowed-host enrichment per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append audit entry for allowed-host enrichment. | Docs | No |
+
 ## 2025-11-25 – codex/backend/feed-ws-origin (pending)
 
 **Summary:** Allow intermediate proxies to forward `/ws/feed` with or without a leading slash

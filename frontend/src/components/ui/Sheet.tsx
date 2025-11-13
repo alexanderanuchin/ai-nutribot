@@ -15,7 +15,7 @@ export interface SheetContentProps extends Dialog.DialogContentProps {
   side?: 'bottom' | 'right'
 }
 
-const MotionContent = motion(Dialog.Content)
+const MotionContent = motion.create(Dialog.Content)
 
 export const SheetContent = forwardRef<HTMLDivElement, SheetContentProps>(function SheetContent(
   { className, title, description, children, footer, side = 'bottom', ...props },

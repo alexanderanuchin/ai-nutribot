@@ -20,6 +20,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useTouchDevice } from '../hooks/useTouchDevice'
 import { useMarketEvents } from '../features/market/hooks/useMarketEvents'
 import MarketUpdatesPanel, { type MarketUpdateEntry } from '../features/feed/components/MarketUpdatesPanel'
+import { supportsVerticalSwipeControl, tg } from '../lib/telegram'
 
 function buildDefaultScroll(): Record<FeedTab, number> {
   return {
@@ -282,10 +283,13 @@ export default function Feed() {
 
   // На время страницы блокируем вертикальные свайпы Telegram WebApp и «пробой» у body
   useEffect(() => {
-    const tg = (window as any)?.Telegram?.WebApp
+    const webApp = tg()
+    const canControlSwipes = supportsVerticalSwipeControl(webApp)
     try {
-      tg?.expand?.()
-      tg?.disableVerticalSwipes?.()
+      webApp?.expand?.()
+      if (canControlSwipes) {
+        webApp?.disableVerticalSwipes?.()
+      }
     } catch {}
     let prevBodyOverscroll = ''
     if (typeof document !== 'undefined') {
@@ -294,7 +298,9 @@ export default function Feed() {
     }
     return () => {
       try {
-        tg?.enableVerticalSwipes?.()
+        if (canControlSwipes) {
+          webApp?.enableVerticalSwipes?.()
+        }
       } catch {}
       if (typeof document !== 'undefined') {
         document.body.style.overscrollBehaviorY = prevBodyOverscroll

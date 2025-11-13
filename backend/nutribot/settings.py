@@ -3,7 +3,8 @@ import os
 import sys
 from datetime import timedelta
 from pathlib import Path
-from typing import Tuple, cast
+from typing import Iterable, Tuple, cast
+from urllib.parse import urlparse
 
 from corsheaders.defaults import default_headers
 from kombu import Exchange, Queue
@@ -42,7 +43,29 @@ def _get_secret_key() -> str:
 SECRET_KEY = _get_secret_key()
 
 
-def _parse_allowed_hosts(raw_value: str | None, *, allow_wildcard: bool) -> list[str]:
+def _extract_hosts_from_urls(raw_value: str | None) -> set[str]:
+    hosts: set[str] = set()
+    if not raw_value:
+        return hosts
+    for item in raw_value.split(","):
+        value = item.strip()
+        if not value:
+            continue
+        parsed = urlparse(value if "://" in value else f"//{value}")
+        host = parsed.hostname
+        if not host or "*" in host:
+            continue
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        hosts.add(host)
+    return hosts
+
+
+def _parse_allowed_hosts(
+    raw_value: str | None,
+    *,
+    allow_wildcard: bool,
+) -> list[str]:
     default_hosts = {"backend", "localhost", "127.0.0.1", "[::1]"}
     if not raw_value:
         return sorted(default_hosts)
@@ -58,9 +81,24 @@ def _parse_allowed_hosts(raw_value: str | None, *, allow_wildcard: bool) -> list
     return sorted(hosts | default_hosts)
 
 
-ALLOWED_HOSTS = _parse_allowed_hosts(
-    os.getenv("ALLOWED_HOSTS"),
-    allow_wildcard=DEBUG or RUNNING_TESTS,
+def _extend_allowed_hosts(
+    base_hosts: Iterable[str], extra_hosts: Iterable[str]
+) -> list[str]:
+    base_list = list(base_hosts)
+    if base_list == ["*"]:
+        return base_list
+    return sorted({*base_list, *extra_hosts})
+
+
+_extra_allowed_hosts = _extract_hosts_from_urls(os.getenv("DJANGO_CORS_ORIGINS"))
+_extra_allowed_hosts.update(_extract_hosts_from_urls(os.getenv("WEBAPP_URL")))
+
+ALLOWED_HOSTS = _extend_allowed_hosts(
+    _parse_allowed_hosts(
+        os.getenv("ALLOWED_HOSTS"),
+        allow_wildcard=DEBUG or RUNNING_TESTS,
+    ),
+    _extra_allowed_hosts,
 )
 
 CSRF_TRUSTED_ORIGINS = ["https://*.cloudpub.ru"]

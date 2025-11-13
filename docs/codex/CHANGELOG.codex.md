@@ -1,3 +1,11 @@
+## 2025-11-26 – Feed websocket allowed hosts (pending)
+
+- Enriched backend allowed hosts with origins from `DJANGO_CORS_ORIGINS`/`WEBAPP_URL`
+  so Channels accepts CloudPub WebSocket upgrades instead of forcing the SSE
+  fallback, keeping the legacy `_parse_allowed_hosts` helper signature intact by
+  layering a new `_extend_allowed_hosts` step. See
+  [DIFF 2025-11-26](./DIFF.codex.md#2025-11-26--codexbackendfeed-ws-allowed-hosts-pending).
+
 ## 2025-11-25 – Feed websocket origin tolerance (pending)
 
 - Let Channels accept `/ws/feed` whether or not a proxy strips the leading slash and
