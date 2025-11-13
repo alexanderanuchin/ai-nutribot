@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import * as Popover from '@radix-ui/react-popover'
-import { LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react'
+import { CommandIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react'
 import clsx from 'clsx'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
@@ -9,9 +9,10 @@ import { getAvatarPreset } from '../../utils/avatar'
 
 export interface UserMenuProps {
   onLogout?: () => void
+  onOpenCommand?: () => void
 }
 
-export function UserMenu({ onLogout }: UserMenuProps) {
+export function UserMenu({ onLogout, onOpenCommand }: UserMenuProps) {
   const { user, logout } = useAuth()
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
@@ -33,6 +34,12 @@ export function UserMenu({ onLogout }: UserMenuProps) {
     .join('')
   const avatarPreset = user.avatarState.kind === 'preset' ? getAvatarPreset(user.avatarState.id) ?? null : null
   const avatarImageSrc = user.avatarImageSrc
+
+  const handleCommandOpen = () => {
+    if (!onOpenCommand) return
+    onOpenCommand()
+    setOpen(false)
+  }
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -81,6 +88,17 @@ export function UserMenu({ onLogout }: UserMenuProps) {
             <span className="text-xs text-muted-foreground">{user.email}</span>
           </div>
           <nav className="flex flex-col gap-1" aria-label="Настройки пользователя">
+            {onOpenCommand && (
+              <button
+                type="button"
+                onClick={handleCommandOpen}
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-foreground transition hover:bg-muted/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              >
+                <CommandIcon className="h-4 w-4" aria-hidden="true" />
+                Командная палитра
+                <span className="ml-auto text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">Cmd/Ctrl + K</span>
+              </button>
+            )}
             <AppLink
               to="/profile"
               className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition hover:bg-muted/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
