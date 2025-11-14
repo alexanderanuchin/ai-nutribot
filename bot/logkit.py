@@ -5,7 +5,7 @@ import logging
 import os
 import sys
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Mapping, MutableMapping
 
 
@@ -98,6 +98,7 @@ def configure_logging(*, level: str | None = None) -> None:
 @dataclass(slots=True)
 class TelemetryLogger:
     name: str
+    _logger: logging.Logger = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._logger = logging.getLogger(self.name)

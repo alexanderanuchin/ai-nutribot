@@ -777,3 +777,14 @@ Postgres stops exhausting `max_connections`.
 | modify | frontend/src/features/meal-plans/components/PlanListCard.tsx | Render Star price badges and free labels for meal plans. | Frontend UX | No |
 | modify | frontend/src/types/market.ts | Extend recipe DTO with Star pricing and access flags. | Frontend types | No |
 | modify | frontend/src/types/meal-plan.ts | Extend plan DTOs with Star pricing and entitlement flags. | Frontend types | No |
+## 2025-12-04 – codex/bot/telemetry-logger-slot (pending)
+
+**Summary:** Restore the Telegram bot container startup by declaring the
+`TelemetryLogger._logger` slot so the dataclass initialiser can attach the
+underlying stdlib logger while `slots=True` remains enabled.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/logkit.py | Declare `_logger` as a dataclass slot to avoid `AttributeError` during logger initialisation. | Bot runtime | Restart bot |
+| modify | docs/codex/DIFF.codex.md | Record the telemetry logger slot fix per Codex policy. | Docs | No |
+
