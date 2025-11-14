@@ -10,7 +10,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
-    LabeledPrice,
     Message,
     WebAppInfo,
 )
@@ -22,8 +21,15 @@ from bot.backend_client import (
     BackendError,
     BackendValidationError,
 )
+from bot.constants import STARS_BLOCKED_MESSAGE
+from bot.logkit import get_request_id
 from bot.states import ProfileWizard
-from .wallet import _authorization_keyboard, _build_invoice_payload, _get_tokens
+from .wallet import (
+    _authorization_keyboard,
+    _get_tokens,
+    build_stars_topup_invoice,
+    plan_topup_payload,
+)
 
 router = Router()
 
@@ -398,6 +404,7 @@ async def webapp_credentials(
     backend: BackendClient,
     state: FSMContext,
     webapp_url: str,
+    provider_token: str | None,
 ):
     raw = message.web_app_data.data if message.web_app_data else ""
     try:
@@ -433,16 +440,24 @@ async def webapp_credentials(
                 reply_markup=_authorization_keyboard(webapp_url),
             )
             return
-        payload = _build_invoice_payload(message.from_user.id, amount)
-        prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
-        await message.answer_invoice(
-            title="Пополнение баланса Stars",
-            description=f"Пополнение через WebApp на {amount} XTR.",
-            currency="XTR",
-            prices=prices,
-            payload=payload,
-            provider_token="",
+        state_data = await state.get_data()
+        if state_data.get("stars_purchase_blocked"):
+            await message.answer(
+                STARS_BLOCKED_MESSAGE
+            )
+            return
+        invoice = build_stars_topup_invoice(
+            message.from_user.id,
+            amount,
+            comment="Пополнение через WebApp",
+            rid=get_request_id(),
+            provider_token=provider_token,
+            payload_extra=plan_topup_payload(state_data),
         )
+        await message.answer_invoice(**invoice)
+        pending = state_data.get("pending_action")
+        if isinstance(pending, dict):
+            await state.update_data(pending_action={**pending, "status": "invoice_sent"})
         await message.answer("Счёт отправлен. Оплатите его в Telegram и мы зачислим Stars автоматически.")
         return
     init_data = parsed.get("init_data") or parsed.get("initData") or raw

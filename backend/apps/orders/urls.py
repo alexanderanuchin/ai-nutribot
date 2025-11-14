@@ -11,7 +11,11 @@ from .views import (
     TelegramBotPaymentReportView,
     TelegramStarsInvoiceView,
     WalletBalancesView,
+    WalletHoldConsumeView,
+    WalletHoldReleaseView,
+    WalletHoldView,
     WalletManualStarsTopUpView,
+    WalletPricingView,
     WalletSummaryView,
     WalletTopUpView,
     WalletTransactionViewSet,
@@ -25,7 +29,19 @@ router.register("orders", OrderViewSet, basename="order")
 urlpatterns = [
     path("wallet/summary/", WalletSummaryView.as_view(), name="wallet-summary"),
     path("wallet/balances/", WalletBalancesView.as_view(), name="wallet-balances"),
+    path("wallet/pricing/", WalletPricingView.as_view(), name="wallet-pricing"),
     path("wallet/topup/", WalletTopUpView.as_view(), name="wallet-topup"),
+    path("wallet/holds/", WalletHoldView.as_view(), name="wallet-hold"),
+    path(
+        "wallet/holds/<int:hold_id>/consume/",
+        WalletHoldConsumeView.as_view(),
+        name="wallet-hold-consume",
+    ),
+    path(
+        "wallet/holds/<int:hold_id>/release/",
+        WalletHoldReleaseView.as_view(),
+        name="wallet-hold-release",
+    ),
     path(
         "wallet/telegram-stars/invoice/",
         TelegramStarsInvoiceView.as_view(),

@@ -455,6 +455,32 @@ TELEGRAM_MT_BOT_TOKEN = os.getenv("TELEGRAM_MT_BOT_TOKEN") or TELEGRAM_BOT_TOKEN
 TELEGRAM_MT_API_ID = int(os.getenv("TELEGRAM_MT_API_ID", "0") or 0)
 TELEGRAM_MT_API_HASH = os.getenv("TELEGRAM_MT_API_HASH", "")
 TELEGRAM_MT_TEST_MODE = os.getenv("TELEGRAM_MT_TEST_MODE", "0") == "1"
+TELEGRAM_PROVIDER_TOKEN = (
+    os.getenv("TELEGRAM_PROVIDER_TOKEN")
+    or os.getenv("PAYMENT_PROVIDER_TOKEN")
+    or ""
+)
+
+
+def _wallet_pricing_defaults() -> dict[str, dict[str, object]]:
+    default_amount = int(os.getenv("WALLET_PRICE_GENERATE_PLAN_STARS", "100") or 100)
+    title = os.getenv("WALLET_PRICE_GENERATE_PLAN_TITLE", "AI план питания")
+    description = os.getenv(
+        "WALLET_PRICE_GENERATE_PLAN_DESCRIPTION",
+        "Списание Stars за генерацию персонального плана.",
+    )
+    return {
+        "generate_plan": {
+            "currency": "STARS",
+            "amount": default_amount,
+            "title": title,
+            "description": description,
+            "metadata": {"feature": "plan_generation"},
+        }
+    }
+
+
+WALLET_ACTION_PRICING = _wallet_pricing_defaults()
 
 # Email settings
 EMAIL_BACKEND = os.getenv(

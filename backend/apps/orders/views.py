@@ -35,7 +35,14 @@ from apps.orders.serializers import (
 from apps.orders.services import BillingService, DeliveryGateway, OrderService, PaymentService, create_order, \
     wallet_withdraw
 from apps.orders.services.payment import PaymentInitiationResult, PaymentProviderError
-from apps.orders.services.wallet import WalletInsufficientFunds, get_wallet_balance
+from apps.orders.services.pricing import PricingNotConfigured, get_wallet_action_pricing
+from apps.orders.services.wallet import (
+    WalletInsufficientFunds,
+    get_wallet_balance,
+    wallet_consume_hold,
+    wallet_hold,
+    wallet_release_hold,
+)
 from apps.users.models import Profile
 from nutribot.middleware import get_build_fingerprint, get_request_id
 
@@ -390,6 +397,239 @@ class WalletBalancesView(WalletProfileMixin, APIView):
         return Response({"balances": balances})
 
 
+class WalletPricingQuerySerializer(serializers.Serializer):
+    action = serializers.CharField(max_length=64)
+    context = serializers.JSONField(required=False)
+
+
+class WalletPricingView(WalletProfileMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = WalletPricingQuerySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data["action"].strip()
+        context_payload = serializer.validated_data.get("context")
+        rid = getattr(request, "request_id", get_request_id())
+        profile = self.get_profile()
+        try:
+            pricing = get_wallet_action_pricing(
+                action,
+                profile=profile,
+                context=context_payload if isinstance(context_payload, dict) else None,
+            )
+        except PricingNotConfigured:
+            logger.warning(
+                "wallet pricing missing",
+                extra={"rid": rid, "action": action},
+            )
+            return Response(
+                {"detail": "Pricing not configured", "code": "pricing_not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        payload = pricing.as_payload()
+        payload["currency"] = payload["currency"].lower()
+        payload["stars_purchase_blocked"] = bool(getattr(profile, "stars_purchase_blocked", False))
+        logger.info(
+            "wallet pricing resolved",
+            extra={
+                "rid": rid,
+                "action": action,
+                "amount": payload["amount"],
+                "currency": payload["currency"],
+                "profile_id": profile.pk,
+            },
+        )
+        return Response(payload)
+
+
+class WalletHoldSerializer(serializers.Serializer):
+    action = serializers.CharField(max_length=64)
+    amount = serializers.IntegerField(min_value=1, required=False)
+    currency = serializers.CharField(required=False)
+    metadata = serializers.JSONField(required=False)
+    context = serializers.JSONField(required=False)
+
+
+class WalletHoldView(WalletProfileMixin, IdempotencyMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        key = self.require_idempotency_key()
+        serializer = WalletHoldSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data["action"].strip()
+        rid = getattr(request, "request_id", get_request_id())
+        profile = self.get_profile()
+        context_payload = serializer.validated_data.get("context")
+        context: Dict[str, Any] | None = None
+        if isinstance(context_payload, dict):
+            context = dict(context_payload)
+        try:
+            pricing = get_wallet_action_pricing(action, profile=profile, context=context)
+        except PricingNotConfigured:
+            logger.warning(
+                "wallet hold pricing_missing",
+                extra={"rid": rid, "action": action, "profile_id": profile.pk},
+            )
+            return Response(
+                {"detail": "Pricing not configured", "code": "pricing_not_found"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        amount = serializer.validated_data.get("amount") or pricing.amount
+        currency = (serializer.validated_data.get("currency") or pricing.currency).upper()
+        metadata_payload = pricing.metadata or {}
+        extra_metadata = serializer.validated_data.get("metadata")
+        if isinstance(extra_metadata, dict):
+            metadata_payload = {**metadata_payload, **extra_metadata}
+        if context:
+            metadata_payload = {**metadata_payload, "context": context}
+        try:
+            hold_tx = wallet_hold(
+                profile,
+                currency=currency,
+                amount=amount,
+                description=pricing.description or f"Блокировка для {action}",
+                metadata={**metadata_payload, "action": action},
+                reference=f"wallet:{action}",
+                idempotency_key=key,
+            )
+        except WalletInsufficientFunds:
+            logger.info(
+                "wallet hold insufficient_funds",
+                extra={
+                    "rid": rid,
+                    "action": action,
+                    "profile_id": profile.pk,
+                    "amount": amount,
+                    "currency": currency,
+                    "context_keys": sorted(context.keys()) if context else [],
+                },
+            )
+            return Response(
+                {
+                    "detail": "Недостаточно средств для блокировки",
+                    "code": "insufficient_funds",
+                    "currency": currency.lower(),
+                    "required": amount,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        logger.info(
+            "wallet hold created",
+            extra={
+                "rid": rid,
+                "action": action,
+                "profile_id": profile.pk,
+                "transaction_id": hold_tx.pk,
+                "amount": amount,
+                "currency": currency,
+            },
+        )
+        data = WalletTransactionSerializer(hold_tx).data
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class WalletHoldActionSerializer(serializers.Serializer):
+    metadata = serializers.JSONField(required=False)
+
+
+class WalletHoldConsumeView(WalletProfileMixin, IdempotencyMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, hold_id: int, *args, **kwargs):
+        key = self.require_idempotency_key()
+        serializer = WalletHoldActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile = self.get_profile()
+        rid = getattr(request, "request_id", get_request_id())
+        hold_tx = get_object_or_404(
+            WalletTransaction,
+            pk=hold_id,
+            profile=profile,
+        )
+        if hold_tx.direction != WalletTransaction.Direction.HOLD:
+            return Response(
+                {"detail": "Transaction is not a hold", "code": "invalid_hold"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        metadata = serializer.validated_data.get("metadata") or {}
+        try:
+            debit_tx = wallet_consume_hold(
+                hold_tx,
+                metadata={**metadata, "consumed_action": hold_tx.metadata.get("action")},
+                idempotency_key=key,
+            )
+        except WalletInsufficientFunds:
+            logger.warning(
+                "wallet hold consume insufficient_funds",
+                extra={
+                    "rid": rid,
+                    "hold_id": hold_id,
+                    "profile_id": profile.pk,
+                    "currency": hold_tx.currency,
+                    "amount": int(hold_tx.amount),
+                },
+            )
+            return Response(
+                {"detail": "Недостаточно средств для списания", "code": "insufficient_funds"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        logger.info(
+            "wallet hold consumed",
+            extra={
+                "rid": rid,
+                "hold_id": hold_id,
+                "profile_id": profile.pk,
+                "transaction_id": debit_tx.pk,
+            },
+        )
+        data = WalletTransactionSerializer(debit_tx).data
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class WalletHoldReleaseView(WalletProfileMixin, IdempotencyMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, hold_id: int, *args, **kwargs):
+        key = self.require_idempotency_key()
+        serializer = WalletHoldActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        profile = self.get_profile()
+        rid = getattr(request, "request_id", get_request_id())
+        hold_tx = get_object_or_404(
+            WalletTransaction,
+            pk=hold_id,
+            profile=profile,
+        )
+        if hold_tx.direction != WalletTransaction.Direction.HOLD:
+            return Response(
+                {"detail": "Transaction is not a hold", "code": "invalid_hold"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        metadata = serializer.validated_data.get("metadata") or {}
+        release_tx = wallet_release_hold(
+            hold_tx,
+            metadata={**metadata, "released_action": hold_tx.metadata.get("action")},
+            idempotency_key=key,
+        )
+        logger.info(
+            "wallet hold released",
+            extra={
+                "rid": rid,
+                "hold_id": hold_id,
+                "profile_id": profile.pk,
+                "transaction_id": release_tx.pk,
+            },
+        )
+        data = WalletTransactionSerializer(release_tx).data
+        return Response(data)
+
+
 class WalletTopUpView(WalletProfileMixin, IdempotencyMixin, APIView):
     permission_classes = [IsAuthenticated]
     payment_service = PaymentService()
@@ -697,6 +937,10 @@ __all__ = [
     "OrderViewSet",
     "WalletSummaryView",
     "WalletBalancesView",
+    "WalletPricingView",
+    "WalletHoldView",
+    "WalletHoldConsumeView",
+    "WalletHoldReleaseView",
     "TelegramStarsInvoiceView",
     "WalletTopUpView",
     "WalletManualStarsTopUpView",

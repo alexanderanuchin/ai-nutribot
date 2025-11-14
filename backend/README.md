@@ -45,6 +45,7 @@ The nutrition endpoints rely on the following environment variables:
 - `REDIS_URL` — broker/result backend for Celery (defaults to `redis://redis:6379/0`).
 - `JWT_SECRET` — shared secret for issuing access/refresh tokens.
 - `OPENAI_API_KEY` (optional) — enables the LLM-based planner; fallback heuristics are used otherwise.
+- `WALLET_PRICE_GENERATE_PLAN_STARS`, `WALLET_PRICE_GENERATE_PLAN_TITLE`, `WALLET_PRICE_GENERATE_PLAN_DESCRIPTION` — server-side Telegram Stars pricing for plan generation (amount, invoice title, and description) used by the bot when reserving/charging holds.
 
 ### Quick manual check
 

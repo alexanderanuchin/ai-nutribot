@@ -1,3 +1,27 @@
+## 2025-12-04 – Stage 3 Stars monetization (bot) (pending)
+
+- Finalised the Stage 3 Stars flow in the Telegram bot: added plan-specific
+  top-up UX, symmetric audit logging for holds/job outcomes, enriched
+  insufficient balance and region-block messaging, and exercised the resume
+  paths/job-release fallbacks in tests. See
+  [DIFF 2025-12-04](./DIFF.codex.md#2025-12-04--codexbotstars-monetization-stage3-end-pending).
+
+## 2025-12-04 – Bot Stars monetization (pending)
+
+- Enabled the Telegram bot to price, reserve, and consume Stars directly via
+  the backend wallet APIs with idempotent holds and automatic resume after
+  top-ups, alongside comprehensive tests for the new flows. See
+  [DIFF 2025-12-04](./DIFF.codex.md#2025-12-04--codexbotstars-monetization-pending).
+- Completed the Telegram Payments wiring end to end: provider token env
+  plumbing for bot/backend, invoice payload metadata (`intent`/`aid`/`action`),
+  attempt-tracked resumes, and consistent Stars block fallbacks across bot
+  entry points. See
+  [DIFF 2025-12-04](./DIFF.codex.md#2025-12-04--codexbotstars-monetization-pending).
+- Introduced plan-specific top-up UX, deterministic hold idempotency/context
+  logging, shared Stars invoice helpers, and documented the server-side pricing
+  environment defaults. See
+  [DIFF 2025-12-04](./DIFF.codex.md#2025-12-04--codexbotstars-monetization-pending).
+
 ## 2025-12-03 – Bot Stage 2 launcher (pending)
 
 - Brought the Telegram bot start flow to the Stage 2 spec: hero card with the

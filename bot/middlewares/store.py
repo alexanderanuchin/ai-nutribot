@@ -29,4 +29,5 @@ class StoreMiddleware(BaseMiddleware):
         data["support_url"] = self.config.support_url
         data["hero_image_url"] = self.config.hero_image_url
         data["experimental_menu"] = self.config.experimental_menu
+        data["provider_token"] = self.config.telegram_provider_token
         return await handler(event, data)

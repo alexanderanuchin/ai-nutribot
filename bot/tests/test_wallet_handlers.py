@@ -13,6 +13,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from bot.backend_client import AuthResult, BackendNetworkError
+from bot.constants import STARS_BLOCKED_MESSAGE
 from bot.handlers.wallet import (
     MAX_TOPUP_AMOUNT,
     MIN_TOPUP_AMOUNT,
@@ -109,7 +110,7 @@ async def test_wallet_command_requires_auth():
 async def test_wallet_topup_callback_sends_invoice():
     callback = MagicMock()
     callback.answer = AsyncMock()
-    callback.data = "wallet:topup:50"
+    callback.data = "wallet:topup:100"
     callback.from_user = SimpleNamespace(id=5)
     callback.message = MagicMock()
     callback.message.answer = AsyncMock()
@@ -122,23 +123,61 @@ async def test_wallet_topup_callback_sends_invoice():
         state,
         access_token=None,
         webapp_url="https://example.com",
+        provider_token="provider",
     )
 
     callback.message.answer_invoice.assert_awaited()
     kwargs = callback.message.answer_invoice.call_args.kwargs
     assert kwargs["currency"] == "XTR"
-    assert kwargs["prices"][0].amount == 50
-    assert kwargs["prices"][0].label == "Пополнение 50 XTR"
-    assert kwargs["provider_token"] == ""
+    assert kwargs["prices"][0].amount == 100
+    assert kwargs["prices"][0].label == "Пополнение 100 XTR"
+    assert kwargs["provider_token"] == "provider"
     assert "max_tip_amount" not in kwargs
     callback.answer.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_wallet_topup_callback_includes_plan_payload(monkeypatch):
+    monkeypatch.setattr("bot.handlers.wallet.get_request_id", lambda: "rid-1")
+    callback = MagicMock()
+    callback.answer = AsyncMock()
+    callback.data = "wallet:topup:200"
+    callback.from_user = SimpleNamespace(id=9)
+    callback.message = MagicMock()
+    callback.message.answer = AsyncMock()
+    callback.message.answer_invoice = AsyncMock()
+
+    state = FakeState(
+        {
+            "access_token": "token",
+            "pending_action": {
+                "type": "generate_plan",
+                "period": 7,
+                "attempt_id": 5150,
+                "status": "awaiting_payment",
+            },
+        }
+    )
+
+    await wallet_topup_callback(
+        callback,
+        state,
+        access_token=None,
+        webapp_url="https://example.com",
+        provider_token="provider",
+    )
+
+    payload = callback.message.answer_invoice.call_args.kwargs["payload"]
+    assert "intent=plan_topup" in payload
+    assert "aid=5150" in payload
+    assert state.data["pending_action"]["status"] == "invoice_sent"
 
 
 @pytest.mark.asyncio
 async def test_wallet_topup_callback_requires_auth_before_invoice():
     callback = MagicMock()
     callback.answer = AsyncMock()
-    callback.data = "wallet:topup:50"
+    callback.data = "wallet:topup:100"
     callback.from_user = SimpleNamespace(id=5)
     callback.message = MagicMock()
     callback.message.answer = AsyncMock()
@@ -151,6 +190,7 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
         state,
         access_token=None,
         webapp_url="https://example.com",
+        provider_token=None,
     )
 
     callback.message.answer.assert_awaited()
@@ -164,7 +204,7 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
 async def test_wallet_topup_callback_respects_blocked():
     callback = MagicMock()
     callback.answer = AsyncMock()
-    callback.data = "wallet:topup:50"
+    callback.data = "wallet:topup:100"
     callback.from_user = SimpleNamespace(id=5)
     callback.message = MagicMock()
     callback.message.answer = AsyncMock()
@@ -177,11 +217,12 @@ async def test_wallet_topup_callback_respects_blocked():
         state,
         access_token=None,
         webapp_url="https://example.com",
+        provider_token=None,
     )
 
     callback.message.answer.assert_awaited()
     text = callback.message.answer.call_args[0][0]
-    assert "недоступ" in text.lower()
+    assert text == STARS_BLOCKED_MESSAGE
     callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
 
@@ -247,6 +288,48 @@ async def test_successful_payment_handler_records_topup():
     message.answer.assert_awaited()
     assert any("Баланс пополнен" in call.args[0] for call in message.answer.call_args_list)
 
+
+@pytest.mark.asyncio
+async def test_successful_payment_handler_triggers_plan_resume(monkeypatch):
+    backend = MagicMock()
+    backend.report_stars_payment = AsyncMock()
+    state = FakeState(
+        {
+            "refresh_token": "refresh",
+            "pending_action": {
+                "type": "generate_plan",
+                "period": 10,
+                "attempt_id": 321,
+                "status": "awaiting_payment",
+            },
+        }
+    )
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.from_user = SimpleNamespace(id=7)
+    payment = SimpleNamespace(
+        telegram_payment_charge_id="charge777",
+        provider_payment_charge_id=None,
+        total_amount=200,
+        currency="XTR",
+        invoice_payload="uid=7;amt=200;token=abc;intent=plan_topup;aid=321;action=generate_plan",
+    )
+    message.successful_payment = payment
+
+    resume_mock = AsyncMock(return_value=True)
+    monkeypatch.setattr("bot.handlers.wallet.resume_plan_generation_if_needed", resume_mock)
+
+    await successful_payment_handler(message, backend, state, access_token="token")
+
+    resume_mock.assert_awaited_once()
+    args, kwargs = resume_mock.call_args
+    assert args[0] is message
+    assert args[1] is backend
+    assert args[2] is state
+    assert "rid" in kwargs and kwargs["rid"]
+    assert kwargs["attempt_id"] == 321
+    assert kwargs["intent"] == "plan_topup"
+    message.answer.assert_not_awaited()
 
 @pytest.mark.asyncio
 async def test_bot_stars_command_requires_admin():

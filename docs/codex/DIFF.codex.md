@@ -1,3 +1,73 @@
+## 2025-12-04 – codex/bot/stars-idempotency (pending)
+
+**Summary:** Anchor the plan hold idempotency base to the Telegram user and attempt
+identifier so duplicate callbacks or retries reuse the same hold key lineage.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/handlers/plan.py | Derive Stars hold idempotency bases from `telegram_user_id` + `attempt_id` to keep retries idempotent across hold/consume/release. | Bot UX | Restart bot |
+| modify | docs/codex/DIFF.codex.md | Record the deterministic idempotency base adjustment per Codex policy. | Docs | No |
+
+## 2025-12-04 – codex/bot/stars-monetization-stage3-end (pending)
+
+**Summary:** Polished the Stage 3 Telegram bot monetization flow by rebuilding the
+plan handler with attempt-tracked holds, consistent Stars block messaging, and
+symmetrical audit logs that feed automatic resumes. Shared the blocked-text
+constant across handlers, ensured invoice logging carries action metadata, and
+expanded tests to cover new UX copy, job release paths, and backend hold
+context.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/constants.py | Provide a single Stars blocked message string for reuse across plan, wallet, and profile flows. | Bot UX | Restart bot |
+| modify | bot/payments/stars.py | Ensure Stars invoice logging records the action metadata alongside provider tokens. | Bot telemetry | Restart bot |
+| modify | bot/handlers/plan.py | Rebuild plan generation with attempt-aware hold lifecycle logging, updated UX copy, and auto-resume safeguards. | Bot UX | Restart bot |
+| modify | bot/handlers/profile_wizard.py | Reuse the shared Stars block copy and enrich telemetry for WebApp-triggered resumes. | Bot UX | Restart bot |
+| modify | bot/handlers/wallet.py | Align wallet flows with the shared block message and attempt/action logging before resuming plan generation. | Bot UX | Restart bot |
+| modify | bot/handlers/webapp_data.py | Pass through attempt/action metadata and Stars block UX for WebApp top-ups. | Bot WebApp UX | Restart bot |
+| modify | bot/tests/test_plan_handler.py | Cover the new insufficient/receipt copy, attempt-id handoff, and job failure/time-out releases. | Bot tests | No |
+| modify | bot/tests/test_wallet_handlers.py | Expect the shared Stars block message and keep wallet resume telemetry in sync. | Bot tests | No |
+| modify | backend/apps/orders/tests/test_wallet_and_orders.py | Assert wallet hold APIs merge pricing context metadata for plan periods. | Backend tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log the Stage 3 Stars monetization completion per Codex policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit record. | Docs | No |
+
+## 2025-12-04 – codex/bot/stars-monetization (pending)
+
+**Summary:** Finished Stage 3 bot monetization: backend exposes wallet pricing/hold
+APIs, threads the Telegram provider token through all invoices, annotates
+payments with plan intents/attempts for safe auto-resume, persists Stars block
+state in the FSM, and tests cover pricing, holds, payment metadata, and plan
+generation end to end. Added plan-specific top-up UX with deterministic
+idempotency keys, shared Stars invoice helpers, hold context forwarding, and
+documentation/env defaults for server-side pricing.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/orders/services/pricing.py | Centralise wallet action pricing resolution so views can reuse defaults and validation. | Backend API | Restart backend |
+| modify | backend/apps/orders/views.py | Add `/wallet/pricing/` and hold lifecycle endpoints, surface Stars block flags, accept contextual pricing payloads, and log deterministic hold/consume/release keys. | Backend API | Restart backend |
+| modify | backend/apps/orders/services/telegram_invoice.py | Pass the configured provider token through Bot API invoice links. | Backend payments | Restart backend |
+| modify | backend/apps/orders/urls.py | Expose the pricing and hold endpoints under the existing orders namespace. | Backend API | Restart backend |
+| modify | backend/apps/orders/tests/test_wallet_and_orders.py | Cover pricing defaults, Stars block flags, hold idempotency, and contextual plan-period requests. | Backend tests | No |
+| modify | backend/nutribot/settings.py | Provide default wallet action pricing and thread the Telegram provider token env fallback. | Backend config | Restart backend |
+| modify | infra/.env.example | Document TELEGRAM provider fallback and expose Stars pricing defaults for plan generation. | Infra config | No |
+| modify | bot/backend_client.py | Teach the client pricing/hold/report helpers, pass idempotency keys, and forward hold context for plan periods. | Bot↔ backend API | Restart bot |
+| modify | bot/config.py | Load the Telegram Stars provider token from env for invoice issuance. | Bot configuration | Restart bot |
+| modify | bot/middlewares/store.py | Inject the provider token into handler context for invoice builders. | Bot runtime | Restart bot |
+| modify | bot/keyboards/plan.py | Add the plan-specific Stars top-up keyboard with preset amounts and WebApp/support fallbacks. | Bot UX | Restart bot |
+| create | bot/payments/__init__.py | Export shared Stars invoice builders for bot handlers. | Bot runtime | Restart bot |
+| create | bot/payments/stars.py | Centralise Stars invoice payload building/parsing and plan intent metadata. | Bot runtime | Restart bot |
+| modify | bot/handlers/plan.py | Orchestrate holds with deterministic idempotency, plan-specific top-ups, contextual pricing, and automatic release/resume logging. | Bot UX | Restart bot |
+| modify | bot/handlers/wallet.py | Consume shared invoice helpers, respect plan metadata, and continue attempt-checked resumes post top-up. | Bot UX | Restart bot |
+| modify | bot/handlers/profile_wizard.py | Reuse the shared invoice builder with provider token/plan metadata and block-region fallbacks. | Bot UX | Restart bot |
+| modify | bot/handlers/webapp_data.py | Ensure WebApp-issued invoices include provider token, plan metadata, and respect Stars blocks. | Bot WebApp UX | Restart bot |
+| create | bot/constants.py | Share quick top-up presets without circular imports between handlers. | Bot runtime | Restart bot |
+| modify | bot/tests/test_wallet_handlers.py | Extend coverage for payment logging, attempt metadata, and plan resume hooks. | Bot tests | No |
+| modify | bot/tests/test_webapp_data.py | Add coverage for plan-linked invoice payloads and Stars block fallbacks. | Bot tests | No |
+| modify | bot/tests/test_plan_handler.py | Exercise holds, insufficient balance prompts, attempt ids, payment resumes, and plan-specific top-up invoices. | Bot tests | No |
+| create | bot/tests/conftest.py | Silence audit log handlers and allow async-unsafe DB ops inside async bot tests. | Bot tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Capture the Telegram Payments wiring (provider token, invoice metadata, retries) in the changelog. | Docs | No |
+| modify | backend/README.md | Document the Stars pricing env variables powering wallet holds. | Docs | No |
+
 ## 2025-12-03 – codex/bot/stage2-launcher (pending)
 
 **Summary:** Delivered the Stage 2 launcher experience: hero start card with

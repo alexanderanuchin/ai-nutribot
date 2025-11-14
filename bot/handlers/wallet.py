@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Tuple
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -11,7 +10,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardMarkup,
-    LabeledPrice,
     Message,
     PreCheckoutQuery,
     WebAppInfo,
@@ -26,12 +24,15 @@ from bot.backend_client import (
     BackendNetworkError,
     BackendValidationError,
 )
+from bot.constants import STARS_BLOCKED_MESSAGE, TOPUP_AMOUNTS as DEFAULT_TOPUP_AMOUNTS
+from bot.handlers.plan import resume_plan_generation_if_needed
 from bot.logkit import get_request_id
+from bot.payments import build_stars_topup_invoice, parse_invoice_payload, plan_topup_payload
 
 router = Router()
 logger = logging.getLogger("audit.wallet")
 
-TOPUP_AMOUNTS: Tuple[int, ...] = (50, 100)
+TOPUP_AMOUNTS: Tuple[int, ...] = DEFAULT_TOPUP_AMOUNTS
 MIN_TOPUP_AMOUNT = 1
 MAX_TOPUP_AMOUNT = 10000
 
@@ -117,7 +118,7 @@ def _format_wallet_message(payload: dict) -> str:
     else:
         lines.append("\nПока нет операций.")
     if stars_blocked:
-        lines.append("\nПополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе.")
+        lines.append("\n" + STARS_BLOCKED_MESSAGE)
         lines.append("Для вопросов по оплате используйте /paysupport.")
     else:
         lines.append("\nВыберите сумму для быстрого пополнения 👇")
@@ -192,66 +193,6 @@ async def _load_bot_balance(
     if last_error:
         raise last_error
     raise BackendError("Не удалось получить баланс бота")
-
-
-def _parse_invoice_payload(payload: str) -> dict:
-    parts = (payload or "").split(";")
-    result = {}
-    for item in parts:
-        if "=" not in item:
-            continue
-        key, value = item.split("=", 1)
-        result[key] = value
-    return result
-
-
-def _build_invoice_payload(user_id: int, amount: int, *, rid: str | None = None) -> str:
-    token = uuid.uuid4().hex
-    parts = [f"uid={user_id}", f"amt={amount}", f"token={token}"]
-    if rid:
-        parts.append(f"rid={rid}")
-    return ";".join(parts)
-
-
-def build_stars_topup_invoice(
-    user_id: int,
-    amount: int,
-    *,
-    comment: str | None = None,
-    rid: str | None = None,
-) -> dict:
-    description = f"Быстрое пополнение на {amount} XTR."
-    if comment:
-        comment_text = comment.strip()
-        if comment_text:
-            # Telegram ограничивает описание инвойса 255 символами
-            short_comment = comment_text[:180]
-            description += f"\nКомментарий: {short_comment}"
-
-    rid_to_use = rid or get_request_id()
-    payload = _build_invoice_payload(user_id, amount, rid=rid_to_use)
-    payload_meta = _parse_invoice_payload(payload)
-    token_prefix = (payload_meta.get("token") or "")[:8] if payload_meta else ""
-    logger.info(
-        "wallet invoice_created",
-        extra={
-            "rid": rid_to_use,
-            "telegram_user_id": user_id,
-            "amount": amount,
-            "currency": "XTR",
-            "has_comment": bool(comment and comment.strip()),
-            "token_prefix": token_prefix,
-        },
-    )
-    prices = [LabeledPrice(label=f"Пополнение {amount} XTR", amount=amount)]
-    return {
-        "title": "Пополнение баланса Stars",
-        "description": description,
-        "currency": "XTR",
-        "prices": prices,
-        "payload": payload,
-        "provider_token": "",
-    }
 
 
 async def _ensure_authorized(message: Message, webapp_url: str) -> None:
@@ -362,6 +303,7 @@ async def wallet_topup_callback(
     state: FSMContext,
     access_token: str | None,
     webapp_url: str,
+    provider_token: str | None,
 ):
     if callback.message is None or callback.from_user is None:
         await callback.answer()
@@ -380,7 +322,7 @@ async def wallet_topup_callback(
         return
     if state_data.get("stars_purchase_blocked"):
         await callback.message.answer(
-            "Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе."
+            STARS_BLOCKED_MESSAGE
         )
         await callback.answer()
         return
@@ -398,14 +340,24 @@ async def wallet_topup_callback(
             "rid": rid,
             "telegram_user_id": getattr(callback.from_user, "id", None),
             "amount": amount,
+            "currency": "XTR",
+            "action": "wallet_topup",
         },
     )
+    payload_extra = plan_topup_payload(state_data)
     invoice = build_stars_topup_invoice(
         callback.from_user.id,
         amount,
         rid=rid,
+        provider_token=provider_token,
+        payload_extra=payload_extra,
     )
     await callback.message.answer_invoice(**invoice)
+    if payload_extra:
+        pending = state_data.get("pending_action")
+        if isinstance(pending, dict):
+            updated = {**pending, "status": "invoice_sent"}
+            await state.update_data(pending_action=updated)
     await callback.answer()
 
 
@@ -424,12 +376,23 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         )
         return
 
-    payload_meta = _parse_invoice_payload(query.invoice_payload)
+    payload_meta = parse_invoice_payload(query.invoice_payload)
     requested_user = payload_meta.get("uid") if payload_meta else None
     try:
         requested_user_id = int(requested_user) if requested_user is not None else None
     except (TypeError, ValueError):
         requested_user_id = None
+
+    intent = payload_meta.get("intent") if payload_meta else None
+    action = payload_meta.get("action") if payload_meta else None
+    attempt_id: int | None = None
+    if payload_meta:
+        raw_attempt = payload_meta.get("aid")
+        if raw_attempt is not None:
+            try:
+                attempt_id = int(raw_attempt)
+            except (TypeError, ValueError):
+                attempt_id = None
 
     if requested_user_id is not None and requested_user_id != query.from_user.id:
         await query.answer(
@@ -457,6 +420,9 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             "amount": amount,
             "currency": currency,
             "payload_keys": payload_keys,
+            "attempt_id": attempt_id,
+            "action": action,
+            "intent": intent,
         },
     )
     if currency != "XTR":
@@ -507,6 +473,10 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             "rid": rid,
             "telegram_user_id": query.from_user.id,
             "amount": amount,
+            "currency": currency,
+            "attempt_id": attempt_id,
+            "action": action,
+            "intent": intent,
         },
     )
 
@@ -525,19 +495,42 @@ async def successful_payment_handler(
     charge_id = payment.telegram_payment_charge_id or payment.provider_payment_charge_id
     amount = int(payment.total_amount)
     currency = payment.currency
-    payload_meta = _parse_invoice_payload(payment.invoice_payload)
+    payload_meta = parse_invoice_payload(payment.invoice_payload)
     payload_keys = sorted(payload_meta.keys()) if payload_meta else []
     rid = get_request_id()
+    user = message.from_user
+    user_id = getattr(user, "id", None)
+
+    intent: str | None = payload_meta.get("intent") if payload_meta else None
+    action: str | None = payload_meta.get("action") if payload_meta else None
+    attempt_id: int | None = None
+    expected_user_id = user_id
+    if payload_meta:
+        uid_raw = payload_meta.get("uid")
+        try:
+            expected_user_id = int(uid_raw) if uid_raw is not None else user_id
+        except (TypeError, ValueError):
+            expected_user_id = user_id
+        raw_attempt = payload_meta.get("aid")
+        if raw_attempt is not None:
+            try:
+                attempt_id = int(raw_attempt)
+            except (TypeError, ValueError):
+                attempt_id = None
+
     logger.info(
         "wallet payment_received",
         extra={
             "rid": rid,
-            "telegram_user_id": getattr(message.from_user, "id", None),
+            "telegram_user_id": user_id,
             "charge_id": charge_id,
             "provider_charge_id": payment.provider_payment_charge_id,
             "amount": amount,
             "currency": currency,
             "payload_keys": payload_keys,
+            "attempt_id": attempt_id,
+            "intent": intent,
+            "action": action,
         },
     )
 
@@ -547,40 +540,36 @@ async def successful_payment_handler(
     if not charge_id:
         await message.answer("Не удалось идентифицировать платеж. Напишите в поддержку.")
         return
-    user = message.from_user
     if user is None:
         await message.answer("Не удалось сопоставить платеж с пользователем Telegram.")
         return
 
-    payload_meta = _parse_invoice_payload(payment.invoice_payload)
-    attempt_id: int | None = None
-    if payload_meta:
-        uid_raw = payload_meta.get("uid")
-        try:
-            uid = int(uid_raw)
-        except (TypeError, ValueError):
-            uid = user.id
-        if uid != user.id:
-            await message.answer(
-                "Получен платёж от другого пользователя. Свяжитесь с поддержкой, если это ошибка."
-            )
-            logger.warning(
-                "wallet payment_user_mismatch",
-                extra={
-                    "rid": rid,
-                    "expected_user_id": uid,
-                    "actual_user_id": user.id,
-                    "charge_id": charge_id,
-                },
-            )
-            return
+    if expected_user_id is not None and expected_user_id != user.id:
+        await message.answer(
+            "Получен платёж от другого пользователя. Свяжитесь с поддержкой, если это ошибка."
+        )
+        logger.warning(
+            "wallet payment_user_mismatch",
+            extra={
+                "rid": rid,
+                "expected_user_id": expected_user_id,
+                "actual_user_id": user.id,
+                "charge_id": charge_id,
+            },
+        )
+        return
 
-        raw_attempt = payload_meta.get("aid")
-        if raw_attempt is not None:
+    state_data = await state.get_data()
+    if intent == "plan_topup" and attempt_id is not None:
+        pending = state_data.get("pending_action")
+        if isinstance(pending, dict):
             try:
-                attempt_id = int(raw_attempt)
+                pending_attempt = int(pending.get("attempt_id"))
             except (TypeError, ValueError):
-                attempt_id = None
+                pending_attempt = None
+            if pending_attempt == attempt_id:
+                updated = {**pending, "status": "payment_confirmed"}
+                await state.update_data(pending_action=updated)
 
     idempotency_key = f"telegram-stars:{user.id}:{charge_id}"
     logger.info(
@@ -594,6 +583,8 @@ async def successful_payment_handler(
             "idempotency_key": idempotency_key,
             "has_comment": bool((payload_meta or {}).get("comment")),
             "payment_attempt_id": attempt_id,
+            "intent": intent,
+            "action": action,
         },
     )
     try:
@@ -610,6 +601,9 @@ async def successful_payment_handler(
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
                 "payment_attempt_id": attempt_id,
+                "amount": amount,
+                "currency": currency,
+                "action": action,
             },
         )
     except BackendValidationError as exc:
@@ -629,10 +623,7 @@ async def successful_payment_handler(
             },
         )
         if code == "purchases_disabled":
-            await message.answer(
-                "Telegram временно отключил покупки Stars для вашего аккаунта. "
-                "Попробуйте позже или обратитесь в поддержку."
-            )
+            await message.answer(STARS_BLOCKED_MESSAGE)
         elif code == "user_not_found":
             await message.answer(
                 "Telegram не смог найти ваш аккаунт для оплаты Stars. "
@@ -659,7 +650,40 @@ async def successful_payment_handler(
         )
         return
 
-    await message.answer(f"Баланс пополнен на {amount} XTR. Спасибо!")
+    resumed = False
+    plan_resumed = False
+    if intent == "plan_topup" and attempt_id is not None and (action in {None, "generate_plan"}):
+        plan_resumed = await resume_plan_generation_if_needed(
+            message,
+            backend,
+            state,
+            rid=rid,
+            attempt_id=attempt_id,
+            intent=intent,
+        )
+        resumed = plan_resumed
+    if not resumed:
+        await message.answer(f"Баланс пополнен на {amount} XTR. Спасибо!")
+    if not resumed:
+        resumed = await resume_plan_generation_if_needed(
+            message,
+            backend,
+            state,
+            rid=rid,
+        )
+    if resumed:
+        logger.info(
+            "wallet payment_resume_triggered",
+            extra={
+                "rid": rid,
+                "telegram_user_id": getattr(message.from_user, "id", None),
+                "amount": amount,
+                "plan_resume": plan_resumed,
+                "payment_attempt_id": attempt_id,
+                "currency": currency,
+                "action": action,
+            },
+        )
 
 
 def _is_admin(user_id: int | None, admin_ids: Iterable[int]) -> bool:

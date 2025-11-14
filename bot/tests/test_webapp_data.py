@@ -38,7 +38,7 @@ async def test_webapp_data_handler_stores_auth_session():
     }
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
 
-    await webapp_data_handler(message, state, access_token=None)
+    await webapp_data_handler(message, state, access_token=None, provider_token="")
 
     assert state.data["access_token"] == "token-123"
     assert state.data["refresh_token"] == "refresh-456"
@@ -62,7 +62,7 @@ async def test_webapp_data_handler_requires_auth_for_topup():
     }
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
 
-    await webapp_data_handler(message, state, access_token=None)
+    await webapp_data_handler(message, state, access_token=None, provider_token="")
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
@@ -84,7 +84,7 @@ async def test_webapp_data_handler_sends_invoice_on_topup():
     }
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
 
-    await webapp_data_handler(message, state, access_token="token")
+    await webapp_data_handler(message, state, access_token="token", provider_token="")
 
     message.answer_invoice.assert_awaited()
     kwargs = message.answer_invoice.call_args.kwargs
@@ -93,6 +93,35 @@ async def test_webapp_data_handler_sends_invoice_on_topup():
     assert kwargs["provider_token"] == ""
     assert "Комментарий" in kwargs["description"]
     message.answer.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webapp_data_handler_includes_plan_payload():
+    state = FakeState(
+        {
+            "access_token": "token",
+            "session_user_id": 99,
+            "pending_action": {
+                "type": "generate_plan",
+                "period": 7,
+                "attempt_id": 8888,
+                "status": "awaiting_payment",
+            },
+        }
+    )
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.answer_invoice = AsyncMock()
+    message.from_user = SimpleNamespace(id=99)
+    payload = {"type": "topup", "amount": 120}
+    message.web_app_data = SimpleNamespace(data=json.dumps(payload))
+
+    await webapp_data_handler(message, state, access_token="token", provider_token="prov")
+
+    invoice_payload = message.answer_invoice.call_args.kwargs["payload"]
+    assert "intent=plan_topup" in invoice_payload
+    assert "aid=8888" in invoice_payload
+    assert state.data["pending_action"]["status"] == "invoice_sent"
 
 
 @pytest.mark.asyncio
@@ -105,7 +134,7 @@ async def test_webapp_data_handler_respects_blocked_flag():
     payload = {"type": "topup", "amount": 90}
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
 
-    await webapp_data_handler(message, state, access_token="token")
+    await webapp_data_handler(message, state, access_token="token", provider_token="")
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
@@ -123,7 +152,7 @@ async def test_webapp_data_handler_rejects_amount_below_min():
     payload = {"type": "topup", "amount": MIN_TOPUP_AMOUNT - 1}
     message.web_app_data = SimpleNamespace(data=json.dumps(payload))
 
-    await webapp_data_handler(message, state, access_token="token")
+    await webapp_data_handler(message, state, access_token="token", provider_token="")
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]

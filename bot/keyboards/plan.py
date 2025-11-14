@@ -1,8 +1,11 @@
-"""Inline keyboards for nutrition plan interactions."""
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardMarkup
+from typing import Iterable
+
+from aiogram.types import InlineKeyboardMarkup, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from bot.constants import TOPUP_AMOUNTS
 
 
 def period_keyboard() -> InlineKeyboardMarkup:
@@ -38,4 +41,25 @@ def regeneration_options_keyboard(plan_id: int, daily_kcal: int) -> InlineKeyboa
     builder.button(text="Без изменений", callback_data=f"plan:regen_adjust:{plan_id}:same:{daily_kcal}")
     builder.button(text="Отмена", callback_data="plan:regen_cancel")
     builder.adjust(2, 2)
+    return builder.as_markup()
+
+
+def plan_topup_keyboard(
+        *,
+        amounts: Iterable[int] | None = None,
+        webapp_url: str | None = None,
+        support_url: str | None = None,
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    values = tuple(amounts) if amounts is not None else TOPUP_AMOUNTS
+    for value in values:
+        builder.button(text=f"Пополнить {value} XTR", callback_data=f"plan:topup:{value}")
+    if webapp_url:
+        if webapp_url.lower().startswith("https://"):
+            builder.button(text="Другая сумма", web_app=WebAppInfo(url=webapp_url))
+        else:
+            builder.button(text="Другая сумма", url=webapp_url)
+    elif support_url:
+        builder.button(text="Поддержка", url=support_url)
+    builder.adjust(1)
     return builder.as_markup()

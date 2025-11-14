@@ -85,6 +85,19 @@ def stub_invoice_service(monkeypatch, settings):
     orders_views.CheckoutView.payment_service = PaymentService()
 
 
+@pytest.fixture(autouse=True)
+def wallet_pricing_settings(settings):
+    settings.WALLET_ACTION_PRICING = {
+        "generate_plan": {
+            "currency": "STARS",
+            "amount": 120,
+            "title": "AI план",
+            "description": "Списание Stars за генерацию плана.",
+            "metadata": {"feature": "plan_generation"},
+        }
+    }
+
+
 @pytest.fixture
 def auth_client(api_client: APIClient, user: User) -> APIClient:
     api_client.force_authenticate(user=user)
@@ -144,6 +157,96 @@ def test_wallet_topup_and_withdraw(auth_client: APIClient, user: User):
     )
     assert resp.status_code == 400
     assert "amount" in resp.json()
+
+
+@pytest.mark.django_db
+def test_wallet_pricing_endpoint_returns_config(auth_client: APIClient):
+    resp = auth_client.get("/api/orders/wallet/pricing/", {"action": "generate_plan"})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["action"] == "generate_plan"
+    assert payload["amount"] == 120
+    assert payload["currency"] == "stars"
+    assert payload["metadata"]["feature"] == "plan_generation"
+    assert payload["stars_purchase_blocked"] is False
+
+
+@pytest.mark.django_db
+def test_wallet_pricing_endpoint_marks_blocked(auth_client: APIClient, user: User):
+    profile = user.profile
+    profile.stars_purchase_blocked = True
+    profile.save(update_fields=["stars_purchase_blocked", "updated_at"])
+
+    resp = auth_client.get("/api/orders/wallet/pricing/", {"action": "generate_plan"})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["stars_purchase_blocked"] is True
+
+
+@pytest.mark.django_db
+def test_wallet_hold_lifecycle(auth_client: APIClient, user: User):
+    topup_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    auth_client.post(
+        "/api/orders/wallet/transactions/topup/",
+        {"currency": "stars", "amount": "500"},
+        format="json",
+        **topup_headers,
+    )
+
+    hold_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    hold_resp = auth_client.post(
+        "/api/orders/wallet/holds/",
+        {"action": "generate_plan", "context": {"period_days": 7}},
+        format="json",
+        **hold_headers,
+    )
+    assert hold_resp.status_code == 201
+    hold_payload = hold_resp.json()
+    hold_id = hold_payload["id"]
+    assert hold_payload["direction"] == "out"
+    assert hold_payload["amount"] == 120
+    assert hold_payload["metadata"]["action"] == "generate_plan"
+    assert hold_payload["metadata"]["context"]["period_days"] == 7
+
+    hold_tx = WalletTransaction.objects.get(pk=hold_id)
+    assert hold_tx.metadata["action"] == "generate_plan"
+    assert hold_tx.metadata["context"]["period_days"] == 7
+
+    consume_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    consume_resp = auth_client.post(
+        f"/api/orders/wallet/holds/{hold_id}/consume/",
+        {},
+        format="json",
+        **consume_headers,
+    )
+    assert consume_resp.status_code == status.HTTP_201_CREATED
+    consume_payload = consume_resp.json()
+    assert consume_payload["direction"] == "out"
+    user.profile.refresh_from_db()
+    assert get_profile_stars_balance(user.profile) == 380
+
+    # Create a new hold and release it
+    second_hold_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    second_hold_resp = auth_client.post(
+        "/api/orders/wallet/holds/",
+        {"action": "generate_plan", "context": {"period_days": 7}},
+        format="json",
+        **second_hold_headers,
+    )
+    assert second_hold_resp.status_code == 201
+    second_hold_id = second_hold_resp.json()["id"]
+    release_headers = {"HTTP_IDEMPOTENCY_KEY": uuid.uuid4().hex}
+    release_resp = auth_client.post(
+        f"/api/orders/wallet/holds/{second_hold_id}/release/",
+        {},
+        format="json",
+        **release_headers,
+    )
+    assert release_resp.status_code == 200
+    release_payload = release_resp.json()
+    assert release_payload["direction"] == "in"
+    user.profile.refresh_from_db()
+    assert get_profile_stars_balance(user.profile) == 380
 
 
 @pytest.mark.django_db

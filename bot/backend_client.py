@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -200,15 +201,19 @@ class BackendClient:
             access: str | None,
             refresh: str | None,
             json: Any | None = None,
+            headers: Dict[str, str] | None = None,
     ) -> AuthResult:
         if not access:
             raise BackendAuthError("Access token required")
+        base_headers = {"Authorization": f"Bearer {access}"}
+        if headers:
+            base_headers.update(headers)
         try:
             payload = await self._request(
                 method,
                 path,
                 json=json,
-                headers={"Authorization": f"Bearer {access}"},
+                headers=base_headers,
             )
             return AuthResult(payload=payload, access=access, refresh=refresh)
         except BackendAuthError:
@@ -219,11 +224,14 @@ class BackendClient:
             new_refresh = tokens.get("refresh") or refresh
             if not new_access:
                 raise BackendAuthError("Failed to refresh token")
+            new_headers = {"Authorization": f"Bearer {new_access}"}
+            if headers:
+                new_headers.update(headers)
             payload = await self._request(
                 method,
                 path,
                 json=json,
-                headers={"Authorization": f"Bearer {new_access}"},
+                headers=new_headers,
             )
             return AuthResult(payload=payload, access=new_access, refresh=new_refresh)
 
@@ -367,6 +375,105 @@ class BackendClient:
             f"/api/nutrition/plans/history/?limit={int(limit)}",
             access=access_token,
             refresh=refresh_token,
+        )
+
+    async def get_wallet_pricing(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            *,
+            action: str,
+    ) -> AuthResult:
+        if not action:
+            raise BackendError("Action is required for pricing lookup")
+        query = urllib.parse.urlencode({"action": action})
+        path = f"/api/orders/wallet/pricing/?{query}"
+        return await self._authorized(
+            "GET",
+            path,
+            access=access_token,
+            refresh=refresh_token,
+        )
+
+    async def create_wallet_hold(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            *,
+            action: str,
+            amount: int | None = None,
+            currency: str | None = None,
+            metadata: Dict[str, Any] | None = None,
+            context: Dict[str, Any] | None = None,
+            idempotency_key: str,
+    ) -> AuthResult:
+        if not idempotency_key:
+            raise BackendError("Idempotency key is required for wallet hold")
+        payload: Dict[str, Any] = {"action": action}
+        if amount is not None:
+            payload["amount"] = int(amount)
+        if currency:
+            payload["currency"] = str(currency).upper()
+        if metadata:
+            payload["metadata"] = metadata
+        if context:
+            payload["context"] = context
+        headers = {"Idempotency-Key": idempotency_key}
+        return await self._authorized(
+            "POST",
+            "/api/orders/wallet/holds/",
+            access=access_token,
+            refresh=refresh_token,
+            json=payload,
+            headers=headers,
+        )
+
+    async def consume_wallet_hold(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            *,
+            hold_id: int,
+            metadata: Dict[str, Any] | None = None,
+            idempotency_key: str,
+    ) -> AuthResult:
+        if not idempotency_key:
+            raise BackendError("Idempotency key is required for consuming hold")
+        payload: Dict[str, Any] = {}
+        if metadata:
+            payload["metadata"] = metadata
+        headers = {"Idempotency-Key": idempotency_key}
+        return await self._authorized(
+            "POST",
+            f"/api/orders/wallet/holds/{int(hold_id)}/consume/",
+            access=access_token,
+            refresh=refresh_token,
+            json=payload if payload else None,
+            headers=headers,
+        )
+
+    async def release_wallet_hold(
+            self,
+            access_token: str | None,
+            refresh_token: str | None,
+            *,
+            hold_id: int,
+            metadata: Dict[str, Any] | None = None,
+            idempotency_key: str,
+    ) -> AuthResult:
+        if not idempotency_key:
+            raise BackendError("Idempotency key is required for releasing hold")
+        payload: Dict[str, Any] = {}
+        if metadata:
+            payload["metadata"] = metadata
+        headers = {"Idempotency-Key": idempotency_key}
+        return await self._authorized(
+            "POST",
+            f"/api/orders/wallet/holds/{int(hold_id)}/release/",
+            access=access_token,
+            refresh=refresh_token,
+            json=payload if payload else None,
+            headers=headers,
         )
 
     async def get_my_stars(

@@ -8,9 +8,15 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
+from bot.constants import STARS_BLOCKED_MESSAGE
 from bot.logkit import get_request_id, mask_token
 
-from .wallet import MAX_TOPUP_AMOUNT, MIN_TOPUP_AMOUNT, build_stars_topup_invoice
+from .wallet import (
+    MAX_TOPUP_AMOUNT,
+    MIN_TOPUP_AMOUNT,
+    build_stars_topup_invoice,
+    plan_topup_payload,
+)
 
 router = Router()
 logger = logging.getLogger("audit.telegram")
@@ -83,6 +89,7 @@ async def _handle_topup_payload(
     payload: dict,
     *,
     access_token: str | None,
+    provider_token: str | None,
 ) -> None:
     rid = get_request_id()
     if message.from_user is None:
@@ -175,7 +182,7 @@ async def _handle_topup_payload(
     comment = payload.get("comment")
     if state_data.get("stars_purchase_blocked"):
         await message.answer(
-            "Пополнение Stars недоступно: Telegram временно отключил покупки в вашем регионе."
+            STARS_BLOCKED_MESSAGE
         )
         logger.info(
             "webapp topup blocked",
@@ -194,13 +201,20 @@ async def _handle_topup_payload(
             "has_comment": bool(comment),
         },
     )
+    payload_extra = plan_topup_payload(state_data)
     invoice = build_stars_topup_invoice(
         message.from_user.id,
         amount,
         comment=comment,
         rid=rid,
+        provider_token=provider_token,
+        payload_extra=payload_extra,
     )
     await message.answer_invoice(**invoice)
+    if payload_extra:
+        pending = state_data.get("pending_action")
+        if isinstance(pending, dict):
+            await state.update_data(pending_action={**pending, "status": "invoice_sent"})
 
 
 @router.message(F.web_app_data)
@@ -208,6 +222,7 @@ async def webapp_data_handler(
     message: Message,
     state: FSMContext,
     access_token: str | None,
+    provider_token: str | None,
 ) -> None:
     rid = get_request_id()
     if state is None:
@@ -266,6 +281,7 @@ async def webapp_data_handler(
             state,
             payload,
             access_token=access_token,
+            provider_token=provider_token,
         )
         return
 

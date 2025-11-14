@@ -75,6 +75,7 @@ class Config:
     terms_url: str | None
     support_url: str | None
     experimental_menu: bool
+    telegram_provider_token: str
 
     @classmethod
     def load(cls) -> "Config":
@@ -93,6 +94,7 @@ class Config:
         terms_url = _optional_url(os.getenv("TERMS_URL"))
         support_url = _optional_url(os.getenv("SUPPORT_URL"))
         experimental_menu = _read_bool(os.getenv("BOT_EXPERIMENTAL_MENU"))
+        provider_token = os.getenv("TELEGRAM_PROVIDER_TOKEN") or os.getenv("PAYMENT_PROVIDER_TOKEN") or ""
         return cls(
             token=token,
             bot_key=bot_key,
@@ -109,6 +111,7 @@ class Config:
             terms_url=terms_url,
             support_url=support_url,
             experimental_menu=experimental_menu,
+            telegram_provider_token=provider_token,
         )
 
     @property

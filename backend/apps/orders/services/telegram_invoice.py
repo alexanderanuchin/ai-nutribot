@@ -42,12 +42,13 @@ class TelegramStarsInvoiceService:
 
     currency_code = "XTR"
 
-    def __init__(self, *, bot_token: str | None = None) -> None:
+    def __init__(self, *, bot_token: str | None = None, provider_token: str | None = None) -> None:
         self._bot_token = bot_token or settings.TELEGRAM_BOT_TOKEN
         if not self._bot_token:
             raise TelegramStarsInvoiceError(
                 "TELEGRAM_BOT_TOKEN is not configured", code="configuration_error"
             )
+        self._provider_token = provider_token or settings.TELEGRAM_PROVIDER_TOKEN or ""
 
     async def _create_invoice_link(
             self,
@@ -65,7 +66,7 @@ class TelegramStarsInvoiceService:
                 payload=payload,
                 currency=self.currency_code,
                 prices=prices,
-                provider_token="",
+                provider_token=self._provider_token,
             )
 
     def create_wallet_topup_invoice(
