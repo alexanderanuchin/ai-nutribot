@@ -266,5 +266,7 @@ wcwidth==0.2.14
     # via prompt-toolkit
 websockets==15.0.1
     # via uvicorn
+whitenoise==6.7.0
+    # via -r backend/requirements.txt
 yarl==1.22.0
     # via aiohttp

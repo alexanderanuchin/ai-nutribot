@@ -1,3 +1,18 @@
+## 2025-12-01 – codex/backend/admin-static-assets (pending)
+
+**Summary:** Serve admin static assets via WhiteNoise, collect them during
+container startup, and pin the dependency so Jazzmin and Django admin regain
+their styles/scripts behind Gunicorn.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/nutribot/settings.py | Insert WhiteNoise middleware and compressed manifest storage so Gunicorn can serve collected admin/static assets. | Backend runtime | Restart backend |
+| modify | backend/entrypoint.sh | Run `collectstatic` on startup (with opt-out) to populate WhiteNoise's manifest in containers. | Backend runtime | Restart backend |
+| modify | backend/requirements.txt | Declare the WhiteNoise dependency for static asset serving. | Backend deps | Rebuild backend image |
+| modify | backend/requirements.lock | Regenerate lockfile to include WhiteNoise and keep hashes in sync. | Backend deps | Rebuild backend image |
+| modify | docs/codex/CHANGELOG.codex.md | Record the admin static asset hardening per Codex changelog policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit entry for admin static asset recovery. | Docs | No |
+
 ## 2025-11-30 – codex/infra/feed-ws-asgi (pending)
 
 **Summary:** Run the Docker Compose backend through Uvicorn so feed WebSocket

@@ -14,6 +14,10 @@ done
 /opt/venv/bin/python manage.py makemigrations --noinput || true
 /opt/venv/bin/python manage.py migrate --noinput
 
+if [ "${SKIP_COLLECTSTATIC:-0}" != "1" ]; then
+  /opt/venv/bin/python manage.py collectstatic --noinput
+fi
+
 if [ "${FEED_INGESTION_BOOTSTRAP:-1}" != "0" ]; then
   BOOTSTRAP_LIMIT=${FEED_INGESTION_BOOTSTRAP_LIMIT:-5}
   echo "Bootstrapping feed ingestion (limit per source: ${BOOTSTRAP_LIMIT})"

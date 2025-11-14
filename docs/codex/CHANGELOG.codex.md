@@ -1,3 +1,10 @@
+## 2025-12-01 – Admin static asset hardening (pending)
+
+- Added WhiteNoise-backed static serving, container `collectstatic`, and locked
+  dependencies so the Django admin regains styles/scripts when running behind
+  Gunicorn. See
+  [DIFF 2025-12-01](./DIFF.codex.md#2025-12-01--codexbackendadmin-static-assets-pending).
+
 ## 2025-11-30 – Feed websocket ASGI dev server (pending)
 
 - Swapped the Docker Compose dev backend to Uvicorn and documented the ASGI
