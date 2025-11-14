@@ -7,6 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from bot.backend_client import BackendClient
+from bot.config import Config
 from bot.handlers.plan import history_command as handle_history_command
 from bot.handlers.plan import plan_command as handle_plan_command
 from bot.handlers.profile_wizard import on_profile_command as handle_profile_command
@@ -17,36 +18,62 @@ from bot.handlers.support import (
 )
 from bot.handlers.wallet import wallet_command as handle_wallet_command
 from bot.keyboards.inline import QuickAction, QuickActionCallback
-from bot.logging_utils import get_request_id
+from bot.keyboards.main_menu import MainMenuAction, MainMenuCallback
+from bot.logkit import get_request_id
 from bot.routers.commands import process_start
 
 logger = logging.getLogger("bot.menu")
 
 router = Router(name="menu")
 
+_TEXT_ACTIONS = {
+    "🏠 Главная": MainMenuAction.PROFILE,  # fallback to process_start via handler below
+    "👤 Профиль": MainMenuAction.PROFILE,
+    "🧾 Тариф": None,
+    "📜 История": None,
+    "👛 Кошелёк": MainMenuAction.WALLET,
+    "🆘 Поддержка": MainMenuAction.SUPPORT,
+    "💳 Оплата/помощь": None,
+    "📄 Условия": MainMenuAction.TERMS,
+}
+
+
+async def _handle_main_action(
+    action: MainMenuAction,
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    config: Config,
+    *,
+    request_id: str | None,
+) -> None:
+    if action == MainMenuAction.PROFILE:
+        await handle_profile_command(message, backend, state, access_token, config.webapp_url)
+        return
+    if action == MainMenuAction.WALLET:
+        await handle_wallet_command(message, backend, state, access_token)
+        return
+    if action == MainMenuAction.SUPPORT:
+        await handle_support_command(message, support_url=config.support_url)
+        return
+    if action == MainMenuAction.TERMS:
+        await handle_terms_command(message, terms_url=config.terms_url, privacy_url=config.privacy_url)
+        return
+    logger.debug("unhandled main action", extra={"rid": request_id or get_request_id(), "action": action.value})
+
 
 @router.message(
-    F.text.in_(
-        {
-            "🏠 Главная",
-            "👤 Профиль",
-            "🧾 Тариф",
-            "📜 История",
-            "👛 Кошелёк",
-            "🆘 Поддержка",
-            "💳 Оплата/помощь",
-            "📄 Условия",
-        }
-    )
+    F.text.in_(set(_TEXT_ACTIONS.keys()))
 )
 async def on_main_menu_button(
     message: Message,
     backend: BackendClient,
     state: FSMContext,
     access_token: str | None,
-    webapp_url: str,
-    bot_username: str,
+    config: Config,
     request_id: str | None,
+    experimental_menu: bool,
 ) -> None:
     text = (message.text or "").strip()
     rid = request_id or get_request_id()
@@ -55,55 +82,59 @@ async def on_main_menu_button(
             message,
             backend,
             access_token,
-            webapp_url,
-            bot_username,
-            request_id,
+            config,
+            request_id=rid,
+            experimental_menu=experimental_menu,
         )
         return
-    if text == "👤 Профиль":
-        await handle_profile_command(
+    action = _TEXT_ACTIONS.get(text)
+    if action:
+        await _handle_main_action(
+            action,
             message,
             backend,
             state,
             access_token,
-            webapp_url,
+            config,
+            request_id=rid,
         )
         return
     if text == "🧾 Тариф":
-        await handle_plan_command(
-            message,
-            backend,
-            state,
-            access_token,
-        )
+        await handle_plan_command(message, backend, state, access_token)
         return
     if text == "📜 История":
-        await handle_history_command(
-            message,
-            backend,
-            state,
-            access_token,
-        )
-        return
-    if text == "👛 Кошелёк":
-        await handle_wallet_command(
-            message,
-            backend,
-            state,
-            access_token,
-        )
-        return
-    if text == "🆘 Поддержка":
-        await handle_support_command(message)
+        await handle_history_command(message, backend, state, access_token)
         return
     if text == "💳 Оплата/помощь":
-        await handle_pay_support_command(message)
+        await handle_pay_support_command(message, support_url=config.support_url)
         return
-    if text == "📄 Условия":
-        await handle_terms_command(message)
-        return
-
     logger.debug("menu button ignored", extra={"text": text, "rid": rid})
+
+
+@router.callback_query(MainMenuCallback.filter())
+async def on_main_menu_callback(
+    callback: CallbackQuery,
+    callback_data: MainMenuCallback,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    config: Config,
+    request_id: str | None,
+    experimental_menu: bool,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+    await _handle_main_action(
+        callback_data.action,
+        callback.message,
+        backend,
+        state,
+        access_token,
+        config,
+        request_id=request_id,
+    )
+    await callback.answer()
 
 
 @router.callback_query(QuickActionCallback.filter())

@@ -6,7 +6,7 @@ from typing import Final
 
 import httpx
 
-from bot.config import _DEF_BACKEND, _DEF_API_KEYS, _clean_backend_url
+from bot.config import _DEF_BACKEND, _API_URL_KEYS, _clean_backend_url
 
 _DEFAULT_TIMEOUT: Final[float] = float(os.getenv("BOT_HEALTHCHECK_TIMEOUT", "5"))
 
@@ -16,7 +16,7 @@ def _resolve_health_url() -> str:
     if explicit:
         return explicit
 
-    for key in _DEF_API_KEYS:
+    for key in _API_URL_KEYS:
         candidate = os.getenv(key)
         if candidate:
             base = _clean_backend_url(candidate)

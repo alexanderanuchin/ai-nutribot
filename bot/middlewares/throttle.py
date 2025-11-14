@@ -8,7 +8,7 @@ from typing import Any, Callable, Deque, Dict
 
 from aiogram import BaseMiddleware
 
-from bot.logging_utils import get_request_id
+from bot.logkit import get_request_id
 from bot.utils.texts import THROTTLED_TEXT
 
 

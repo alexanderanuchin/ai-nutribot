@@ -1,31 +1,31 @@
 from __future__ import annotations
 
-from typing import Iterable, Tuple
+from typing import Tuple
 
 from aiogram import BaseMiddleware
 
+from bot.config import Config
+
 
 class StoreMiddleware(BaseMiddleware):
-    def __init__(
-        self,
-        store,
-        webapp_url: str,
-        *,
-        admin_ids: Iterable[int] | None = None,
-        bot_username: str | None = None,
-    ):
+    def __init__(self, store, config: Config) -> None:
         super().__init__()
         self.store = store
-        self.webapp_url = webapp_url
-        self.admin_ids: Tuple[int, ...] = tuple(admin_ids or ())
-        self.bot_username = (bot_username or "").lstrip("@")
+        self.config = config
+        self.admin_ids: Tuple[int, ...] = tuple(config.admin_ids)
+        self.bot_username = (config.bot_username or "").lstrip("@")
 
     async def __call__(self, handler, event, data):
-        # кладём зависимости в data — aiogram передаст их по именам параметров хендлеров
         data["store"] = self.store
         data["backend"] = self.store
         data["backend_client"] = self.store
-        data["webapp_url"] = self.webapp_url
+        data["config"] = self.config
+        data["webapp_url"] = self.config.webapp_webview_url or self.config.webapp_url
+        data["webapp_browser_url"] = self.config.webapp_browser_url
         data["admin_ids"] = self.admin_ids
         data["bot_username"] = self.bot_username
+        data["privacy_url"] = self.config.privacy_url
+        data["terms_url"] = self.config.terms_url
+        data["support_url"] = self.config.support_url
+        data["experimental_menu"] = self.config.experimental_menu
         return await handler(event, data)

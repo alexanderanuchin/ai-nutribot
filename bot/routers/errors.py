@@ -6,8 +6,7 @@ from aiogram import Dispatcher
 from aiogram.exceptions import TelegramAPIError
 from aiogram.types import ErrorEvent, Message
 
-from bot.keyboards.main_menu import build_main_menu_keyboard
-from bot.logging_utils import get_request_id
+from bot.logkit import get_request_id
 from bot.utils.texts import ERROR_TEXT
 
 logger = logging.getLogger("bot.errors")
@@ -40,7 +39,7 @@ async def error_handler(event: ErrorEvent) -> None:
     if message is None:
         return
     try:
-        await message.answer(ERROR_TEXT, reply_markup=build_main_menu_keyboard())
+        await message.answer(ERROR_TEXT)
     except TelegramAPIError:
         logger.debug("failed to notify user about error", extra={"rid": rid})
     except Exception:  # pragma: no cover - fallback

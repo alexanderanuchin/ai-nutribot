@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 
-from bot.logging_utils import generate_request_id, get_request_id
+from bot.logkit import generate_request_id, get_request_id
 
 
 class BackendError(RuntimeError):
@@ -106,7 +106,6 @@ class BackendClient:
                     duration_ms = (time.perf_counter() - started) * 1000
                     log_extra = {
                         "rid": rid,
-                        "request_id": rid,
                         "method": method,
                         "path": path,
                         "status": resp.status,
@@ -171,7 +170,6 @@ class BackendClient:
                         "backend request retry",
                         extra={
                             "rid": rid,
-                            "request_id": rid,
                             "method": method,
                             "path": path,
                             "attempt": attempt,
@@ -187,7 +185,6 @@ class BackendClient:
                 "backend request failed",
                 extra={
                     "rid": rid,
-                    "request_id": rid,
                     "method": method,
                     "path": path,
                     "error": str(last_error),
@@ -536,7 +533,6 @@ class BackendClient:
                 "monitoring push failed",
                 extra={
                     "rid": rid,
-                    "request_id": rid,
                     "error": str(err),
                 },
             )

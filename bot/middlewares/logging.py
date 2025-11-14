@@ -6,13 +6,18 @@ from typing import Any
 
 from aiogram import BaseMiddleware
 
-from bot.logging_utils import generate_request_id, reset_request_id, set_request_id
+from bot.logkit import (
+    TelemetryLogger,
+    generate_request_id,
+    reset_request_id,
+    set_request_id,
+)
 
 
 class LoggingMiddleware(BaseMiddleware):
     def __init__(self) -> None:
         super().__init__()
-        self.logger = logging.getLogger("audit.telegram")
+        self.logger = TelemetryLogger("audit.telegram")
 
     async def __call__(self, handler, event: Any, data: dict[str, Any]):
         rid = self._extract_rid(event, data) or generate_request_id()
@@ -37,16 +42,13 @@ class LoggingMiddleware(BaseMiddleware):
             extra=extra,
         )
         try:
-            self.logger.info(
+            self.logger.event(
                 "bot update received",
-                extra={
-                    "rid": rid,
-                    "request_id": rid,
-                    "update_id": update_id,
-                    "from_user": getattr(from_user, "id", None),
-                    "chat_id": getattr(chat, "id", None),
-                    "event_type": event_type,
-                },
+                update_id=update_id,
+                from_user=getattr(from_user, "id", None),
+                chat_id=getattr(chat, "id", None),
+                event_type=event_type,
+                rid=rid,
             )
             return await handler(event, data)
         except Exception as exc:
@@ -56,6 +58,16 @@ class LoggingMiddleware(BaseMiddleware):
                 message="bot update failed",
                 rid=rid,
                 extra={**extra, "error": str(exc)},
+            )
+            self.logger.event(
+                "bot update failed",
+                level=logging.ERROR,
+                update_id=update_id,
+                from_user=getattr(from_user, "id", None),
+                chat_id=getattr(chat, "id", None),
+                event_type=event_type,
+                error=str(exc),
+                rid=rid,
             )
             raise
         finally:
@@ -149,10 +161,11 @@ class LoggingMiddleware(BaseMiddleware):
                 extra=extra,
             )
         except Exception:  # pragma: no cover - logging fallback
-            self.logger.debug(
+            self.logger.event(
                 "failed to push monitoring log",
-                extra={"rid": rid, "request_id": rid},
-                exc_info=True,
+                level=logging.DEBUG,
+                rid=rid,
+                error="monitoring push failed",
             )
 
 

@@ -8,7 +8,7 @@ from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
-from bot.logging_utils import get_request_id, mask_token
+from bot.logkit import get_request_id, mask_token
 
 from .wallet import MAX_TOPUP_AMOUNT, MIN_TOPUP_AMOUNT, build_stars_topup_invoice
 
@@ -27,7 +27,6 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
             "webapp auth missing_token",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "from_user": getattr(message.from_user, "id", None),
             },
         )
@@ -43,7 +42,6 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
             "webapp auth user_mismatch",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "payload_user": webapp_user_id,
                 "telegram_user": from_user_id,
             },
@@ -67,7 +65,6 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
         "webapp auth_success",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": webapp_user_id or from_user_id,
             "access": mask_token(access_token),
             "refresh": mask_token(refresh_token),
@@ -92,7 +89,7 @@ async def _handle_topup_payload(
         await message.answer("Не удалось определить пользователя Telegram.")
         logger.warning(
             "webapp topup missing_user",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -103,7 +100,7 @@ async def _handle_topup_payload(
         await message.answer("WebApp передал некорректную сумму для пополнения.")
         logger.warning(
             "webapp topup invalid_amount",
-            extra={"rid": rid, "request_id": rid, "amount": raw_amount},
+            extra={"rid": rid, "amount": raw_amount},
         )
         return
 
@@ -115,7 +112,6 @@ async def _handle_topup_payload(
             "webapp topup below_min",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "amount": amount,
                 "min_amount": MIN_TOPUP_AMOUNT,
             },
@@ -130,7 +126,6 @@ async def _handle_topup_payload(
             "webapp topup above_max",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "amount": amount,
                 "max_amount": MAX_TOPUP_AMOUNT,
             },
@@ -148,7 +143,7 @@ async def _handle_topup_payload(
         )
         logger.warning(
             "webapp topup missing_token",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -162,7 +157,6 @@ async def _handle_topup_payload(
                     "webapp topup session_mismatch",
                     extra={
                         "rid": rid,
-                        "request_id": rid,
                         "stored_user_id": session_user_id,
                         "actual_user_id": message.from_user.id,
                     },
@@ -174,7 +168,7 @@ async def _handle_topup_payload(
             )
             logger.warning(
                 "webapp topup session_parse_error",
-                extra={"rid": rid, "request_id": rid},
+                extra={"rid": rid},
             )
             return
 
@@ -187,7 +181,6 @@ async def _handle_topup_payload(
             "webapp topup blocked",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "telegram_user_id": getattr(message.from_user, "id", None),
             },
         )
@@ -196,7 +189,6 @@ async def _handle_topup_payload(
         "webapp topup_request",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": getattr(message.from_user, "id", None),
             "amount": amount,
             "has_comment": bool(comment),
@@ -224,7 +216,7 @@ async def webapp_data_handler(
         )
         logger.error(
             "webapp state_missing",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -235,7 +227,7 @@ async def webapp_data_handler(
         )
         logger.warning(
             "webapp empty_payload",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -247,7 +239,7 @@ async def webapp_data_handler(
         )
         logger.warning(
             "webapp decode_failed",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -258,7 +250,6 @@ async def webapp_data_handler(
         "webapp payload",
         extra={
             "rid": rid,
-            "request_id": rid,
             "type": payload_type,
             "action": action,
             "payload_keys": payload_keys,
@@ -283,7 +274,6 @@ async def webapp_data_handler(
         "webapp unknown_payload",
         extra={
             "rid": rid,
-            "request_id": rid,
             "payload_keys": payload_keys,
         },
     )

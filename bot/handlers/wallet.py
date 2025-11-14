@@ -26,7 +26,7 @@ from bot.backend_client import (
     BackendNetworkError,
     BackendValidationError,
 )
-from bot.logging_utils import get_request_id
+from bot.logkit import get_request_id
 
 router = Router()
 logger = logging.getLogger("audit.wallet")
@@ -236,7 +236,6 @@ def build_stars_topup_invoice(
         "wallet invoice_created",
         extra={
             "rid": rid_to_use,
-            "request_id": rid_to_use,
             "telegram_user_id": user_id,
             "amount": amount,
             "currency": "XTR",
@@ -406,7 +405,6 @@ async def wallet_topup_callback(
         "wallet quick_topup",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": getattr(callback.from_user, "id", None),
             "amount": amount,
         },
@@ -431,7 +429,7 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         )
         logger.error(
             "wallet pre_checkout missing_user",
-            extra={"rid": rid, "request_id": rid},
+            extra={"rid": rid},
         )
         return
 
@@ -451,7 +449,6 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             "wallet pre_checkout user_mismatch",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "requested_user_id": requested_user_id,
                 "actual_user_id": query.from_user.id,
             },
@@ -465,7 +462,6 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         "wallet pre_checkout received",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": query.from_user.id,
             "amount": amount,
             "currency": currency,
@@ -479,7 +475,7 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         )
         logger.warning(
             "wallet pre_checkout invalid_currency",
-            extra={"rid": rid, "request_id": rid, "currency": currency},
+            extra={"rid": rid, "currency": currency},
         )
         return
 
@@ -492,7 +488,6 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             "wallet pre_checkout below_min",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "amount": amount,
                 "min_amount": MIN_TOPUP_AMOUNT,
             },
@@ -508,7 +503,6 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
             "wallet pre_checkout above_max",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "amount": amount,
                 "max_amount": MAX_TOPUP_AMOUNT,
             },
@@ -520,7 +514,6 @@ async def pre_checkout_handler(query: PreCheckoutQuery):
         "wallet pre_checkout approved",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": query.from_user.id,
             "amount": amount,
         },
@@ -548,7 +541,6 @@ async def successful_payment_handler(
         "wallet payment_received",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": getattr(message.from_user, "id", None),
             "charge_id": charge_id,
             "provider_charge_id": payment.provider_payment_charge_id,
@@ -585,7 +577,6 @@ async def successful_payment_handler(
                 "wallet payment_user_mismatch",
                 extra={
                     "rid": rid,
-                    "request_id": rid,
                     "expected_user_id": uid,
                     "actual_user_id": user.id,
                     "charge_id": charge_id,
@@ -605,7 +596,6 @@ async def successful_payment_handler(
         "wallet payment_report",
         extra={
             "rid": rid,
-            "request_id": rid,
             "telegram_user_id": user.id,
             "amount": amount,
             "currency": currency,
@@ -626,7 +616,6 @@ async def successful_payment_handler(
             "wallet payment_report_success",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
                 "payment_attempt_id": attempt_id,
@@ -642,7 +631,6 @@ async def successful_payment_handler(
             "wallet payment_report_validation",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
                 "error": details,
@@ -669,7 +657,6 @@ async def successful_payment_handler(
             "wallet payment_report_error",
             extra={
                 "rid": rid,
-                "request_id": rid,
                 "telegram_user_id": user.id,
                 "charge_id": charge_id,
                 "error": str(exc),

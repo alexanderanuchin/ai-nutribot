@@ -1,57 +1,69 @@
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from enum import Enum
 
-from aiogram.types import ReplyKeyboardMarkup
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
-
-MAIN_MENU_BUTTONS: Sequence[str] = (
-    "🏠 Главная",
-    "👤 Профиль",
-    "🧾 Тариф",
-    "📜 История",
-    "👛 Кошелёк",
-    "🆘 Поддержка",
-    "💳 Оплата/помощь",
-    "📄 Условия",
-    "✖️ Отмена",
-)
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import InlineKeyboardMarkup, WebAppInfo
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def _normalize_layout(layout: Iterable[int] | None, total: int) -> list[int]:
-    rows: list[int] = []
-    remaining = total
-    if layout:
-        for chunk in layout:
-            if chunk <= 0:
-                continue
-            rows.append(min(chunk, remaining))
-            remaining -= rows[-1]
-            if remaining <= 0:
-                break
-    if remaining > 0:
-        # По умолчанию формируем компактные ряды по 3 кнопки.
-        while remaining > 3:
-            rows.append(3)
-            remaining -= 3
-        rows.append(remaining)
-    return rows
+class MainMenuAction(str, Enum):
+    PROFILE = "profile"
+    WALLET = "wallet"
+    SUPPORT = "support"
+    TERMS = "terms"
 
 
-def build_main_menu_keyboard(*, layout: Iterable[int] | None = (3, 3, 3)) -> ReplyKeyboardMarkup:
-    """Собирает клавиатуру главного меню с учётом ширины экранов."""
+class MainMenuCallback(CallbackData, prefix="main"):
+    action: MainMenuAction
 
-    builder = ReplyKeyboardBuilder()
-    for caption in MAIN_MENU_BUTTONS:
-        builder.button(text=caption)
 
-    builder.adjust(*_normalize_layout(layout, len(MAIN_MENU_BUTTONS)))
-    return builder.as_markup(
-        resize_keyboard=True,
-        input_field_placeholder="Выберите действие…",
-        selective=False,
-        one_time_keyboard=False,
+def build_main_menu_keyboard(
+    *,
+    webapp_url: str | None,
+    browser_url: str | None,
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    first_row = 0
+    if webapp_url:
+        builder.button(
+            text="Открыть приложение (встроенно)",
+            web_app=WebAppInfo(url=webapp_url),
+        )
+        first_row += 1
+    if browser_url:
+        # Показываем ссылку в браузер всегда, если есть HTTPS-домен.
+        builder.button(text="Открыть в браузере", url=browser_url)
+        first_row += 1
+    if not first_row and browser_url:
+        first_row = 1
+    builder.button(
+        text="👤 Профиль",
+        callback_data=MainMenuCallback(action=MainMenuAction.PROFILE).pack(),
+    )
+    builder.button(
+        text="👛 Кошелёк",
+        callback_data=MainMenuCallback(action=MainMenuAction.WALLET).pack(),
+    )
+    builder.button(
+        text="🆘 Поддержка",
+        callback_data=MainMenuCallback(action=MainMenuAction.SUPPORT).pack(),
+    )
+    builder.button(
+        text="📄 Условия",
+        callback_data=MainMenuCallback(action=MainMenuAction.TERMS).pack(),
     )
 
+    layout: list[int] = []
+    if first_row:
+        layout.append(first_row)
+    layout.extend((2, 2))
+    builder.adjust(*layout)
+    return builder.as_markup()
 
-__all__ = ["build_main_menu_keyboard", "MAIN_MENU_BUTTONS"]
+
+__all__ = [
+    "MainMenuAction",
+    "MainMenuCallback",
+    "build_main_menu_keyboard",
+]

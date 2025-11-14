@@ -1,3 +1,33 @@
+## 2025-12-02 – codex/bot/stage1-bootstrap (pending)
+
+**Summary:** Delivered Stage 1 of the Telegram bot overhaul: introduced a
+standard `bot.main` entrypoint with signal-aware polling, centralised logging
+via `logkit`, simplified the `/start` UX into the minimal inline launcher, and
+threaded legal/support links through the configuration and handlers.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | bot/logkit.py | New logging toolkit with context-based `rid`, JSON/text formatters, and a lightweight `TelemetryLogger` per Stage 1 logging requirements. | Bot runtime | No |
+| create | bot/main.py | Standard async entrypoint (`python -m bot.main`) with graceful SIGINT/SIGTERM shutdown and central dispatcher wiring. | Bot runtime | Restart bot |
+| modify | bot/app.py | Delegate legacy script entrypoint to the new `bot.main` runner. | Bot runtime | No |
+| modify | bot/backend_client.py | Align backend telemetry with `logkit` (`rid` extras only) and reuse the new request-id helpers. | Bot ↔ backend telemetry | No |
+| modify | bot/config.py | Consolidate env parsing (redis, legal URLs, experimental flag) and expose HTTPS-aware WebApp helpers. | Bot configuration | Bot restart |
+| modify | bot/handlers/support.py | Generate support/terms texts from env-sourced URLs for inline menu usage. | Bot UX | No |
+| modify | bot/handlers/wallet.py | Switch to `logkit` rid handling for wallet telemetry. | Bot telemetry | No |
+| modify | bot/handlers/webapp_data.py | Use new logging helpers and strip legacy `request_id` fields from WebApp auth/top-up flows. | Bot telemetry | No |
+| modify | bot/healthcheck.py | Track renamed backend URL constants from the unified config. | Bot tooling | No |
+| modify | bot/keyboards/main_menu.py | Rebuild main menu as an inline launcher with WebApp/browser buttons plus compact action row. | Bot UX | No |
+| delete | bot/logging_utils.py | Retire legacy logging helpers in favour of `bot/logkit.py`. | Bot runtime | No |
+| modify | bot/middlewares/logging.py | Emit telemetry through `TelemetryLogger` and honour context-provided `rid`. | Bot telemetry | No |
+| modify | bot/middlewares/store.py | Inject the full `Config` object and expose legal/support URLs & experiment flag to handlers. | Bot dependency wiring | No |
+| modify | bot/middlewares/throttle.py | Read request ids via `logkit` to keep throttling logs consistent. | Bot telemetry | No |
+| modify | bot/routers/commands.py | Produce the minimalist `/start` screen, reuse `Config`, and gate quick actions behind `BOT_EXPERIMENTAL_MENU`. | Bot UX | No |
+| modify | bot/routers/errors.py | Switch to new logging helpers and drop the outdated reply keyboard on error fallback. | Bot UX | No |
+| modify | bot/routers/menu.py | Handle new inline menu callbacks while keeping legacy text fallbacks and threading config-derived URLs. | Bot UX | No |
+| modify | bot/utils/texts.py | Provide concise start/cancel copy tailored to the Stage 1 launcher. | Bot UX | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the Stage 1 bot bootstrap milestone per Codex policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit log entry. | Docs | No |
+
 ## 2025-12-01 – codex/backend/admin-static-assets (pending)
 
 **Summary:** Serve admin static assets via WhiteNoise, collect them during

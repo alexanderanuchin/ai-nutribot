@@ -2,19 +2,17 @@ from __future__ import annotations
 
 import logging
 
-from aiogram import F, Router
+from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from bot.backend_client import BackendAuthError, BackendClient, BackendError
-from bot.keyboards.inline import (
-    build_quick_actions_keyboard,
-    create_crm_entry_point,
-)
+from bot.config import Config
+from bot.keyboards.inline import build_quick_actions_keyboard, create_crm_entry_point
 from bot.keyboards.main_menu import build_main_menu_keyboard
-from bot.logging_utils import get_request_id
-from bot.utils.texts import CANCELLED_TEXT, MAIN_SCREEN_TEXT
+from bot.logkit import get_request_id
+from bot.utils.texts import CANCELLED_TEXT, build_start_message
 
 logger = logging.getLogger("bot.commands")
 
@@ -25,50 +23,70 @@ async def process_start(
     message: Message,
     backend: BackendClient,
     access_token: str | None,
-    webapp_url: str,
-    bot_username: str,
+    config: Config,
+    *,
     request_id: str | None = None,
+    experimental_menu: bool = False,
 ) -> None:
-    extra: str
+    rid = request_id or get_request_id()
+    authorized = False
+    status_note: str | None = None
     if access_token:
         try:
             await backend.get_me(access_token)
-            extra = "\n\nВы авторизованы — можно сразу перейти к действиям из меню."
+            authorized = True
         except BackendAuthError:
-            extra = "\n\nСессия истекла. Откройте CRM или заполните профиль заново."
+            status_note = "Сессия истекла. Откройте мини-приложение и войдите заново."
         except BackendError as exc:  # pragma: no cover - сетевые ошибки
             logger.warning(
                 "start profile_fetch_failed",
-                extra={
-                    "rid": request_id or get_request_id(),
-                    "error": str(exc),
-                },
+                extra={"rid": rid, "error": str(exc)},
             )
-            extra = "\n\nНе удалось проверить профиль — используйте меню ниже."
+            status_note = "Не удалось проверить профиль — используйте меню ниже."
         except Exception as exc:  # pragma: no cover - неожиданные ошибки
             logger.exception(
                 "start unexpected_error",
-                extra={"rid": request_id or get_request_id(), "error": str(exc)},
+                extra={"rid": rid, "error": str(exc)},
             )
-            extra = "\n\nВоспользуйтесь меню ниже для продолжения."
-    else:
-        extra = "\n\nЧтобы начать, авторизуйтесь через CRM Mini App."
+            status_note = "Воспользуйтесь кнопками ниже для продолжения."
+    text = build_start_message(authorized=authorized)
+    if status_note:
+        text = f"{text}\n\n{status_note}"
 
-    await message.answer(
-        MAIN_SCREEN_TEXT + extra,
-        reply_markup=build_main_menu_keyboard(),
+    keyboard = build_main_menu_keyboard(
+        webapp_url=config.webapp_webview_url,
+        browser_url=config.webapp_browser_url,
     )
+    await message.answer(text, reply_markup=keyboard)
 
-    crm_entry = create_crm_entry_point(webapp_url=webapp_url, bot_username=bot_username)
-    quick_actions_markup = build_quick_actions_keyboard(crm_entry=crm_entry)
-    await message.answer("Быстрые действия:", reply_markup=quick_actions_markup)
+    if experimental_menu:
+        crm_entry = create_crm_entry_point(
+            webapp_url=config.webapp_browser_url,
+            bot_username=config.bot_username,
+        )
+        quick_actions_markup = build_quick_actions_keyboard(crm_entry=crm_entry)
+        await message.answer("Быстрые действия:", reply_markup=quick_actions_markup)
 
 
-async def process_cancel(message: Message, state: FSMContext) -> None:
+async def process_cancel(
+    message: Message,
+    state: FSMContext,
+    backend: BackendClient,
+    access_token: str | None,
+    config: Config,
+    *,
+    request_id: str | None = None,
+    experimental_menu: bool = False,
+) -> None:
     await state.clear()
-    await message.answer(
-        CANCELLED_TEXT,
-        reply_markup=build_main_menu_keyboard(),
+    await message.answer(CANCELLED_TEXT)
+    await process_start(
+        message,
+        backend,
+        access_token,
+        config,
+        request_id=request_id,
+        experimental_menu=experimental_menu,
     )
 
 
@@ -77,33 +95,60 @@ async def on_start_command(
     message: Message,
     backend: BackendClient,
     access_token: str | None,
-    webapp_url: str,
-    bot_username: str,
+    config: Config,
     request_id: str | None,
+    experimental_menu: bool,
 ) -> None:
     await process_start(
         message,
         backend,
         access_token,
-        webapp_url,
-        bot_username,
-        request_id,
+        config,
+        request_id=request_id,
+        experimental_menu=experimental_menu,
     )
 
 
 @router.message(Command("cancel"))
-async def on_cancel_command(message: Message, state: FSMContext) -> None:
-    await process_cancel(message, state)
+async def on_cancel_command(
+    message: Message,
+    state: FSMContext,
+    backend: BackendClient,
+    access_token: str | None,
+    config: Config,
+    request_id: str | None,
+    experimental_menu: bool,
+) -> None:
+    await process_cancel(
+        message,
+        state,
+        backend,
+        access_token,
+        config,
+        request_id=request_id,
+        experimental_menu=experimental_menu,
+    )
 
 
 @router.message(Command("cansel"))
-async def on_cansel_alias(message: Message, state: FSMContext) -> None:
-    await process_cancel(message, state)
-
-
-@router.message(F.text == "✖️ Отмена")
-async def on_cancel_button(message: Message, state: FSMContext) -> None:
-    await process_cancel(message, state)
+async def on_cansel_alias(
+    message: Message,
+    state: FSMContext,
+    backend: BackendClient,
+    access_token: str | None,
+    config: Config,
+    request_id: str | None,
+    experimental_menu: bool,
+) -> None:
+    await process_cancel(
+        message,
+        state,
+        backend,
+        access_token,
+        config,
+        request_id=request_id,
+        experimental_menu=experimental_menu,
+    )
 
 
 __all__ = ["router", "process_start", "process_cancel"]
