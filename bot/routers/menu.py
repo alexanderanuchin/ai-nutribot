@@ -54,7 +54,8 @@ async def _handle_main_action(
         await handle_profile_command(message, backend, state, access_token, config.webapp_url)
         return
     if action == MainMenuAction.WALLET:
-        await handle_wallet_command(message, backend, state, access_token)
+        webapp_url = config.webapp_webview_url or config.webapp_url
+        await handle_wallet_command(message, backend, state, access_token, webapp_url)
         return
     if action == MainMenuAction.INFO:
         await send_info_legal(
@@ -190,15 +191,18 @@ async def on_quick_action(
     backend: BackendClient,
     state: FSMContext,
     access_token: str | None,
+    config: Config,
 ) -> None:
     action = callback_data.action
     if action == QuickAction.WALLET_TOP_UP:
         if callback.message:
+            webapp_url = config.webapp_webview_url or config.webapp_url
             await handle_wallet_command(
                 callback.message,
                 backend=backend,
                 state=state,
                 access_token=access_token,
+                webapp_url=webapp_url,
             )
         await callback.answer()
         return

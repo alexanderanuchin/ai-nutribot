@@ -1,3 +1,14 @@
+## 2025-12-05 – codex/bot/wallet-webapp-url (pending)
+
+**Summary:** Ensure every wallet entry point receives the configured WebApp URL
+so authorization prompts render the correct button instead of crashing on
+missing handler arguments when navigating from the main menu or quick actions.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/routers/menu.py | Thread the WebApp URL into wallet handlers invoked from menu actions and quick actions to keep authorization prompts consistent. | Bot UX | Restart bot |
+| modify | docs/codex/DIFF.codex.md | Record the wallet handler wiring fix per Codex audit policy. | Docs | No |
+
 ## 2025-12-04 – codex/bot/stars-idempotency (pending)
 
 **Summary:** Anchor the plan hold idempotency base to the Telegram user and attempt
