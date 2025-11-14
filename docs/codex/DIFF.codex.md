@@ -287,6 +287,27 @@ Docs | No |
 | modify | docs/codex/CHANGELOG.codex.md | Reference audit milestone for future PRs. | Docs | No |
 
 
+## 2025-11-13 – codex/infra/database-connection-pooling (pending)
+
+**Summary:** Install PgBouncer in the compose stack, tune Django/Celery to reuse pooled
+connections, move sessions into Redis-backed cache, and slow down admin log polling so
+Postgres stops exhausting `max_connections`.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | infra/pgbouncer/pgbouncer.ini | Provide transaction-pooling defaults (session auth, timeouts) for PgBouncer service. | Infra database | Restart backend & PgBouncer |
+| create | infra/pgbouncer/userlist.txt | Ship md5 credentials for local postgres user so PgBouncer can authenticate connections. | Infra database | Restart backend & PgBouncer |
+| modify | infra/docker-compose.yml | Add PgBouncer service, route backend/Celery via 6432, expose Redis URL and worker caps, and pin to the supported `edoburu/pgbouncer:v1.24.1-p1` image after Docker Hub rejected `pgbouncer/pgbouncer:1.23.0`. | Infra orchestration | Restart backend & workers |
+| modify | backend/nutribot/settings.py | Enable connection health checks, disable server-side cursors, add Redis/LocMem session cache. | Backend runtime | Restart backend |
+| modify | backend/entrypoint.sh | Honour WEB_* env caps when starting gunicorn to limit worker/thread fan-out. | Backend runtime | Restart backend |
+| modify | backend/apps/monitoring/admin.py | Run stream view outside transactions and close DB connections after serialising JSON. | Admin backend | Restart backend |
+| modify | backend/apps/monitoring/templates/admin/monitoring/applicationlog/console.html | Default console polling to paused state, add interval selector, and reschedule timers safely. | Admin UI | No |
+| modify | backend/apps/market/api/events.py | Close DB connections before/after SSE streaming and mark view as non-atomic. | Backend realtime API | Restart backend |
+| modify | docs/codex/CHANGELOG.codex.md | Log the database connection pooling hardening per Codex changelog rules. | Docs | No |
+| modify | docs/codex/DECISIONS.md | Record the decision referencing ADR for pooling and log throttling. | Docs | No |
+| create | docs/codex/adr/2025-11-13-database-connection-pooling.md | Capture rationale/alternatives for PgBouncer + admin throttling. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Register this audit entry. | Docs | No |
+
 ## 2025-11-14 – codex/frontend/market-mealplans-polish (pending)
 
 **Summary:** Surface marketplace meal plan programs on the hub page and tighten the mobile experience of the dedicated listing with responsive filters.

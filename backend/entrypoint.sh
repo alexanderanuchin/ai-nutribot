@@ -22,4 +22,17 @@ if [ "${FEED_INGESTION_BOOTSTRAP:-1}" != "0" ]; then
   fi
 fi
 
-exec /opt/venv/bin/gunicorn nutribot.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
+WEB_WORKERS=${WEB_WORKERS:-2}
+WEB_THREADS=${WEB_THREADS:-1}
+WEB_MAX_REQUESTS=${WEB_MAX_REQUESTS:-1000}
+WEB_MAX_REQUESTS_JITTER=${WEB_MAX_REQUESTS_JITTER:-100}
+WEB_GRACEFUL_TIMEOUT=${WEB_GRACEFUL_TIMEOUT:-60}
+WEB_KEEPALIVE=${WEB_KEEPALIVE:-5}
+
+exec /opt/venv/bin/gunicorn nutribot.asgi:application -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 \
+  --workers "${WEB_WORKERS}" \
+  --threads "${WEB_THREADS}" \
+  --max-requests "${WEB_MAX_REQUESTS}" \
+  --max-requests-jitter "${WEB_MAX_REQUESTS_JITTER}" \
+  --graceful-timeout "${WEB_GRACEFUL_TIMEOUT}" \
+  --keep-alive "${WEB_KEEPALIVE}"

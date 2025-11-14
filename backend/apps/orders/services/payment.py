@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Union
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -640,15 +641,16 @@ class PaymentService:
                 "error_code": reason_code,
             }
             self._disabled_providers[PaymentAttempt.Provider.TELEGRAM_STARS] = details
-            logger.warning(
-                "payment provider unavailable",
-                extra={
-                    "rid": rid,
-                    "request_id": rid,
-                    "provider": PaymentAttempt.Provider.TELEGRAM_STARS,
-                    **details,
-                },
-            )
+            if not getattr(settings, "RUNNING_TESTS", False):
+                logger.warning(
+                    "payment provider unavailable",
+                    extra={
+                        "rid": rid,
+                        "request_id": rid,
+                        "provider": PaymentAttempt.Provider.TELEGRAM_STARS,
+                        **details,
+                    },
+                )
 
     def register_provider(self, provider: BasePaymentProvider) -> None:
         self._providers[provider.code] = provider

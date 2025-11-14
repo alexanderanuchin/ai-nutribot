@@ -263,10 +263,18 @@
                     <label>
                         {% trans "Лимит" %}
                         <select id="limitSelect">
-                            <option value="100">100</option>
-                            <option value="200" selected>200</option>
-                            <option value="300">300</option>
-                            <option value="500">500</option>
+                            <option value="50">50</option>
+                            <option value="100" selected>100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </label>
+                    <label>
+                        {% trans "Интервал" %}
+                        <select id="pollDelaySelect">
+                            <option value="5000">5 с</option>
+                            <option value="10000" selected>10 с</option>
+                            <option value="30000">30 с</option>
+                            <option value="60000">60 с</option>
                         </select>
                     </label>
                 </div>
@@ -284,7 +292,7 @@
         <div class="log-console__viewport" id="logViewport" aria-live="polite"></div>
         <div class="log-console__footer">
             <span id="logCounter" data-count="0">0 {% trans "записей" %}</span>
-            <span id="pollingState">{% trans "Автообновление включено (3с)" %}</span>
+            <span id="pollingState">{% trans "Автообновление остановлено (10с)" %}</span>
         </div>
         <div class="log-console__toolbar-row log-console__toolbar-row--history">
             <div class="log-console__buttons log-console__buttons--history">
@@ -307,6 +315,7 @@
             const loggerFilter = document.getElementById("loggerFilter");
             const ridFilter = document.getElementById("ridFilter");
             const limitSelect = document.getElementById("limitSelect");
+            const pollDelaySelect = document.getElementById("pollDelaySelect");
             const levelButtons = Array.from(document.querySelectorAll('[data-action="level"]'));
             const groupButtons = Array.from(document.querySelectorAll('[data-action="group"]'));
             const clearHistoryUrl = "{{ clear_history_url|escapejs }}";
@@ -325,7 +334,9 @@
                 resume: "{{ _('Возобновить')|escapejs }}",
                 pause: "{{ _('Пауза')|escapejs }}",
                 paused: "{{ _('Автообновление остановлено')|escapejs }}",
+                pausedWithDelay: "{{ _('Автообновление остановлено ({seconds}с)')|escapejs }}",
                 running: "{{ _('Автообновление включено ({seconds}с)')|escapejs }}",
+                manualPrompt: "{{ _('Автообновление выключено. Нажмите «Обновить» или «Возобновить».')|escapejs }}",
                 lastUpdateNone: "{{ _('Последнее событие: —')|escapejs }}",
                 lastUpdateTemplate: "{{ _('Последнее событие: {value}')|escapejs }}",
                 clearHistoryConfirm: "{{ _('Вы уверены, что хотите полностью очистить историю консоли?')|escapejs }}",
@@ -333,12 +344,13 @@
                 historyCleared: "{{ _('История консоли очищена')|escapejs }}",
                 historyClearError: "{{ _('Не удалось очистить историю')|escapejs }}",
             };
+            const initialPollDelay = pollDelaySelect ? parseInt(pollDelaySelect.value, 10) || 10000 : 10000;
             const state = {
                 lastId: null,
-                isPaused: false,
+                isPaused: true,
                 level: "",
                 group: "",
-                pollDelay: 3000,
+                pollDelay: initialPollDelay,
                 lastTimestamp: null,
             };
             let pollTimer = null;
@@ -402,9 +414,15 @@
             function updatePollingIndicators() {
                 const seconds = Math.max(Math.round(state.pollDelay / 1000), 1);
                 togglePollingButton.textContent = state.isPaused ? text.resume : text.pause;
+                if (pollDelaySelect) {
+                    pollDelaySelect.value = String(state.pollDelay);
+                }
                 pollingState.textContent = state.isPaused
-                    ? text.paused
+                    ? text.pausedWithDelay.replace('{seconds}', String(seconds))
                     : text.running.replace('{seconds}', String(seconds));
+                if (state.isPaused && !state.lastTimestamp) {
+                    status.textContent = text.manualPrompt;
+                }
             }
 
             function setActive(buttons, attr, value) {
@@ -490,6 +508,10 @@
                 if (pollTimer) {
                     clearTimeout(pollTimer);
                 }
+                if (state.isPaused) {
+                    pollTimer = null;
+                    return;
+                }
                 pollTimer = window.setTimeout(async () => {
                     await fetchLogs();
                     schedulePoll();
@@ -516,9 +538,15 @@
             togglePollingButton.addEventListener("click", () => {
                 state.isPaused = !state.isPaused;
                 updatePollingIndicators();
-                if (!state.isPaused) {
-                    resetAndFetch();
+                if (state.isPaused) {
+                    if (pollTimer) {
+                        clearTimeout(pollTimer);
+                        pollTimer = null;
+                    }
+                    return;
                 }
+                resetAndFetch();
+                schedulePoll();
             });
             clearButton.addEventListener("click", () => {
                 clearViewport();
@@ -563,6 +591,17 @@
             limitSelect.addEventListener("change", () => {
                 resetAndFetch();
             });
+            if (pollDelaySelect) {
+                pollDelaySelect.addEventListener("change", () => {
+                    const value = parseInt(pollDelaySelect.value, 10);
+                    if (!Number.isFinite(value) || value <= 0) {
+                        return;
+                    }
+                    state.pollDelay = value;
+                    updatePollingIndicators();
+                    schedulePoll();
+                });
+            }
             levelButtons.forEach((button) => {
                 button.addEventListener("click", () => {
                     const level = button.dataset.level || "";
@@ -590,7 +629,7 @@
             setActive(groupButtons, "group", state.group);
             updatePollingIndicators();
             updateLastUpdateLabel();
-            status.textContent = text.connecting;
+            status.textContent = text.manualPrompt;
             resetAndFetch();
             schedulePoll();
         })();

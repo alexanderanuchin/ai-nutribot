@@ -105,6 +105,15 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
 
 - Published `CODEX_AUDIT_REPORT.md` and captured actionable findings. See [DIFF 2025-11-08](./DIFF.codex.md#2025-11-08--codexdocsfull-audit-pending).
 
+## 2025-11-13 – Database connection pooling hardening (pending)
+
+- Added PgBouncer to the compose stack, tuned Django gunicorn/Celery worker limits,
+  moved sessions to Redis cache, slowed the admin console poll interval, and
+  pinned the compose service to the supported `edoburu/pgbouncer:v1.24.1-p1` image so
+  PostgreSQL no longer saturates its connection cap and Docker builds stay green.
+  See
+  [DIFF 2025-11-13](./DIFF.codex.md#2025-11-13--codexinfradatabase-connection-pooling-pending).
+
 ## 2025-11-14 – Marketplace meal plan polish (pending)
 
 - Refined marketplace programs hub placement and responsive filters on the meal plan listing. See [DIFF 2025-11-14](./DIFF.codex.md#2025-11-14--codexfrontendmarket-mealplans-polish-pending).

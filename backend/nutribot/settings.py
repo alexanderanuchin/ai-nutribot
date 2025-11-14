@@ -197,6 +197,20 @@ if USE_SQLITE_VALUE == "1":
         }
     }
 else:
+    _conn_max_age = int(os.getenv("POSTGRES_CONN_MAX_AGE", "0"))
+    _conn_health_checks = os.getenv("POSTGRES_CONN_HEALTH_CHECKS", "0").lower() in {"1", "true", "yes", "on"}
+    _ssl_mode = os.getenv("POSTGRES_SSL_MODE") or os.getenv("PGSSLMODE", "prefer")
+    _statement_timeout = os.getenv("POSTGRES_STATEMENT_TIMEOUT", "60000")
+    _idle_timeout = os.getenv("POSTGRES_IDLE_IN_TRANSACTION_TIMEOUT", "30000")
+    _lock_timeout = os.getenv("POSTGRES_LOCK_TIMEOUT", "5000")
+    _extra_options = os.getenv("POSTGRES_EXTRA_OPTIONS", "").strip()
+    _db_options = [
+        f"-c statement_timeout={_statement_timeout}",
+        f"-c idle_in_transaction_session_timeout={_idle_timeout}",
+        f"-c lock_timeout={_lock_timeout}",
+    ]
+    if _extra_options:
+        _db_options.append(_extra_options)
     DATABASES = {
         "default": {
             "ENGINE": "django_prometheus.db.backends.postgresql",
@@ -205,10 +219,43 @@ else:
             "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
             "HOST": os.getenv("POSTGRES_HOST", "db"),
             "PORT": os.getenv("POSTGRES_PORT", "5432"),
+            "CONN_MAX_AGE": _conn_max_age,
+            "CONN_HEALTH_CHECKS": _conn_health_checks,
+            "DISABLE_SERVER_SIDE_CURSORS": True,
+            "OPTIONS": {
+                "sslmode": _ssl_mode,
+                "connect_timeout": int(os.getenv("POSTGRES_CONNECT_TIMEOUT", "5")),
+                "application_name": os.getenv("POSTGRES_APP_NAME", "nutribot"),
+                "target_session_attrs": os.getenv("POSTGRES_TARGET_SESSION_ATTRS", "any"),
+                "options": " ".join(_db_options),
+            },
         }
     }
 
 PROMETHEUS_EXPORT_MIGRATIONS = False
+
+_cache_url = os.getenv("REDIS_CACHE_URL") or os.getenv("REDIS_URL")
+if _cache_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": _cache_url,
+            "OPTIONS": {
+                "socket_timeout": float(os.getenv("REDIS_SOCKET_TIMEOUT", "2")),
+                "retry_on_timeout": True,
+            },
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "nutribot-local",
+        }
+    }
+
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
 
 LANGUAGE_CODE = "ru-ru"
 TIME_DEFAULT_TZ = os.getenv("TIME_DEFAULT_TZ") or os.getenv("TIME_ZONE") or "Europe/Moscow"

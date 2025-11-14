@@ -13,6 +13,24 @@ services:
       timeout: 5s
       retries: 10
 
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.24.1-p1
+    command: ["pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
+    restart: unless-stopped
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "6432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 6432 -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   redis:
     image: redis:7
 
@@ -26,9 +44,21 @@ services:
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
+      POSTGRES_HOST: ${POSTGRES_HOST:-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_CONN_MAX_AGE: ${POSTGRES_CONN_MAX_AGE:-0}
+      POSTGRES_CONN_HEALTH_CHECKS: ${POSTGRES_CONN_HEALTH_CHECKS:-1}
+      POSTGRES_SSL_MODE: ${POSTGRES_SSL_MODE:-prefer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      WEB_WORKERS: ${WEB_WORKERS:-2}
+      WEB_THREADS: ${WEB_THREADS:-1}
+      WEB_MAX_REQUESTS: ${WEB_MAX_REQUESTS:-1000}
+      WEB_MAX_REQUESTS_JITTER: ${WEB_MAX_REQUESTS_JITTER:-100}
+      WEB_GRACEFUL_TIMEOUT: ${WEB_GRACEFUL_TIMEOUT:-60}
+      WEB_KEEPALIVE: ${WEB_KEEPALIVE:-5}
     depends_on:
-      db:
-        condition: service_healthy
+      pgbouncer:
+        condition: service_started
       redis:
         condition: service_started
     ports:
@@ -46,10 +76,19 @@ services:
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
-    command: ["/opt/venv/bin/celery", "-A", "nutribot", "worker", "-l", "info", "-Q", "default,feed.ingestion"]
+      POSTGRES_HOST: ${POSTGRES_HOST:-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_CONN_MAX_AGE: ${POSTGRES_CONN_MAX_AGE:-0}
+      POSTGRES_CONN_HEALTH_CHECKS: ${POSTGRES_CONN_HEALTH_CHECKS:-1}
+      POSTGRES_SSL_MODE: ${POSTGRES_SSL_MODE:-prefer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_WORKER_CONCURRENCY: ${CELERY_WORKER_CONCURRENCY:-4}
+      CELERY_WORKER_PREFETCH_MULTIPLIER: ${CELERY_WORKER_PREFETCH_MULTIPLIER:-1}
+    command: ["/opt/venv/bin/celery", "-A", "nutribot", "worker", "-l", "info", "-Q", "default,feed.ingestion", "-c", "${CELERY_WORKER_CONCURRENCY:-4}", "--prefetch-multiplier=${CELERY_WORKER_PREFETCH_MULTIPLIER:-1}"]
     depends_on:
       - backend
       - redis
+      - pgbouncer
 
   celery-beat:
     build: ../backend
@@ -61,10 +100,17 @@ services:
       YANDEX_API_KEY: ${YANDEX_API_KEY:-}
       YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
       TIME_DEFAULT_TZ: ${TIME_DEFAULT_TZ:-Europe/Moscow}
+      POSTGRES_HOST: ${POSTGRES_HOST:-pgbouncer}
+      POSTGRES_PORT: ${POSTGRES_PORT:-6432}
+      POSTGRES_CONN_MAX_AGE: ${POSTGRES_CONN_MAX_AGE:-0}
+      POSTGRES_CONN_HEALTH_CHECKS: ${POSTGRES_CONN_HEALTH_CHECKS:-1}
+      POSTGRES_SSL_MODE: ${POSTGRES_SSL_MODE:-prefer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
     command: ["/opt/venv/bin/celery", "-A", "nutribot", "beat", "-l", "info", "-s", "/app/run/celerybeat-schedule"]
     depends_on:
       - backend
       - redis
+      - pgbouncer
 
   bot:
     build: ../bot

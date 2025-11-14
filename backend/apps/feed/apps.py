@@ -4,6 +4,7 @@ import logging
 from typing import Iterable, TYPE_CHECKING
 
 from django.apps import AppConfig
+from django.conf import settings
 from django.db.models.signals import post_migrate
 
 from nutribot.middleware import get_request_id
@@ -76,6 +77,9 @@ class FeedConfig(AppConfig):
 
         editors.permissions.set(editor_perms)
         moderators.permissions.set(moderator_perms)
+
+        if getattr(settings, "RUNNING_TESTS", False):
+            return
 
         logger.info(
             "feed groups ensured",

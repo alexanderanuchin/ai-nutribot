@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from django.contrib import admin
+from django.db import close_old_connections, transaction
 from django.http import HttpRequest, JsonResponse
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
+from django.utils.decorators import method_decorator
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -11,6 +13,7 @@ from .models import ApplicationLog
 
 
 @admin.register(ApplicationLog)
+@method_decorator(transaction.non_atomic_requests, name="stream_view")
 class ApplicationLogAdmin(admin.ModelAdmin):
     list_display = (
         "created_at",
@@ -115,6 +118,7 @@ class ApplicationLogAdmin(admin.ModelAdmin):
             }
             for entry in entries
         ]
+        close_old_connections()
         return JsonResponse({"results": results})
 
     def clear_history_view(self, request: HttpRequest) -> JsonResponse:

@@ -8,6 +8,8 @@ from typing import Any
 
 from django.http import HttpRequest, HttpResponse, StreamingHttpResponse
 from django.utils.encoding import force_str
+from django.db import close_old_connections, transaction
+from django.utils.decorators import method_decorator
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -134,6 +136,7 @@ def _market_event_stream(
     """Yield Server-Sent Events for given broker groups and user.
     This function is careful to never raise inside the generator to avoid 500s.
     """
+    close_old_connections()
     # Inform client that connection is alive
     yield b":ok\n\n"
     keepalive_event = FeedEvent(group_name=KEEPALIVE_EVENT, payload={})
@@ -195,8 +198,11 @@ def _market_event_stream(
                     "subscriber_id": subscriber_id,
                 },
             )
+        finally:
+            close_old_connections()
 
 
+@method_decorator(transaction.non_atomic_requests, name="dispatch")
 class MarketEventStreamView(APIView):
     """SSE endpoint for marketplace realtime events.
 
@@ -238,6 +244,7 @@ class MarketEventStreamView(APIView):
 
         # 3) Build streaming response
         user_id = getattr(user, "id", 0)
+        close_old_connections()
         stream = _market_event_stream(groups=groups, user_id=user_id, rid=rid)
         response = StreamingHttpResponse(
             stream,
