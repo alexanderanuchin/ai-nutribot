@@ -1,3 +1,10 @@
+## 2025-12-03 – Bot Stage 2 launcher (pending)
+
+- Brought the Telegram bot start flow to the Stage 2 spec: hero card with the
+  compact inline launcher, Info & Legal hub, wallet login prompt refresh, and
+  chat menu WebApp shortcut. See
+  [DIFF 2025-12-03](./DIFF.codex.md#2025-12-03--codexbotstage2-launcher-pending).
+
 ## 2025-12-02 – Bot Stage 1 bootstrap (pending)
 
 - Standardised the Telegram bot bootstrap: new `bot.main` entrypoint, unified

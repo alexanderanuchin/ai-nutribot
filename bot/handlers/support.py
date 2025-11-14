@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardMarkup, Message, WebAppInfo
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 router = Router()
 
@@ -45,6 +46,67 @@ def _format_pay_support_text(*, support_url: str | None) -> str:
     return "\n\n".join(lines)
 
 
+def _format_info_legal_text(*, terms_url: str | None, privacy_url: str | None, support_url: str | None) -> str:
+    lines = ["<b>ℹ️ Info & Legal</b>"]
+    lines.append("NutriBot работает в Telegram Stars — документы и поддержка ниже.")
+    resources: list[str] = []
+    if privacy_url:
+        resources.append(f"🔐 <a href=\"{privacy_url}\">Privacy Policy</a>")
+    if terms_url:
+        resources.append(f"📄 <a href=\"{terms_url}\">Terms of Service</a>")
+    if support_url:
+        resources.append(f"🆘 <a href=\"{support_url}\">Support Centre</a>")
+    if resources:
+        lines.append("\n".join(resources))
+    lines.append("Нужно больше деталей — нажмите «Задать вопрос».")
+    return "\n\n".join(lines)
+
+
+def build_info_legal_keyboard(
+    *,
+    support_url: str | None,
+    webapp_url: str | None,
+    browser_url: str | None,
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    if browser_url:
+        builder.button(text="🌐 Открыть в браузере", url=browser_url)
+    if support_url:
+        builder.button(text="Задать вопрос", url=support_url)
+    elif webapp_url:
+        cleaned = webapp_url.strip()
+        if cleaned.lower().startswith("https://"):
+            builder.button(text="Задать вопрос", web_app=WebAppInfo(url=cleaned))
+        else:
+            builder.button(text="Задать вопрос", url=cleaned)
+    builder.button(text="↩️ В меню", callback_data="menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+async def send_info_legal(
+    message: Message,
+    *,
+    terms_url: str | None,
+    privacy_url: str | None,
+    support_url: str | None,
+    webapp_url: str | None,
+    browser_url: str | None,
+) -> None:
+    await message.answer(
+        _format_info_legal_text(
+            terms_url=terms_url,
+            privacy_url=privacy_url,
+            support_url=support_url,
+        ),
+        reply_markup=build_info_legal_keyboard(
+            support_url=support_url,
+            webapp_url=webapp_url,
+            browser_url=browser_url,
+        ),
+    )
+
+
 @router.message(Command("terms"))
 async def terms_command(
     message: Message,
@@ -78,4 +140,6 @@ __all__ = [
     "terms_command",
     "support_command",
     "pay_support_command",
+    "build_info_legal_keyboard",
+    "send_info_legal",
 ]

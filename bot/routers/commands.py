@@ -57,7 +57,12 @@ async def process_start(
         webapp_url=config.webapp_webview_url,
         browser_url=config.webapp_browser_url,
     )
-    await message.answer(text, reply_markup=keyboard)
+
+    hero_image = config.hero_image_url
+    if hero_image:
+        await message.answer_photo(hero_image, caption=text, reply_markup=keyboard)
+    else:
+        await message.answer(text, reply_markup=keyboard)
 
     if experimental_menu:
         crm_entry = create_crm_entry_point(

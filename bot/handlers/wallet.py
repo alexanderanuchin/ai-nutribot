@@ -40,9 +40,9 @@ def _authorization_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if webapp_url:
         if webapp_url.lower().startswith("https://"):
-            builder.button(text="Открыть кабинет", web_app=WebAppInfo(url=webapp_url))
+            builder.button(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))
         else:
-            builder.button(text="Открыть кабинет", url=webapp_url)
+            builder.button(text="Открыть приложение", url=webapp_url)
     builder.button(text="↩️ В меню", callback_data="menu")
     builder.adjust(1)
     return builder.as_markup()
@@ -256,7 +256,7 @@ def build_stars_topup_invoice(
 
 async def _ensure_authorized(message: Message, webapp_url: str) -> None:
     await message.answer(
-        "Сначала авторизуйтесь через WebApp, чтобы увидеть баланс.",
+        "Нужно войти, чтобы посмотреть кошелёк.",
         reply_markup=_authorization_keyboard(webapp_url),
     )
 
@@ -318,10 +318,7 @@ async def wallet_open_callback(
         return
 
     if not access_token:
-        await callback.message.answer(
-            "Сначала авторизуйтесь через WebApp, чтобы увидеть баланс.",
-            reply_markup=_authorization_keyboard(webapp_url),
-        )
+        await _ensure_authorized(callback.message, webapp_url)
         await callback.answer()
         return
 
@@ -340,10 +337,7 @@ async def wallet_open_callback(
             notify_retry=notify_retry,
         )
     except BackendAuthError:
-        await callback.message.answer(
-            "Сессия истекла. Авторизуйтесь через WebApp.",
-            reply_markup=_authorization_keyboard(webapp_url),
-        )
+        await _ensure_authorized(callback.message, webapp_url)
         await callback.answer()
         return
     except BackendNetworkError:
@@ -381,10 +375,7 @@ async def wallet_topup_callback(
         user_id=from_user_id,
     )
     if not stored_access_token:
-        await callback.message.answer(
-            "Сначала авторизуйтесь через WebApp, чтобы пополнить баланс.",
-            reply_markup=_authorization_keyboard(webapp_url),
-        )
+        await _ensure_authorized(callback.message, webapp_url)
         await callback.answer()
         return
     if state_data.get("stars_purchase_blocked"):

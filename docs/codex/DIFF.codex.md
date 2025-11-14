@@ -1,3 +1,24 @@
+## 2025-12-03 – codex/bot/stage2-launcher (pending)
+
+**Summary:** Delivered the Stage 2 launcher experience: hero start card with
+compact inline actions, a consolidated Info & Legal surface, wallet login
+prompts tuned for the modern flow, and bot-wide command/menu polish including
+the Chat Menu WebApp shortcut.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/config.py | Read the hero image URL from env so `/start` can send the brand cover. | Bot UX | Restart bot |
+| modify | bot/middlewares/store.py | Expose the hero image to handlers via middleware context. | Bot runtime | No |
+| modify | bot/utils/texts.py | Refresh start copy with the Stage 2 pitch and CTA. | Bot UX | No |
+| modify | bot/keyboards/main_menu.py | Rebuild the inline menu into a 2×2 grid with Info & Legal action. | Bot UX | No |
+| modify | bot/handlers/support.py | Add Info & Legal renderer with inline links and contact CTA. | Bot UX | No |
+| modify | bot/routers/menu.py | Wire the new Info & Legal action, menu callback, and fallbacks. | Bot UX | No |
+| modify | bot/routers/commands.py | Send the hero image card on `/start` with the updated keyboard. | Bot UX | No |
+| modify | bot/handlers/wallet.py | Introduce the “Нужно войти” prompt and reuse it across wallet flows. | Bot UX | No |
+| modify | bot/services/commands.py | Trim command menu per spec and configure the Chat Menu WebApp button. | Bot UX | Bot restart |
+| modify | bot/main.py | Invoke chat menu setup during startup. | Bot runtime | Restart bot |
+| modify | bot/tests/test_wallet_handlers.py | Align tests with the new wallet login messaging. | Bot tests | No |
+
 ## 2025-12-02 – codex/bot/stage1-bootstrap (pending)
 
 **Summary:** Delivered Stage 1 of the Telegram bot overhaul: introduced a

@@ -65,6 +65,7 @@ class Config:
     backend_base_url: str
     webapp_url: str
     bot_username: str
+    hero_image_url: str | None
     throttle_limit: int
     throttle_interval: float
     admin_ids: Tuple[int, ...]
@@ -82,6 +83,7 @@ class Config:
         backend_base_url = resolve_backend_url()
         webapp_url = os.getenv("WEBAPP_URL") or _DEF_WEBAPP
         bot_username = os.getenv("BOT_USERNAME") or os.getenv("TELEGRAM_BOT_USERNAME") or ""
+        hero_image_url = _optional_url(os.getenv("BOT_HERO_IMAGE_URL") or os.getenv("HERO_IMAGE_URL"))
         throttle_limit = int(os.getenv("BOT_THROTTLE_LIMIT", "3"))
         throttle_interval = float(os.getenv("BOT_THROTTLE_INTERVAL", "10"))
         admin_ids = _parse_admin_ids(os.getenv("ADMIN_IDS") or os.getenv("BOT_ADMIN_IDS"))
@@ -97,6 +99,7 @@ class Config:
             backend_base_url=backend_base_url,
             webapp_url=webapp_url,
             bot_username=bot_username,
+            hero_image_url=hero_image_url,
             throttle_limit=throttle_limit,
             throttle_interval=throttle_interval,
             admin_ids=admin_ids,

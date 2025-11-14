@@ -10,8 +10,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 class MainMenuAction(str, Enum):
     PROFILE = "profile"
     WALLET = "wallet"
-    SUPPORT = "support"
-    TERMS = "terms"
+    INFO = "info"
 
 
 class MainMenuCallback(CallbackData, prefix="main"):
@@ -24,19 +23,15 @@ def build_main_menu_keyboard(
     browser_url: str | None,
 ) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    first_row = 0
     if webapp_url:
+        builder.button(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))
+    elif browser_url:
+        builder.button(text="Открыть приложение", url=browser_url)
+    else:
         builder.button(
-            text="Открыть приложение (встроенно)",
-            web_app=WebAppInfo(url=webapp_url),
+            text="Открыть приложение",
+            callback_data=MainMenuCallback(action=MainMenuAction.INFO).pack(),
         )
-        first_row += 1
-    if browser_url:
-        # Показываем ссылку в браузер всегда, если есть HTTPS-домен.
-        builder.button(text="Открыть в браузере", url=browser_url)
-        first_row += 1
-    if not first_row and browser_url:
-        first_row = 1
     builder.button(
         text="👤 Профиль",
         callback_data=MainMenuCallback(action=MainMenuAction.PROFILE).pack(),
@@ -46,19 +41,11 @@ def build_main_menu_keyboard(
         callback_data=MainMenuCallback(action=MainMenuAction.WALLET).pack(),
     )
     builder.button(
-        text="🆘 Поддержка",
-        callback_data=MainMenuCallback(action=MainMenuAction.SUPPORT).pack(),
-    )
-    builder.button(
-        text="📄 Условия",
-        callback_data=MainMenuCallback(action=MainMenuAction.TERMS).pack(),
+        text="ℹ️ Info & Legal",
+        callback_data=MainMenuCallback(action=MainMenuAction.INFO).pack(),
     )
 
-    layout: list[int] = []
-    if first_row:
-        layout.append(first_row)
-    layout.extend((2, 2))
-    builder.adjust(*layout)
+    builder.adjust(2, 2)
     return builder.as_markup()
 
 

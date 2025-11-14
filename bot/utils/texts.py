@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-START_TITLE = "<b>NutriBot Mini App</b>"
+START_TITLE = "<b>NutriBot · свежий опыт питания</b>"
 START_LEAD = (
-    "Запускайте мини-приложение, чтобы управлять профилем, планами и кошельком Stars"
-    " в одном месте."
+    "Персональные планы, контроль прогресса и кошелёк Stars — всё в одном мини-приложении."
 )
-START_AUTH_HINT = "Вы авторизованы — выбирайте раздел ниже."
-START_AUTH_REQUIRED = (
-    "Чтобы начать, войдите через мини-приложение — оно откроется по кнопке выше."
-)
+START_CTA = "Нажмите «Открыть приложение», чтобы стартовать за минуту."
+START_AUTH_HINT = "Вы уже в системе — выбирайте следующий шаг ниже."
+START_AUTH_REQUIRED = "Чтобы продолжить, войдите через кнопку «Открыть приложение»."
 CANCELLED_TEXT = "Текущий шаг отменён. Меню снова открыто ниже."
 THROTTLED_TEXT = "Слишком часто, попробуйте позже."
 ERROR_TEXT = (
@@ -18,7 +16,7 @@ ERROR_TEXT = (
 
 
 def build_start_message(*, authorized: bool) -> str:
-    lines = [START_TITLE, START_LEAD]
+    lines = [START_TITLE, START_LEAD, START_CTA]
     lines.append(START_AUTH_HINT if authorized else START_AUTH_REQUIRED)
     return "\n".join(lines)
 
@@ -27,6 +25,7 @@ __all__ = [
     "build_start_message",
     "CANCELLED_TEXT",
     "ERROR_TEXT",
+    "START_CTA",
     "START_LEAD",
     "START_TITLE",
     "START_AUTH_HINT",

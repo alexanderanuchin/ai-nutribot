@@ -102,7 +102,7 @@ async def test_wallet_command_requires_auth():
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
-    assert "авторизуйтесь" in text.lower()
+    assert "нужно" in text.lower()
 
 
 @pytest.mark.asyncio
@@ -155,7 +155,7 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
 
     callback.message.answer.assert_awaited()
     text = callback.message.answer.call_args[0][0]
-    assert "авториз" in text.lower()
+    assert "нужно" in text.lower()
     callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
 

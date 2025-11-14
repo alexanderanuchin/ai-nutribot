@@ -27,5 +27,6 @@ class StoreMiddleware(BaseMiddleware):
         data["privacy_url"] = self.config.privacy_url
         data["terms_url"] = self.config.terms_url
         data["support_url"] = self.config.support_url
+        data["hero_image_url"] = self.config.hero_image_url
         data["experimental_menu"] = self.config.experimental_menu
         return await handler(event, data)

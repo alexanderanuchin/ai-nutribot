@@ -13,6 +13,7 @@ from bot.handlers.plan import plan_command as handle_plan_command
 from bot.handlers.profile_wizard import on_profile_command as handle_profile_command
 from bot.handlers.support import (
     pay_support_command as handle_pay_support_command,
+    send_info_legal,
     support_command as handle_support_command,
     terms_command as handle_terms_command,
 )
@@ -32,9 +33,10 @@ _TEXT_ACTIONS = {
     "🧾 Тариф": None,
     "📜 История": None,
     "👛 Кошелёк": MainMenuAction.WALLET,
-    "🆘 Поддержка": MainMenuAction.SUPPORT,
+    "ℹ️ Info & Legal": MainMenuAction.INFO,
+    "🆘 Поддержка": None,
     "💳 Оплата/помощь": None,
-    "📄 Условия": MainMenuAction.TERMS,
+    "📄 Условия": None,
 }
 
 
@@ -54,11 +56,15 @@ async def _handle_main_action(
     if action == MainMenuAction.WALLET:
         await handle_wallet_command(message, backend, state, access_token)
         return
-    if action == MainMenuAction.SUPPORT:
-        await handle_support_command(message, support_url=config.support_url)
-        return
-    if action == MainMenuAction.TERMS:
-        await handle_terms_command(message, terms_url=config.terms_url, privacy_url=config.privacy_url)
+    if action == MainMenuAction.INFO:
+        await send_info_legal(
+            message,
+            terms_url=config.terms_url,
+            privacy_url=config.privacy_url,
+            support_url=config.support_url,
+            webapp_url=config.webapp_webview_url or config.webapp_url,
+            browser_url=config.webapp_browser_url,
+        )
         return
     logger.debug("unhandled main action", extra={"rid": request_id or get_request_id(), "action": action.value})
 
@@ -99,6 +105,16 @@ async def on_main_menu_button(
             request_id=rid,
         )
         return
+    if text == "ℹ️ Info & Legal":
+        await send_info_legal(
+            message,
+            terms_url=config.terms_url,
+            privacy_url=config.privacy_url,
+            support_url=config.support_url,
+            webapp_url=config.webapp_webview_url or config.webapp_url,
+            browser_url=config.webapp_browser_url,
+        )
+        return
     if text == "🧾 Тариф":
         await handle_plan_command(message, backend, state, access_token)
         return
@@ -107,6 +123,12 @@ async def on_main_menu_button(
         return
     if text == "💳 Оплата/помощь":
         await handle_pay_support_command(message, support_url=config.support_url)
+        return
+    if text == "🆘 Поддержка":
+        await handle_support_command(message, support_url=config.support_url)
+        return
+    if text == "📄 Условия":
+        await handle_terms_command(message, terms_url=config.terms_url, privacy_url=config.privacy_url)
         return
     logger.debug("menu button ignored", extra={"text": text, "rid": rid})
 
@@ -133,6 +155,30 @@ async def on_main_menu_callback(
         access_token,
         config,
         request_id=request_id,
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu")
+async def on_menu_callback(
+    callback: CallbackQuery,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    config: Config,
+    request_id: str | None,
+    experimental_menu: bool,
+) -> None:
+    if callback.message is None:
+        await callback.answer()
+        return
+    await process_start(
+        callback.message,
+        backend,
+        access_token,
+        config,
+        request_id=request_id,
+        experimental_menu=experimental_menu,
     )
     await callback.answer()
 

@@ -26,7 +26,7 @@ from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.support import router as support_router
 from bot.handlers.wallet import router as wallet_router
 from bot.handlers.webapp_data import router as webapp_router
-from bot.services.commands import set_my_commands
+from bot.services.commands import set_chat_menu_button, set_my_commands
 
 ALLOWED_UPDATES = ("message", "callback_query", "pre_checkout_query")
 
@@ -74,6 +74,7 @@ async def main() -> None:
 
     register_error_handlers(dispatcher)
     await set_my_commands(bot)
+    await set_chat_menu_button(bot, webapp_url=cfg.webapp_webview_url)
 
     stop_event = asyncio.Event()
 
