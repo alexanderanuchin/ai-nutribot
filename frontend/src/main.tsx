@@ -8,6 +8,7 @@ import { AuthProvider } from './providers/AuthProvider'
 import { CommandPaletteProvider } from './hooks/useCommandPalette'
 import { logout as performLogout } from './api/auth'
 import './styles/index.css'
+import { DEFAULT_BASE_PATH, getAppBasePath } from './lib/basePath'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,8 +19,11 @@ const queryClient = new QueryClient({
   },
 })
 
+const appBasePath = getAppBasePath()
+const routerBasename = appBasePath === DEFAULT_BASE_PATH ? undefined : appBasePath
+
 createRoot(document.getElementById('root')!).render(
-  <BrowserRouter>
+  <BrowserRouter basename={routerBasename}>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider onLogout={performLogout}>

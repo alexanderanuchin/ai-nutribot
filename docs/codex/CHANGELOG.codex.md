@@ -174,3 +174,17 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
 ## 2025-11-12 – React Router v7 upgrade (pending)
 
 - Raised the SPA routing stack to React Router v7 and normalised nested market paths ahead of v7's relative splat defaults. See [DIFF 2025-11-12](./DIFF.codex.md#2025-11-12--codexfrontendreact-router-v7-pending).
+## 2025-12-05 – WebApp base path routing (pending)
+
+- Taught the SPA to respect `WEBAPP_URL` sub-paths by exporting a shared
+  base-path helper, wiring the inferred basename into `BrowserRouter`, and
+  covering the sanitisation logic with unit tests. See
+  [DIFF 2025-12-05](./DIFF.codex.md#2025-12-05--codexfrontendwebapp-base-path-pending).
+
+## 2025-12-06 – WebApp multi-domain parsing (pending)
+
+- Normalised `WEBAPP_URL` list handling so the bot and SPA pick a single HTTPS
+  candidate, keeping Telegram keyboards and router basenames aligned when
+  multiple domains are configured. See
+  [DIFF 2025-12-06](./DIFF.codex.md#2025-12-06--codexfullstackwebapp-multi-url-pending).
+

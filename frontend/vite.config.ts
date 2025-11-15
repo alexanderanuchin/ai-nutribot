@@ -6,39 +6,96 @@ import react from '@vitejs/plugin-react'
 // PUBLIC_BASE_HOST можно задать в .env (например, adversely-congruent-viper.cloudpub.ru).
 const DEFAULT_PUBLISHED_HOST = 'adversely-congruent-viper.cloudpub.ru'
 
-const resolvePublishedHost = (value: string | undefined): string => {
+const splitCandidates = (value: string | undefined): string[] => {
   if (!value) {
-    return DEFAULT_PUBLISHED_HOST
+    return []
+  }
+  return value
+    .replace(/\r?\n/g, ',')
+    .replace(/;/g, ',')
+    .split(',')
+    .map(chunk => chunk.trim())
+    .filter(Boolean)
+}
+
+const resolvePublishedHosts = (value: string | undefined): string[] => {
+  const candidates = splitCandidates(value)
+  const hosts = new Set<string>()
+
+  for (const candidate of candidates) {
+    if (candidate.includes('://')) {
+      try {
+        const url = new URL(candidate)
+        if (url.host) {
+          hosts.add(url.host)
+        }
+        continue
+      } catch {
+        // ignore malformed URL and try parsing below
+      }
+    }
+
+    const withoutScheme = candidate.replace(/^https?:\/\//, '')
+    const host = withoutScheme.split(/[/?#]/)[0]
+    if (host) {
+      hosts.add(host)
+    }
+  }
+
+  if (hosts.size === 0) {
+    hosts.add(DEFAULT_PUBLISHED_HOST)
+  }
+
+  return Array.from(hosts)
+}
+
+const [primaryWebAppUrl] = splitCandidates(process.env.WEBAPP_URL)
+
+const resolveAppBasePath = (value: string | undefined): string => {
+  if (!value) {
+    return '/'
   }
 
   const trimmed = value.trim()
   if (!trimmed) {
-    return DEFAULT_PUBLISHED_HOST
+    return '/'
   }
 
-  if (trimmed.includes('://')) {
-    try {
-      const url = new URL(trimmed)
-      return url.host || DEFAULT_PUBLISHED_HOST
-    } catch {
-      return DEFAULT_PUBLISHED_HOST
+  try {
+    const url = new URL(trimmed)
+    const pathname = url.pathname.replace(/\/+$/, '')
+    return pathname || '/'
+  } catch {
+    const normalized = trimmed.replace(/^[^/]*(\/|$)/, (_, slash) => (slash ? '/' : ''))
+    const cleaned = normalized.replace(/\/+$/, '')
+    if (!cleaned) {
+      return '/'
     }
+    return cleaned.startsWith('/') ? cleaned : `/${cleaned}`
   }
-
-  return trimmed.replace(/^https?:\/\//, '').replace(/\/+$/, '') || DEFAULT_PUBLISHED_HOST
 }
 
-const publishedHost = resolvePublishedHost(process.env.WEBAPP_URL)
+const publishedHosts = resolvePublishedHosts(process.env.WEBAPP_URL)
+const primaryPublishedHost = publishedHosts[0] || DEFAULT_PUBLISHED_HOST
+
+const appBasePath = resolveAppBasePath(primaryWebAppUrl)
+
+if (!process.env.VITE_APP_BASE_PATH) {
+  process.env.VITE_APP_BASE_PATH = appBasePath
+}
 
 const allowedHosts = new Set<string | RegExp>([
   /\.cloudpub\.ru$/,
   /\.caloiq\.ru$/,
   'caloiq.ru',
-  publishedHost,
+  ...publishedHosts,
 ])
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_BASE_PATH__: JSON.stringify(appBasePath),
+  },
   test: {
     globals: true,
     environment: 'jsdom',
@@ -53,7 +110,7 @@ export default defineConfig({
     // HMR через прокси с TLS
     hmr: {
       protocol: 'wss',
-      host: publishedHost,
+      host: primaryPublishedHost,
       clientPort: 443,
     },
   },

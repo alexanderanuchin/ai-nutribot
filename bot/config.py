@@ -57,6 +57,16 @@ def _optional_url(raw: str | None) -> str | None:
     value = (raw or "").strip()
     return value or None
 
+def _extract_webapp_url(raw: str | None) -> str:
+    if not raw:
+        return _DEF_WEBAPP
+    normalised = raw.replace("\r", "").replace("\n", ",").replace(";", ",")
+    for chunk in normalised.split(","):
+        candidate = chunk.strip()
+        if candidate:
+            return candidate
+    return _DEF_WEBAPP
+
 
 @dataclass(slots=True)
 class Config:
@@ -82,7 +92,7 @@ class Config:
         token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or ""
         bot_key = os.getenv("BOT_KEY") or os.getenv("BOT_INTERNAL_KEY") or "super-secret-bot-key"
         backend_base_url = resolve_backend_url()
-        webapp_url = os.getenv("WEBAPP_URL") or _DEF_WEBAPP
+        webapp_url = _extract_webapp_url(os.getenv("WEBAPP_URL"))
         bot_username = os.getenv("BOT_USERNAME") or os.getenv("TELEGRAM_BOT_USERNAME") or ""
         hero_image_url = _optional_url(os.getenv("BOT_HERO_IMAGE_URL") or os.getenv("HERO_IMAGE_URL"))
         throttle_limit = int(os.getenv("BOT_THROTTLE_LIMIT", "3"))

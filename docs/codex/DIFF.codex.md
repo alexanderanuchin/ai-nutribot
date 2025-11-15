@@ -799,3 +799,36 @@ underlying stdlib logger while `slots=True` remains enabled.
 | modify | bot/logkit.py | Declare `_logger` as a dataclass slot to avoid `AttributeError` during logger initialisation. | Bot runtime | Restart bot |
 | modify | docs/codex/DIFF.codex.md | Record the telemetry logger slot fix per Codex policy. | Docs | No |
 
+## 2025-12-05 – codex/frontend/webapp-base-path (pending)
+
+**Summary:** Ensure the Telegram WebApp works when published under HTTPS
+sub-paths by deriving the router basename from `WEBAPP_URL`, exposing the
+calculated base path via the Vite build, and covering the helper logic with
+unit tests.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/vite.config.ts | Derive the app base path from `WEBAPP_URL`, pass it to the client build, and expose a default constant. | Frontend build | Restart frontend |
+| create | frontend/src/lib/basePath.ts | Centralise base-path sanitisation/inference so the SPA router can reuse consistent logic. | Frontend routing | No |
+| create | frontend/src/lib/basePath.test.ts | Cover sanitisation, inference, and env overrides for the new base-path helper. | Frontend tests | No |
+| modify | frontend/src/main.tsx | Feed the inferred basename into `BrowserRouter` so routes resolve under sub-path deployments. | Frontend routing | No |
+| create | frontend/src/vite-env.d.ts | Declare the injected base-path constant and Vite env typing for TypeScript. | Frontend tooling | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the WebApp base-path fix per Codex policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit record. | Docs | No |
+
+## 2025-12-06 – codex/fullstack/webapp-multi-url (pending)
+
+**Summary:** Make the Telegram bot and SPA robust to comma-separated
+`WEBAPP_URL` lists so Telegram keyboards always receive a single HTTPS URL and
+the router basename stays rooted at the intended mini-app path.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/config.py | Parse `WEBAPP_URL` lists to expose a valid mini-app URL for keyboards and the chat menu. | Bot auth | Restart bot |
+| create | bot/tests/test_config.py | Cover `WEBAPP_URL` parsing to prevent regressions in bot configuration. | Bot tests | No |
+| modify | frontend/src/lib/basePath.ts | Ignore secondary entries when sanitising the router basename for SPA routing. | Frontend routing | No |
+| modify | frontend/src/lib/basePath.test.ts | Assert sanitisation handles comma/newline separated inputs. | Frontend tests | No |
+| modify | frontend/vite.config.ts | Reuse candidate parsing for build-time host/base path resolution and include all hosts in dev server allow list. | Frontend build | Restart frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Log the multi-domain `WEBAPP_URL` handling improvement. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
+
