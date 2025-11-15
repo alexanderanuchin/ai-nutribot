@@ -1,3 +1,18 @@
+## 2025-12-06 – codex/infra/retire-cloudpub-stack (pending)
+
+**Summary:** Retired the CloudPub publication setup and scrubbed its
+hostname from configuration defaults so only the caloiq.ru domain family
+is referenced across services and tooling.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/docker-compose.yml | Drop the CloudPub agent service and volume now that deployments run directly on caloiq.ru. | Infra local | Recreate Compose |
+| modify | infra/.env.example | Remove CloudPub host defaults and tokens so sample envs align with the active domain. | Infra config | No |
+| modify | frontend/vite.config.ts | Limit dev proxy host allowances to caloiq.ru variants after CloudPub retirement. | Frontend tooling | No |
+| modify | backend/nutribot/settings.py | Trim CSRF trusted origins to the caloiq.ru hosts so backend security config matches production. | Backend config | Restart backend |
+| modify | backend/tests/test_settings.py | Refresh host parsing tests to cover only caloiq.ru and generic sample domains. | Backend tests | No |
+| modify | docs/codex/DIFF.codex.md | Record the CloudPub removal per Codex audit policy. | Docs | No |
+
 ## 2025-12-05 – codex/bot/wallet-webapp-url (pending)
 
 **Summary:** Ensure every wallet entry point receives the configured WebApp URL
@@ -280,6 +295,17 @@ noise during fast tab switches while keeping SSE fallbacks healthy and covered b
 ## 2025-11-22 – codex/frontend/radix-aschild-compat (pending)
 
 **Summary:** Filtered Radix `asChild` control props out of shared UI kit primitives so they no longer leak onto DOM nodes and tr
+## 2025-11-15 – codex/frontend/remove-legacy-cloudpub-domain (pending)
+
+**Summary:** Retired the obsolete CloudPub vanity host from the frontend defaults and
+backend config tests so the stack now only references the caloiq.ru domain family.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/vite.config.ts | Point the default published host at caloiq.ru so dev HMR follows the production domain. | Frontend dev server | No |
+| modify | backend/tests/test_settings.py | Refresh allowed host extension tests to expect caloiq.ru after removing the CloudPub hostname. | Backend tests | No |
+| modify | docs/codex/DIFF.codex.md | Log the domain cleanup per Codex audit requirements. | Docs | No |
+
 ## 2025-11-12 – codex/backend/market-sse-renderer (pending)
 
 **Summary:** Restored marketplace SSE compatibility with DRF by adding an event-stream renderer,
@@ -815,6 +841,30 @@ unit tests.
 | create | frontend/src/vite-env.d.ts | Declare the injected base-path constant and Vite env typing for TypeScript. | Frontend tooling | No |
 | modify | docs/codex/CHANGELOG.codex.md | Record the WebApp base-path fix per Codex policy. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Append this audit record. | Docs | No |
+
+## 2025-12-07 – codex/infra/cloudpub-restore (pending)
+
+**Summary:** Restore the CloudPub tunnel container and expose manual overrides
+for the Vite dev-server allow list while keeping caloiq.ru as the primary
+domain.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/docker-compose.yml | Reintroduce the CloudPub agent so local environments still publish the gateway through CloudPub. | Infra runtime | Restart CloudPub |
+| modify | infra/.env.example | Document the CloudPub token placeholder and the optional dev-server host override without re-adding the retired domain. | Infra config | No |
+| modify | frontend/vite.config.ts | Allow extra dev-server hosts via env and keep the legacy CloudPub host accessible to unblock existing Telegram sessions. | Frontend dev server | Restart frontend |
+| modify | docs/codex/DIFF.codex.md | Record this rollback/fix entry per Codex policy. | Docs | No |
+
+## 2025-12-08 – codex/frontend/remove-cloudpub-host (pending)
+
+**Summary:** Drop the retired `adversely-congruent-viper` hostname from the
+frontend dev-server allow list while documenting how to admit new CloudPub
+domains via the environment.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/vite.config.ts | Remove the obsolete CloudPub host and point developers to `DEV_SERVER_ALLOWED_HOSTS` for any future tunnels. | Frontend dev server | Restart frontend |
+| modify | docs/codex/DIFF.codex.md | Record the host cleanup per Codex audit policy. | Docs | No |
 
 ## 2025-12-06 – codex/fullstack/webapp-multi-url (pending)
 

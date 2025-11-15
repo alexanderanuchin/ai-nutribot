@@ -3,8 +3,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Минимум, чтобы Vite работал через CloudPub/Caloiq домены, не ломая твою логику.
-// PUBLIC_BASE_HOST можно задать в .env (например, adversely-congruent-viper.cloudpub.ru).
-const DEFAULT_PUBLISHED_HOST = 'adversely-congruent-viper.cloudpub.ru'
+// PUBLIC_BASE_HOST можно задать в .env (например, https://caloiq.ru).
+const DEFAULT_PUBLISHED_HOST = 'caloiq.ru'
 
 const splitCandidates = (value: string | undefined): string[] => {
   if (!value) {
@@ -84,11 +84,18 @@ if (!process.env.VITE_APP_BASE_PATH) {
   process.env.VITE_APP_BASE_PATH = appBasePath
 }
 
+const extraAllowedHosts = resolvePublishedHosts(
+  process.env.DEV_SERVER_ALLOWED_HOSTS,
+)
+
+// Если CloudPub выдаст новый временный домен, добавь его в
+// DEV_SERVER_ALLOWED_HOSTS — он автоматически попадёт в allowlist.
+
 const allowedHosts = new Set<string | RegExp>([
-  /\.cloudpub\.ru$/,
   /\.caloiq\.ru$/,
   'caloiq.ru',
   ...publishedHosts,
+  ...extraAllowedHosts,
 ])
 
 export default defineConfig({
@@ -105,7 +112,7 @@ export default defineConfig({
   server: {
     host: true,            // слушать 0.0.0.0 внутри контейнера
     port: 5173,
-    // впускаем *.cloudpub.ru, *.caloiq.ru и опубликованный хост без поддомена
+    // впускаем *.caloiq.ru и опубликованный хост без поддомена
     allowedHosts: Array.from(allowedHosts),
     // HMR через прокси с TLS
     hmr: {

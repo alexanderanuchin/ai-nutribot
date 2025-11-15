@@ -102,7 +102,7 @@ ALLOWED_HOSTS = _extend_allowed_hosts(
 )
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://*.cloudpub.ru",
+    "https://caloiq.ru",
     "https://*.caloiq.ru",
 ]
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

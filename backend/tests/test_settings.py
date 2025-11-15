@@ -40,15 +40,15 @@ def test_extract_hosts_from_urls_skips_wildcard_domains():
     hosts = _extract_hosts_from_urls(
         ",".join(
             [
-                "https://*.cloudpub.ru",
                 "https://*.caloiq.ru",
-                "https://exact.cloudpub.ru",
+                "https://*.example.com",
                 "https://exact.caloiq.ru",
+                "https://portal.example.com",
             ]
         )
     )
 
-    assert hosts == {"exact.cloudpub.ru", "exact.caloiq.ru"}
+    assert hosts == {"exact.caloiq.ru", "portal.example.com"}
 
 
 def test_parse_allowed_hosts_keeps_defaults_without_env_extensions():
@@ -71,13 +71,13 @@ def test_extend_allowed_hosts_injects_env_hosts():
     merged = _extend_allowed_hosts(
         base_hosts,
         (
-            "adversely-congruent-viper.cloudpub.ru",
+            "caloiq.ru",
             "beta.caloiq.ru",
         ),
     )
 
     assert "backend" in merged
-    assert "adversely-congruent-viper.cloudpub.ru" in merged
+    assert "caloiq.ru" in merged
     assert "beta.caloiq.ru" in merged
 
 
