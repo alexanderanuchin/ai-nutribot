@@ -53,6 +53,16 @@ def _read_bool(value: str | None, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _read_positive_int(value: str | None, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except ValueError:
+        return default
+    return parsed if parsed > 0 else default
+
+
 def _optional_url(raw: str | None) -> str | None:
     value = (raw or "").strip()
     return value or None
@@ -86,6 +96,7 @@ class Config:
     support_url: str | None
     experimental_menu: bool
     telegram_provider_token: str
+    session_ttl_hours: int
 
     @classmethod
     def load(cls) -> "Config":
@@ -105,6 +116,7 @@ class Config:
         support_url = _optional_url(os.getenv("SUPPORT_URL"))
         experimental_menu = _read_bool(os.getenv("BOT_EXPERIMENTAL_MENU"))
         provider_token = os.getenv("TELEGRAM_PROVIDER_TOKEN") or os.getenv("PAYMENT_PROVIDER_TOKEN") or ""
+        session_ttl_hours = _read_positive_int(os.getenv("BOT_SESSION_TTL_HOURS"), 1)
         return cls(
             token=token,
             bot_key=bot_key,
@@ -122,6 +134,7 @@ class Config:
             support_url=support_url,
             experimental_menu=experimental_menu,
             telegram_provider_token=provider_token,
+            session_ttl_hours=session_ttl_hours,
         )
 
     @property

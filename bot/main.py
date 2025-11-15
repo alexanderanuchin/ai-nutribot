@@ -53,7 +53,7 @@ async def main() -> None:
 
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     redis = Redis(host=cfg.redis_host, port=cfg.redis_port)
-    storage = RedisStorage(redis=redis, data_ttl=timedelta(hours=1))
+    storage = RedisStorage(redis=redis, data_ttl=timedelta(hours=cfg.session_ttl_hours))
     dispatcher = Dispatcher(storage=storage)
 
     backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)

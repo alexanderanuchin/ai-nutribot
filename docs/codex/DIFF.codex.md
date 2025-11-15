@@ -832,3 +832,17 @@ the router basename stays rooted at the intended mini-app path.
 | modify | docs/codex/CHANGELOG.codex.md | Log the multi-domain `WEBAPP_URL` handling improvement. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
 
+## 2025-11-15 – codex/fullstack/webapp-auth-ttl (pending)
+
+**Summary:** Guarantee the Telegram WebApp always replays auth tokens to the
+bot, document the dual-domain hosts, and extend bot session retention without
+changing the configured `WEBAPP_URL` ordering.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Ensure auth payloads reuse the Telegram SDK user ID and resend stored tokens when the WebApp session is restored. | Frontend auth | No |
+| modify | bot/config.py | Make the bot FSM TTL configurable via `BOT_SESSION_TTL_HOURS` so restarts no longer drop authorisation immediately. | Bot runtime | Restart bot |
+| modify | bot/main.py | Apply the configurable TTL when initialising Redis storage for the FSM. | Bot runtime | Restart bot |
+| modify | infra/.env.example | List both HTTPS domains in `ALLOWED_HOSTS` and surface the new TTL variable for local configuration. | Infra config | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit entry per Codex policy. | Docs | No |
+

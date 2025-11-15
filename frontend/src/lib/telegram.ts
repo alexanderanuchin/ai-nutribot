@@ -63,6 +63,12 @@ export function getInitData(): string | null {
   return webApp?.initData || null
 }
 
+function getTelegramUserIdFromSdk(): number | null {
+  const webApp = tg()
+  const rawId = webApp?.initDataUnsafe?.user?.id
+  return typeof rawId === 'number' ? rawId : null
+}
+
 function logWebAppEnvironment(initData: string | null): void {
   if (typeof window === 'undefined') return
   const rid = generateRequestId()
@@ -159,18 +165,20 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
   if (expiresAt) {
     tokenStore.accessExpiresAt = expiresAt
   }
-  const telegramUserId = resolveTelegramUserId(data)
+  const telegramUserIdFromBackend = resolveTelegramUserId(data)
+  const telegramUserIdFromSdk = getTelegramUserIdFromSdk()
   const session: TelegramAuthSession = {
     accessToken: access,
     refreshToken,
-    telegramUserId,
+    telegramUserId: telegramUserIdFromSdk ?? telegramUserIdFromBackend,
     expiresAt: expiresAt ?? tokenStore.accessExpiresAt,
     raw: data,
   }
 
   debugLog('telegram/auth', 'login success', {
     rid,
-    telegramUserId,
+    telegramUserIdFromBackend,
+    telegramUserIdFromSdk,
     expiresAt: session.expiresAt,
     hasRefresh: Boolean(refreshToken),
   })
@@ -180,62 +188,108 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     message: 'login success',
     requestId: rid,
     extra: {
-      telegramUserId,
+      telegramUserId: session.telegramUserId,
+      telegramUserIdFromBackend,
       expiresAt: session.expiresAt,
       hasRefresh: Boolean(refreshToken),
     },
   })
-  const webApp = tg()
-  if (webApp && typeof webApp.sendData === 'function') {
-    try {
-      debugLog('telegram/sendData', 'auth payload', {
-        rid,
-        telegramUserId,
-        expiresAt,
-      })
-      void sendApplicationLog({
-        level: 'INFO',
-        logger: 'webapp.telegram.sendData',
-        message: 'auth payload sent',
-        requestId: rid,
-        extra: {
-          telegramUserId,
-          expiresAt,
-        },
-      })
-      webApp.sendData(
-        JSON.stringify({
-          type: 'auth',
-          access_token: access,
-          refresh_token: refreshToken ?? undefined,
-          expires_at: expiresAt ?? undefined,
-          user_id: telegramUserId ?? undefined,
-          rid,
-        })
-      )
-    } catch (error) {
-      warnLog('telegram/sendData', 'auth payload failed', {
-        rid,
-        error: error instanceof Error ? error.message : String(error),
-      })
-      void sendApplicationLog({
-        level: 'WARNING',
-        logger: 'webapp.telegram.sendData',
-        message: 'auth payload failed',
-        requestId: rid,
-        extra: {
-          error: error instanceof Error ? error.message : String(error),
-        },
-      })
-    }
-  }
+  sendAuthPayloadToBot({
+    accessToken: access,
+    refreshToken,
+    expiresAt: session.expiresAt,
+    rid,
+    reason: 'login',
+  })
 
   return session
+}
+
+interface AuthPayload {
+  accessToken: string
+  refreshToken?: string
+  expiresAt?: number | null
+  rid: string
+  reason: 'login' | 'rehydrate'
+}
+
+function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reason }: AuthPayload): void {
+  const webApp = tg()
+  if (!webApp || typeof webApp.sendData !== 'function') {
+    debugLog('telegram/sendData', 'skip auth payload', {
+      rid,
+      reason,
+      hasWebApp: Boolean(webApp),
+    })
+    return
+  }
+  const telegramUserId = getTelegramUserIdFromSdk()
+  try {
+    debugLog('telegram/sendData', 'auth payload', {
+      rid,
+      reason,
+      telegramUserId,
+      expiresAt,
+    })
+    void sendApplicationLog({
+      level: 'INFO',
+      logger: 'webapp.telegram.sendData',
+      message: 'auth payload sent',
+      requestId: rid,
+      extra: {
+        reason,
+        telegramUserId,
+        expiresAt,
+      },
+    })
+    webApp.sendData(
+      JSON.stringify({
+        type: 'auth',
+        access_token: accessToken,
+        refresh_token: refreshToken ?? undefined,
+        expires_at: expiresAt ?? undefined,
+        user_id: telegramUserId ?? undefined,
+        rid,
+      })
+    )
+  } catch (error) {
+    warnLog('telegram/sendData', 'auth payload failed', {
+      rid,
+      reason,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    void sendApplicationLog({
+      level: 'WARNING',
+      logger: 'webapp.telegram.sendData',
+      message: 'auth payload failed',
+      requestId: rid,
+      extra: {
+        reason,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    })
+  }
+}
+
+function rehydrateBotSession(): void {
+  const accessToken = tokenStore.access
+  if (!accessToken) {
+    return
+  }
+  const rid = generateRequestId()
+  sendAuthPayloadToBot({
+    accessToken,
+    refreshToken: tokenStore.refresh || undefined,
+    expiresAt: tokenStore.accessExpiresAt,
+    rid,
+    reason: 'rehydrate',
+  })
 }
 
 export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
   if (cachedSession !== undefined) {
     if (shouldReuseSession(cachedSession)) {
+      rehydrateBotSession()
       return cachedSession
     }
     cachedSession = undefined
