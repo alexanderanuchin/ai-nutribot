@@ -1033,3 +1033,50 @@ gracefully handle malformed Mini App payloads.
 **Notes:** SSE authentication for the Telegram chat bridge continues to rely on JWT in the query-string for EventSource
 compatibility. Mask query components in reverse-proxy access logs (e.g., `$request_uri` without args or custom filters) to avoid
 token leakage in log stores.
+
+## 2025-12-13 – codex/infra/webapp-url-path (pending)
+
+**Summary:** Align the default WebApp URL with the `/auth-bridge` path so Mini App launches provide Telegram initData for
+sendData-based auto-auth.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/.env.example | Default the WebApp URL to `/auth-bridge` so bot keyboards launch the Mini App context with initData. | Infrastructure defaults | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the WebApp URL path alignment per Codex audit policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Log this infra default change for traceability. | Docs | No |
+
+## 2025-12-14 – codex/fullstack/telegram-startapp-link (pending)
+
+**Summary:** Separate startapp deeplinks from the WebApp URL, propagate the bot username to the frontend, and ensure CTA/auth flows always launch the Mini App context.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/deeplinks.ts | Centralise the bot username from env and build start/startapp links without hardcoded defaults. | Frontend deeplinks | Rebuild frontend |
+| modify | frontend/src/pages/AuthBridge.tsx | Fall back to startapp deeplinks (with bot username) when redirecting from a non-WebApp context. | Frontend auth | No |
+| modify | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Always open Mini App via startapp deeplinks for CTAs and Telegram login buttons. | Frontend UI | No |
+| modify | infra/.env.example | Document bot username env variables for link generation and bot menus. | Infra config | No |
+| modify | infra/docker-compose.yml | Pass the bot username into the frontend build for consistent deeplinks. | Frontend build | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Log the startapp/WebApp URL separation per audit policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
+
+## 2025-12-15 – codex/fullstack/telegram-runtime-auth-bridge (pending)
+
+**Summary:** Enforce Mini App runtime detection before auth, add a reusable auth-bridge helper, and make Telegram CTAs reuse it to avoid sendData calls outside the WebApp context.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Add strict initData validation, export a reusable runAuthBridge helper, and redirect to startapp deeplinks when not in Mini App runtime. | Frontend auth | No |
+| modify | frontend/src/pages/AuthBridge.tsx | Use the runtime-aware auth bridge with Telegram status payloads for deterministic Mini App login. | Frontend auth | No |
+| modify | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Wire the "Авторизоваться" CTA through the auth bridge so Mini App sessions exchange tokens instead of reopening links. | Frontend UI/auth | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log the runtime-gated auth bridge per Codex audit policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
+
+## 2025-12-16 – codex/fullstack/telegram-deeplink-compat (pending)
+
+**Summary:** Restore backward compatibility for Telegram deeplink builders so legacy call signatures don't swap payloads and bot usernames.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/deeplinks.ts | Detect legacy vs new argument order for start/startapp link builders to avoid broken Mini App URLs. | Frontend deeplinks | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Log the deeplink signature compatibility fix per Codex audit policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |

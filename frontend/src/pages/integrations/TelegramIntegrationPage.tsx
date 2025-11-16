@@ -7,6 +7,7 @@ import { TelegramHowItWorks } from '../../components/integrations/TelegramHowItW
 import { TelegramStatusCard } from '../../components/integrations/TelegramStatusCard'
 import { TelegramChatShell } from '../../components/integrations/TelegramChatShell'
 import { Skeleton, useToast } from '../../components/ui'
+import { buildStartAppLink } from '../../lib/deeplinks'
 import { fetchTelegramStatus, startTelegramLink, type TelegramLinkResponse } from '../../api/telegram'
 import {
   getInitData,
@@ -15,6 +16,7 @@ import {
   isTgWebAppRuntime,
   openTelegramLink,
   rehydrateBotSession,
+  runAuthBridge,
 } from '../../lib/telegram'
 
 export default function TelegramIntegrationPage() {
@@ -25,6 +27,9 @@ export default function TelegramIntegrationPage() {
   useEffect(() => {
     rehydrateBotSession()
   }, [])
+
+  const startAppTarget = (link?: TelegramLinkResponse | null) =>
+    link?.links?.startapp || buildStartAppLink(link?.code || 'dashboard')
 
   const buildDiag = useMemo(
     () =>
@@ -77,13 +82,9 @@ export default function TelegramIntegrationPage() {
   }
 
   const handleOpenMiniApp = async () => {
-    if (isTgWebAppRuntime()) {
-      window.location.href = `/auth-bridge?v=${Date.now()}`
-      return
-    }
     try {
       const link = await ensureLink()
-      const target = link?.links?.startapp || link?.links?.tme
+      const target = startAppTarget(link || statusQuery.data?.link)
       if (target) {
         openTelegramLink(target)
       }
@@ -92,8 +93,14 @@ export default function TelegramIntegrationPage() {
     }
   }
 
-  const handleOpenTelegramLogin = () => {
-    window.location.href = '/login'
+  const handleOpenTelegramLogin = async () => {
+    try {
+      const link = await ensureLink()
+      const payload = link?.code || statusQuery.data?.link?.code || 'dashboard'
+      await runAuthBridge(payload)
+    } finally {
+      setDiag(buildDiag())
+    }
   }
 
   return (
@@ -103,18 +110,18 @@ export default function TelegramIntegrationPage() {
       ) : (
           <TelegramHeroCard
             startLink={statusQuery.data?.link?.links?.tme}
-            startAppLink={statusQuery.data?.link?.links?.startapp}
+            startAppLink={startAppTarget(statusQuery.data?.link)}
             onOpenMiniApp={handleOpenMiniApp}
-          onOpenTelegram={handleOpenTelegramLogin}
-          loading={statusQuery.isLoading || startLinkMutation.isPending}
-        />
+            onOpenTelegram={handleOpenTelegramLogin}
+            loading={statusQuery.isLoading || startLinkMutation.isPending}
+          />
       )}
 
       <div className="grid gap-4 lg:grid-cols-[2fr,1.2fr]">
         <div className="space-y-4">
           <TelegramHowItWorks />
           <TelegramChatShell
-            startAppLink={statusQuery.data?.link?.links?.startapp}
+            startAppLink={startAppTarget(statusQuery.data?.link)}
             linked={Boolean(statusQuery.data?.linked)}
           />
         </div>

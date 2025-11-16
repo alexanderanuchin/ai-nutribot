@@ -1,5 +1,6 @@
 import api from '../api/client'
 import { tokenStore } from '../utils/storage'
+import { buildStartAppLink } from './deeplinks'
 import { debugLog, generateRequestId, maskToken, warnLog } from './logging'
 import { sendApplicationLog } from './monitoring'
 
@@ -11,21 +12,26 @@ export function isTgWebAppPresent(): boolean {
   return typeof window !== 'undefined' && Boolean((window as any).Telegram?.WebApp)
 }
 
-function hasValidInitData(rawInitData: string | null): boolean {
-  if (!rawInitData || typeof rawInitData !== 'string') return false
+function hasValidInitData(raw: string | null): boolean {
+  if (!raw) return false
   try {
-    const params = new URLSearchParams(rawInitData)
+    const params = new URLSearchParams(raw)
     return Boolean(params.get('hash') && (params.get('user') || params.get('chat_instance')))
   } catch {
     return false
   }
 }
 
+export function getInitData(): string | null {
+  try {
+    return tg()?.initData || null
+  } catch {
+    return null
+  }
+}
+
 export function isTgWebAppRuntime(): boolean {
-  if (typeof window === 'undefined') return false
-  const webApp = tg()
-  if (!webApp) return false
-  return hasValidInitData(getInitData())
+  return typeof window !== 'undefined' && Boolean(tg()) && hasValidInitData(getInitData())
 }
 
 const MIN_VERTICAL_SWIPE_CONTROL_VERSION = '6.1'
@@ -79,10 +85,6 @@ export function initTheme() {
   }
 }
 
-export function getInitData(): string | null {
-  const webApp = tg()
-  return webApp?.initData || null
-}
 
 function getTelegramUserIdFromSdk(): number | null {
   const webApp = tg()
@@ -114,6 +116,46 @@ function logWebAppEnvironment(initData: string | null): void {
     requestId: rid,
     extra: { ...payload, rid },
   })
+}
+
+export async function runAuthBridge(payloadForStartApp = 'auth') {
+  const rid = generateRequestId()
+  if (!isTgWebAppRuntime()) {
+    const startAppLink = buildStartAppLink(payloadForStartApp)
+    debugLog('telegram/bridge', 'redirecting to startapp deeplink', { rid, startAppLink })
+    window.location.href = startAppLink
+    return
+  }
+
+  const initData = getInitData()
+  if (!hasValidInitData(initData)) {
+    warnLog('telegram/bridge', 'missing or invalid initData in Mini App runtime', {
+      rid,
+      hasInitData: Boolean(initData),
+    })
+    return
+  }
+
+  const { data } = await api.post(
+    '/users/auth/tg_exchange/',
+    { init_data: initData },
+    { headers: { 'X-Telegram-Init-Data': initData } },
+  )
+
+  tokenStore.access = data.access
+  tokenStore.refresh = data.refresh
+  tokenStore.accessExpiresAt = data.exp
+
+  try {
+    tg()?.sendData?.(
+      JSON.stringify({ type: 'auth', access_token: data.access, refresh_token: data.refresh, exp: data.exp }),
+    )
+  } catch {}
+  try {
+    tg()?.close?.()
+  } catch {}
+
+  window.location.href = '/app'
 }
 
 export interface TelegramAuthSession {

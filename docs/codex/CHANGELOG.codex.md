@@ -236,3 +236,27 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
 - Clarified SSE token-in-query trade-offs for the Telegram chat bridge, added logging guidance, and aligned status payloads and
   UI labels around app vs Telegram usernames. See
   [DIFF 2025-12-12](./DIFF.codex.md#2025-12-12--codexfullstacktelegram-bridge-docs-pending).
+
+## 2025-12-13 – WebApp URL path alignment (pending)
+
+- Updated the default `WEBAPP_URL` to include `/auth-bridge`, ensuring Mini App launches in Telegram supply initData for
+  auto-auth flows. See
+  [DIFF 2025-12-13](./DIFF.codex.md#2025-12-13--codexinfrawebapp-url-path-pending).
+
+## 2025-12-14 – Telegram startapp vs WebApp URL (pending)
+
+- Separated startapp deeplinks from the WebApp URL, pushing the bot username into the frontend and forcing CTAs/auth buttons to
+  open the Mini App context. See
+  [DIFF 2025-12-14](./DIFF.codex.md#2025-12-14--codexfullstacktelegram-startapp-link-pending).
+
+## 2025-12-15 – Mini App runtime-gated auth bridge (pending)
+
+- Added strict Mini App runtime detection and a reusable auth bridge so Telegram CTAs exchange initData for JWTs only when
+  inside the WebApp context, falling back to startapp deeplinks otherwise. See
+  [DIFF 2025-12-15](./DIFF.codex.md#2025-12-15--codexfullstacktelegram-runtime-auth-bridge-pending).
+
+## 2025-12-16 – Telegram deeplink signature compatibility (pending)
+
+- Restored backward compatibility for Telegram start/startapp deeplink builders so legacy call signatures don't swap payloads
+  and bot usernames. See
+  [DIFF 2025-12-16](./DIFF.codex.md#2025-12-16--codexfullstacktelegram-deeplink-compat-pending).
