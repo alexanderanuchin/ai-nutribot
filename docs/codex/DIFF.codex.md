@@ -1,9 +1,37 @@
+## 2025-11-16 – codex/frontend/telegram-integration (pending)
+
+**Summary:** Delivered the Telegram integration surface at `/profile/integrations/telegram` with deep-link/QR helpers, chat
+shell, and resilient backend endpoints for start payloads, status, and SSE bridge traffic. Added Telegram bot username setting
+and persisted integration link codes for deep-link reuse.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/users/telegram_integration.py | Expose Telegram integration start/status endpoints, chat bridge send/stream, and query-param JWT auth for SSE. | Backend API | Restart backend |
+| modify | backend/apps/users/urls.py | Wire the Telegram integration routes under `/api/users/`. | Backend API | Restart backend |
+| modify | backend/apps/users/models.py | Persist integration deep-link payloads with expiry/status tracking. | Backend data | Migrations |
+| create | backend/apps/users/migrations/0011_telegramintegrationlink.py | Create the TelegramIntegrationLink model and supporting indexes. | Backend data | Apply migration |
+| modify | backend/nutribot/settings.py | Configure a TELEGRAM_BOT_USERNAME env setting for deep-link builders. | Backend config | Restart backend |
+| create | frontend/src/lib/deeplinks.ts | Provide reusable Telegram start/startapp link builders. | Frontend utilities | Rebuild frontend |
+| create | frontend/src/lib/qr.ts | Generate QR codes for deep-link sharing via the UI. | Frontend utilities | Rebuild frontend |
+| modify | frontend/src/lib/telegram.ts | Detect WebApp presence and open Telegram links via SDK or browser fallback. | Frontend utilities | Rebuild frontend |
+| create | frontend/src/api/telegram.ts | Add client helpers for integration status, link start, and bridge send. | Frontend API | Rebuild frontend |
+| create | frontend/src/components/integrations/TelegramHeroCard.tsx | Hero block with CTA buttons and QR for the integration page. | Frontend UI | Rebuild frontend |
+| create | frontend/src/components/integrations/TelegramHowItWorks.tsx | Explain the 3-step Mini App handshake flow. | Frontend UI | Rebuild frontend |
+| create | frontend/src/components/integrations/TelegramStatusCard.tsx | Show link status, deep-links, QR, and diagnostics. | Frontend UI | Rebuild frontend |
+| create | frontend/src/components/integrations/TelegramChatShell.tsx | Implement the SSE-backed chat shell with optimistic sends. | Frontend UI | Rebuild frontend |
+| create | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Assemble the integration screen with hero, steps, status, and chat. | Frontend page | Rebuild frontend |
+| modify | frontend/src/App.tsx | Register the Telegram integration route while keeping the auth bridge accessible. | Frontend routing | Rebuild frontend |
+| modify | frontend/package.json | Add qrcode dependency for QR generation. | Frontend tooling | Reinstall deps |
+| modify | frontend/package-lock.json | Lock dependency tree after adding qrcode. | Frontend tooling | Reinstall deps |
+
 ## 2025-12-07 – codex/webapp-auth-bridge (pending)
 
 **Summary:** Implemented the Telegram Mini App auth bridge with a reply-keyboard
 CTA, `/auth-bridge` route that sends `sendData` immediately and closes, guarded
-auto-rehydrate + MainButton fallback, richer telemetry, and bot-side
-`web_app_data` logging/confirmation so JWT delivery is observable and resilient.
+auto-rehydrate + MainButton fallback, richer telemetry (env/auth/sendData), and
+bot-side `web_app_data` logging/confirmation so JWT delivery is observable and
+resilient. Follow-up refinements tightened `sendData` payloads/telemetry and
+import hygiene.
 
 | Action | Path | Reason | Impact | Migrations / Restart |
 | --- | --- | --- | --- | --- |
@@ -19,6 +47,10 @@ auto-rehydrate + MainButton fallback, richer telemetry, and bot-side
 | modify | frontend/src/main.tsx | Bootstrap Telegram auth before rendering to unblock early sendData. | Frontend startup | Rebuild frontend |
 | modify | docs/codex/CHANGELOG.codex.md | Note the Mini App auth bridge milestone. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this bridge implementation per audit policy. | Docs | No |
+| modify | frontend/src/pages/AuthBridge.tsx | Ensure auth bridge always emits compact auth payload with exp/exp_at, logs sendData success/fail, and closes WebApp. | Frontend WebApp | Rebuild frontend |
+| modify | frontend/src/lib/telegram.ts | Add telemetry extras for environment/auth/sendData and include WebApp capability flags. | Frontend auth/telemetry | Rebuild frontend |
+| modify | frontend/src/api/telegram.ts | Fix API client import to use the default export. | Frontend API | Rebuild frontend |
+| modify | frontend/src/components/integrations/TelegramChatShell.tsx | Use the correct API client import in the chat shell. | Frontend UI | Rebuild frontend |
 
 ## 2025-12-06 – codex/infra/retire-cloudpub-stack (pending)
 
@@ -904,6 +936,19 @@ the router basename stays rooted at the intended mini-app path.
 | modify | docs/codex/CHANGELOG.codex.md | Log the multi-domain `WEBAPP_URL` handling improvement. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
 
+## 2025-12-07 – codex/fullstack/telegram-rehydrate (pending)
+
+**Summary:** Harden the Telegram auth replay path with guarded rehydrate
+sendData, ensure reply keyboards are removed after successful confirmation, and
+cover WebApp payload decoding edge cases in bot tests.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Guard rehydrate sendData to fire once per page load only when a fresh token is available, preventing duplicate bot messages. | Frontend auth | No |
+| modify | bot/handlers/webapp_data.py | Remove reply keyboards after auth confirmation and accept exp/exp_at payload variants. | Bot auth | No |
+| modify | bot/tests/test_webapp_data.py | Cover auth keyboard removal, exp-key handling, and invalid payload decoding to keep WebApp flows stable. | Bot tests | No |
+| modify | docs/codex/DIFF.codex.md | Log the Telegram rehydrate/auth fixes per Codex audit policy. | Docs | No |
+
 ## 2025-11-15 – codex/fullstack/webapp-auth-ttl (pending)
 
 **Summary:** Guarantee the Telegram WebApp always replays auth tokens to the
@@ -918,3 +963,59 @@ changing the configured `WEBAPP_URL` ordering.
 | modify | infra/.env.example | List both HTTPS domains in `ALLOWED_HOSTS` and surface the new TTL variable for local configuration. | Infra config | No |
 | modify | docs/codex/DIFF.codex.md | Append this audit entry per Codex policy. | Docs | No |
 
+
+## 2025-12-09 – codex/fullstack/telegram-ui-diagnostics (pending)
+
+**Summary:** Polish the Telegram integration page with light/dark-ready skeletons, actionable toasts, accessibility labels, and
+diagnostics that surface Mini App SDK state and the last `sendData` attempt for reliable deep-link onboarding.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Add skeleton loaders, deep-link toast handling, and environment diagnostics including last sendData RID. | Frontend UI/diagnostics | No |
+| modify | frontend/src/components/integrations/TelegramHeroCard.tsx | Improve CTA accessibility for Mini App/Telegram launch buttons. | Frontend UI | No |
+| modify | frontend/src/components/integrations/TelegramStatusCard.tsx | Provide clipboard toasts and aria labels for deep-link regeneration and copy actions. | Frontend UI | No |
+| modify | frontend/src/components/integrations/TelegramChatShell.tsx | Add toasts for bridge failures, SSE error notices, accessibility labels, and clarify the server-bridge chat disclaimer. | Frontend UI | No |
+| modify | frontend/src/lib/telegram.ts | Track the last sendData attempt to expose RID/status in diagnostics. | Frontend auth telemetry | No |
+| modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
+
+## 2025-12-10 – codex/fullstack/telegram-bridge-sse (pending)
+
+**Summary:** Deliver Telegram chat-shell events over Redis-backed SSE with
+rate-limited bridge sends, bot-side pub/sub emission, and resilient EventSource
+reconnects plus smooth client scrolling.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/users/telegram_integration.py | Add Redis pub/sub streaming, delivery status events, and rate limiting for the Telegram bridge send/stream endpoints. | Backend API | No |
+| create | bot/services/bridge.py | Provide a reusable Redis publisher for Telegram bridge events. | Bot runtime | Restart bot |
+| create | bot/middlewares/bridge.py | Emit sanitized Telegram update snippets into the bridge channel for SSE delivery. | Bot runtime | Restart bot |
+| modify | bot/main.py | Register the bridge middleware and close the publisher on shutdown. | Bot runtime | Restart bot |
+| create | bot/tests/test_bridge_middleware.py | Cover bridge middleware publishing behavior and empty-message filtering. | Bot tests | No |
+| modify | frontend/src/components/integrations/TelegramChatShell.tsx | Reconnect EventSource streams, keep optimistic UI scroll in sync, and handle stream outages gracefully. | Frontend UI | No |
+| modify | docs/codex/DIFF.codex.md | Record this SSE/chat-bridge enhancement per Codex audit policy. | Docs | No |
+
+## 2025-12-11 – codex/backend/telegram-bridge-compat (pending)
+
+**Summary:** Make the Telegram bridge resilient when optional dependencies are absent, reuse user-level telegram_id fallbacks, and
+gracefully handle malformed Mini App payloads.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/users/telegram_integration.py | Degrade Redis/httpx/token masking imports gracefully, reuse user.telegram_id fallbacks, and harden logging. | Backend API | No |
+| modify | bot/handlers/webapp_data.py | Capture JSON decode errors from WebApp payloads and surface diagnostics without crashing handlers. | Bot handler | No |
+
+## 2025-12-12 – codex/fullstack/telegram-bridge-docs (pending)
+
+**Summary:** Clarify Telegram status payloads and document SSE token-in-query trade-offs with logging guidance for the chat bridge.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/users/telegram_integration.py | Rename status usernames to app/Telegram variants to avoid confusion and keep linkage detection intact. | Backend API | No |
+| modify | frontend/src/api/telegram.ts | Reflect status payload username fields for the integration UI. | Frontend API types | No |
+| modify | frontend/src/components/integrations/TelegramStatusCard.tsx | Surface app vs Telegram usernames in diagnostics to match backend payloads. | Frontend UI | No |
+| modify | docs/codex/DIFF.codex.md | Record the documentation and payload adjustments per Codex policy. | Docs | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log the chat-bridge token-in-query note and status payload rename. | Docs | No |
+
+**Notes:** SSE authentication for the Telegram chat bridge continues to rely on JWT in the query-string for EventSource
+compatibility. Mask query components in reverse-proxy access logs (e.g., `$request_uri` without args or custom filters) to avoid
+token leakage in log stores.

@@ -106,6 +106,44 @@ class Profile(models.Model):
         return f"Profile<{self.user_id}>"
 
 
+class TelegramIntegrationLink(models.Model):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        USED = "used", "Used"
+        EXPIRED = "expired", "Expired"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="telegram_links")
+    code = models.CharField(max_length=64, unique=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    expires_at = models.DateTimeField()
+    consumed_at = models.DateTimeField(null=True, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    def mark_used(self):
+        if self.status == self.Status.USED:
+            return
+        self.status = self.Status.USED
+        self.consumed_at = timezone.now()
+        self.save(update_fields=["status", "consumed_at", "updated_at"])
+
+    class Meta:
+        verbose_name = "Связка Telegram"
+        verbose_name_plural = "Связки Telegram"
+        indexes = [
+            models.Index(fields=["user"], name="users_tg_link_user_idx"),
+            models.Index(fields=["status", "expires_at"], name="users_tg_link_status_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"TelegramLink<{self.user_id}:{self.code}>"
+
+
 class TelegramStarLedgerEntry(models.Model):
     class Direction(models.TextChoices):
         CREDIT = "credit", "Зачисление"

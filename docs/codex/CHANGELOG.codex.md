@@ -1,11 +1,26 @@
+## 2025-11-16 – Telegram integration surface (pending)
+
+- Added the `/profile/integrations/telegram` experience with hero/status cards, deep-link + QR helpers, and a lightweight
+  chat shell that streams server-side bridge events. Backend now issues/records start/startapp payloads, exposes status + bridge
+  endpoints, and accepts JWT via query for SSE. See
+  [DIFF 2025-11-16](./DIFF.codex.md#2025-11-16--codexfrontendtelegram-integration-pending).
+
 ## 2025-12-07 – Telegram Mini App auth bridge (pending)
 
 - Added the WebApp auth bridge flow: reply-keyboard CTA opens `/auth-bridge`,
   the Mini App boots auth, sends a compact `sendData` payload with rid/reason,
   and closes instantly; bot logs `web_app_data` receipt and stores tokens with
   a confirmation message. Added guarded auto-rehydrate, MainButton fallback,
-  and telemetry for sendData/login/init-data gaps. See
+  and telemetry for sendData/login/init-data gaps. Follow-up refined
+  sendData payload fields/diagnostics and fixed Telegram API imports. See
   [DIFF 2025-12-07](./DIFF.codex.md#2025-12-07--codexwebapp-auth-bridge-pending).
+
+## 2025-12-07 – Telegram rehydrate hardening (pending)
+
+- Guarded the auto-rehydrate sendData so it fires once per load with fresh
+  tokens, removed reply keyboards after successful auth confirmation, and
+  expanded bot WebApp-data tests for exp/exp_at variants and invalid payloads.
+  See [DIFF 2025-12-07](./DIFF.codex.md#2025-12-07--codexfullstacktelegram-rehydrate-pending).
 
 ## 2025-12-04 – Stage 3 Stars monetization (bot) (pending)
 
@@ -197,3 +212,27 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
   multiple domains are configured. See
   [DIFF 2025-12-06](./DIFF.codex.md#2025-12-06--codexfullstackwebapp-multi-url-pending).
 
+
+## 2025-12-09 – Telegram integration UI polish (pending)
+
+- Refined the Telegram integration page with skeleton placeholders, accessibility labels, toast feedback, and richer diagnostics
+  (including last sendData RID) for deep-link onboarding. See
+  [DIFF 2025-12-09](./DIFF.codex.md#2025-12-09--codexfullstacktelegram-ui-diagnostics-pending).
+
+## 2025-12-10 – Telegram bridge SSE hardening (pending)
+
+- Wired Redis-backed pub/sub for the Telegram chat bridge, rate-limited the bridge send endpoint, mirrored bot updates into the
+  SSE channel, and taught the chat shell to reconnect streams with smooth scrolling. See
+  [DIFF 2025-12-10](./DIFF.codex.md#2025-12-10--codexfullstacktelegram-bridge-sse-pending).
+
+## 2025-12-11 – Telegram bridge compatibility (pending)
+
+- Made the Telegram bridge tolerant of missing Redis/httpx/logging helpers, reused user-level telegram_id fallbacks, and ensured
+  Mini App payload decode errors are handled gracefully. See
+  [DIFF 2025-12-11](./DIFF.codex.md#2025-12-11--codexbackendtelegram-bridge-compat-pending).
+
+## 2025-12-12 – Telegram chat bridge documentation (pending)
+
+- Clarified SSE token-in-query trade-offs for the Telegram chat bridge, added logging guidance, and aligned status payloads and
+  UI labels around app vs Telegram usernames. See
+  [DIFF 2025-12-12](./DIFF.codex.md#2025-12-12--codexfullstacktelegram-bridge-docs-pending).

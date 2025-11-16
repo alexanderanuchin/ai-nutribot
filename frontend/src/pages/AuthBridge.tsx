@@ -21,7 +21,7 @@ export default function AuthBridge() {
             requestId: rid,
             extra: { hasSession: Boolean(session) },
           })
-          return
+            return
         }
         const refreshToken = session?.refreshToken || tokenStore.refresh || undefined
         const expiresAt = session?.expiresAt ?? tokenStore.accessExpiresAt
@@ -31,6 +31,7 @@ export default function AuthBridge() {
           access_token: accessToken,
           refresh_token: refreshToken ?? undefined,
           expires_at: expiresAt ?? undefined,
+          exp: expiresAt ?? undefined,
           user_id: userId ?? undefined,
           rid,
           reason: 'bridge',
@@ -40,6 +41,7 @@ export default function AuthBridge() {
           hasRefresh: Boolean(refreshToken),
           expiresAt,
           userId,
+          hasWebApp: Boolean(webApp?.sendData),
         })
         void sendApplicationLog({
           level: 'INFO',
@@ -48,11 +50,25 @@ export default function AuthBridge() {
           requestId: rid,
           extra: {
             reason: 'bridge',
+            hasAccess: Boolean(accessToken),
             userId,
             expiresAt,
+            hasWebApp: Boolean(webApp?.sendData),
           },
         })
         webApp?.sendData?.(JSON.stringify(payload))
+        void sendApplicationLog({
+          level: 'INFO',
+          logger: 'webapp.telegram.sendData',
+          message: 'auth payload delivered',
+          requestId: rid,
+          extra: {
+            reason: 'bridge',
+            hasAccess: Boolean(accessToken),
+            userId,
+            hasWebApp: Boolean(webApp?.sendData),
+          },
+        })
       } catch (error) {
         warnLog('telegram/bridge', 'sendData failed', {
           rid,
@@ -65,6 +81,7 @@ export default function AuthBridge() {
           requestId: rid,
           extra: {
             reason: 'bridge',
+            hasWebApp: Boolean(webApp?.sendData),
             error: error instanceof Error ? error.message : String(error),
           },
         })

@@ -460,6 +460,7 @@ TELEGRAM_PROVIDER_TOKEN = (
     or os.getenv("PAYMENT_PROVIDER_TOKEN")
     or ""
 )
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "CaloIQ_bot")
 
 
 def _wallet_pricing_defaults() -> dict[str, dict[str, object]]:

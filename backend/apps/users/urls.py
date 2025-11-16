@@ -13,6 +13,12 @@ from .views import (
     PhoneEmailTokenObtainPairView,
 )
 from .tg_auth import tg_exchange
+from .telegram_integration import (
+    TelegramBridgeSendView,
+    TelegramBridgeStreamView,
+    TelegramLinkStartView,
+    TelegramStatusView,
+)
 
 router = DefaultRouter()
 router.register("profiles", ProfileViewSet, basename="profile")
@@ -34,6 +40,24 @@ urlpatterns = [
         name="password-reset-confirm",
     ),
     path("auth/tg_exchange/", tg_exchange, name="tg-exchange"),
+
+    # Telegram integration
+    path(
+        "integrations/telegram/link/start/",
+        TelegramLinkStartView.as_view(),
+        name="telegram-link-start",
+    ),
+    path(
+        "integrations/telegram/status/",
+        TelegramStatusView.as_view(),
+        name="telegram-status",
+    ),
+    path("telegram/bridge/send/", TelegramBridgeSendView.as_view(), name="telegram-bridge-send"),
+    path(
+        "telegram/bridge/stream/",
+        TelegramBridgeStreamView.as_view(),
+        name="telegram-bridge-stream",
+    ),
 
     # Router + "me" ручки
     path("", include(router.urls)),

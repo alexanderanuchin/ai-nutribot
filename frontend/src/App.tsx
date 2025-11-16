@@ -21,6 +21,7 @@ import MarketStoresPage from './pages/market/MarketStoresPage'
 import MarketMealPlansPage from './pages/market/MarketMealPlansPage'
 import MarketMealPlanDetailPage from './pages/market/MarketMealPlanDetailPage'
 import MealPlanBuilderPage from './pages/nutrition/MealPlanBuilderPage'
+import TelegramIntegrationPage from './pages/integrations/TelegramIntegrationPage'
 import ProtectedRoute from './routes/ProtectedRoute'
 
 import GridShimmerCanvas from './components/GridShimmerCanvas'
@@ -45,9 +46,7 @@ export default function App(){
   const { openPalette } = useCommandPalette()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
-  if (location.pathname === '/auth-bridge') {
-    return <AuthBridge />
-  }
+  const isAuthBridgeRoute = location.pathname === '/auth-bridge'
 
   const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
   const hasTokens = authReady
@@ -57,6 +56,10 @@ export default function App(){
   const showLoadingState = !showShell && !shouldShowAuthRoutes
 
   useLegacyStyles(!showShell && shouldShowAuthRoutes)
+
+  if (isAuthBridgeRoute) {
+    return <AuthBridge />
+  }
 
   return (
     <ToastProvider>
@@ -76,6 +79,14 @@ export default function App(){
                   <Route path="/search" element={<ProtectedRoute><Search /></ProtectedRoute>} />
                   <Route path="/compose" element={<ProtectedRoute><Compose /></ProtectedRoute>} />
                   <Route path="/nutrition/builder" element={<ProtectedRoute><MealPlanBuilderPage /></ProtectedRoute>} />
+                  <Route
+                    path="/profile/integrations/telegram"
+                    element={
+                      <ProtectedRoute>
+                        <TelegramIntegrationPage />
+                      </ProtectedRoute>
+                    }
+                  />
                   <Route
                     path="/market"
                     element={(

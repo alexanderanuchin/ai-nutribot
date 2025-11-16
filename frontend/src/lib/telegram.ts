@@ -7,6 +7,10 @@ export function tg() {
   return (window as any).Telegram?.WebApp
 }
 
+export function isTgWebAppPresent(): boolean {
+  return typeof window !== 'undefined' && Boolean((window as any).Telegram?.WebApp)
+}
+
 const MIN_VERTICAL_SWIPE_CONTROL_VERSION = '6.1'
 
 function parseVersionParts(version: string): number[] {
@@ -82,6 +86,8 @@ function logWebAppEnvironment(initData: string | null): void {
     initDataLength: length,
     initDataPreview: preview,
     url,
+    hasInitData: Boolean(initData),
+    hasSendData: Boolean(webApp?.sendData),
   }
   debugLog('telegram/env', 'environment detection', payload)
   void sendApplicationLog({
@@ -89,7 +95,7 @@ function logWebAppEnvironment(initData: string | null): void {
     logger: 'webapp.telegram.environment',
     message: 'webapp bootstrap environment',
     requestId: rid,
-    extra: payload,
+    extra: { ...payload, rid },
   })
 }
 
@@ -107,6 +113,7 @@ let rehydrateOnceGuard = false
 let manualBridgeTimeout: ReturnType<typeof setTimeout> | null = null
 let manualBridgeActive = false
 let manualBridgeClickHandler: (() => void) | null = null
+let lastSendDataAttempt: { rid: string; status: 'sent' | 'skipped' | 'failed'; reason?: string; timestamp: number } | null = null
 
 function shouldReuseSession(session: TelegramAuthSession | null | undefined): boolean {
   if (!session) {
@@ -152,6 +159,7 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     requestId: rid,
     extra: {
       hasInitData: Boolean(initData),
+      phase: 'start',
     },
   })
   const body = { init_data: initData }
@@ -196,6 +204,8 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
       telegramUserIdFromBackend,
       expiresAt: session.expiresAt,
       hasRefresh: Boolean(refreshToken),
+      hasAccess: Boolean(access),
+      phase: 'success',
     },
   })
   sendAuthPayloadToBot({
@@ -258,6 +268,7 @@ function scheduleManualBridge(payload: AuthPayload & { userId?: number | null })
 function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reason }: AuthPayload): boolean {
   const webApp = tg()
   if (!webApp || typeof webApp.sendData !== 'function') {
+    lastSendDataAttempt = { rid, status: 'skipped', reason: 'missing-webapp', timestamp: Date.now() }
     debugLog('telegram/sendData', 'skip auth payload', {
       rid,
       reason,
@@ -280,6 +291,8 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
       reason,
       telegramUserId,
       expiresAt,
+      hasAccess: Boolean(accessToken),
+      hasWebApp: Boolean(webApp?.sendData),
     })
     void sendApplicationLog({
       level: 'INFO',
@@ -290,6 +303,8 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
         reason,
         telegramUserId,
         expiresAt,
+        hasAccess: Boolean(accessToken),
+        hasWebApp: Boolean(webApp?.sendData),
       },
     })
     webApp.sendData(
@@ -302,6 +317,7 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
         rid,
       })
     )
+    lastSendDataAttempt = { rid, status: 'sent', reason, timestamp: Date.now() }
     if (manualBridgeTimeout) {
       clearTimeout(manualBridgeTimeout)
       manualBridgeTimeout = null
@@ -316,6 +332,7 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
       reason,
       error: error instanceof Error ? error.message : String(error),
     })
+    lastSendDataAttempt = { rid, status: 'failed', reason, timestamp: Date.now() }
     void sendApplicationLog({
       level: 'WARNING',
       logger: 'webapp.telegram.sendData',
@@ -323,6 +340,8 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
       requestId: rid,
       extra: {
         reason,
+        hasAccess: Boolean(accessToken),
+        hasWebApp: Boolean(webApp?.sendData),
         error: error instanceof Error ? error.message : String(error),
       },
     })
@@ -341,15 +360,24 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
 export function rehydrateBotSession(): void {
   if (rehydrateOnceGuard) return
   const accessToken = tokenStore.access
+  const expiresAt = tokenStore.accessExpiresAt
   if (!accessToken) {
     return
   }
+  if (typeof expiresAt === 'number') {
+    const nowSeconds = Math.floor(Date.now() / 1000)
+    const safetySeconds = 15
+    if (expiresAt <= nowSeconds + safetySeconds) {
+      return
+    }
+  }
+
   rehydrateOnceGuard = true
   const rid = generateRequestId()
   sendAuthPayloadToBot({
     accessToken,
     refreshToken: tokenStore.refresh || undefined,
-    expiresAt: tokenStore.accessExpiresAt,
+    expiresAt,
     rid,
     reason: 'rehydrate',
   })
@@ -396,6 +424,7 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
         message: 'login failed',
         extra: {
           error: error instanceof Error ? error.message : String(error),
+          phase: 'fail',
         },
       })
       cachedSession = null
@@ -406,4 +435,17 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
     })
 
   return bootstrapPromise
+}
+
+export function openTelegramLink(url: string): void {
+  const webApp = tg()
+  if (webApp?.openTelegramLink) {
+    webApp.openTelegramLink(url)
+    return
+  }
+  window.open(url, '_blank', 'noopener')
+}
+
+export function getLastSendDataAttempt() {
+  return lastSendDataAttempt
 }

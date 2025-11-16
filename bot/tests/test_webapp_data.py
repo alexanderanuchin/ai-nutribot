@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from aiogram.types import ReplyKeyboardRemove
+
 from bot.handlers.wallet import MIN_TOPUP_AMOUNT
 from bot.handlers.webapp_data import webapp_data_handler
 
@@ -46,7 +48,29 @@ async def test_webapp_data_handler_stores_auth_session():
     assert state.data["session_user_id"] == 123
     assert "session_obtained_at" in state.data
     message.answer.assert_awaited()
+    kwargs = message.answer.call_args.kwargs
+    assert isinstance(kwargs.get("reply_markup"), ReplyKeyboardRemove)
     message.answer_invoice.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_webapp_data_handler_accepts_exp_key():
+    state = FakeState()
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.answer_invoice = AsyncMock()
+    message.from_user = SimpleNamespace(id=321)
+    payload = {
+        "type": "auth",
+        "access_token": "token-abc",
+        "exp": 111111,
+    }
+    message.web_app_data = SimpleNamespace(data=json.dumps(payload))
+
+    await webapp_data_handler(message, state, access_token=None, provider_token="")
+
+    assert state.data["session_expires_at"] == 111111
+    message.answer.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -125,6 +149,21 @@ async def test_webapp_data_handler_includes_plan_payload():
 
 
 @pytest.mark.asyncio
+async def test_webapp_data_handler_rejects_invalid_json():
+    state = FakeState()
+    message = MagicMock()
+    message.answer = AsyncMock()
+    message.answer_invoice = AsyncMock()
+    message.from_user = SimpleNamespace(id=42)
+    message.web_app_data = SimpleNamespace(data="{invalid json}")
+
+    await webapp_data_handler(message, state, access_token=None, provider_token="")
+
+    message.answer.assert_awaited()
+    message.answer_invoice.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_webapp_data_handler_respects_blocked_flag():
     state = FakeState({"access_token": "token", "session_user_id": 42, "stars_purchase_blocked": True})
     message = MagicMock()
@@ -138,7 +177,7 @@ async def test_webapp_data_handler_respects_blocked_flag():
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
-    assert "недоступ" in text.lower()
+    assert "отключ" in text.lower()
     message.answer_invoice.assert_not_called()
 
 

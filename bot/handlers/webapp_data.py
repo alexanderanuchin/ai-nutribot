@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 
 from bot.constants import STARS_BLOCKED_MESSAGE
 from bot.logkit import get_request_id, mask_token
@@ -78,7 +78,7 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
         },
     )
     await state.update_data(**updates)
-    await message.answer("Авторизация подтверждена ✅")
+    await message.answer("Авторизация подтверждена ✅", reply_markup=ReplyKeyboardRemove())
 
 
 async def _handle_topup_payload(
@@ -246,13 +246,13 @@ async def webapp_data_handler(
 
     try:
         payload = json.loads(data)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
         await message.answer(
             "Не удалось прочитать данные WebApp. Переоткройте экран и повторите попытку."
         )
         logger.warning(
             "webapp decode_failed",
-            extra={"rid": rid},
+            extra={"rid": rid, "error": str(exc)},
         )
         return
 

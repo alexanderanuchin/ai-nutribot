@@ -14,6 +14,7 @@ from aiogram.fsm.storage.redis import Redis, RedisStorage
 from bot.backend_client import BackendClient
 from bot.config import Config
 from bot.logkit import configure_logging, get_request_id
+from bot.middlewares.bridge import BridgeEventsMiddleware
 from bot.middlewares.access_token import AccessTokenMiddleware
 from bot.middlewares.logging import LoggingMiddleware
 from bot.middlewares.store import StoreMiddleware
@@ -26,6 +27,7 @@ from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.support import router as support_router
 from bot.handlers.wallet import router as wallet_router
 from bot.handlers.webapp_data import router as webapp_router
+from bot.services.bridge import BridgePublisher
 from bot.services.commands import set_chat_menu_button, set_my_commands
 
 ALLOWED_UPDATES = ("message", "callback_query", "pre_checkout_query")
@@ -54,10 +56,12 @@ async def main() -> None:
     bot = Bot(cfg.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     redis = Redis(host=cfg.redis_host, port=cfg.redis_port)
     storage = RedisStorage(redis=redis, data_ttl=timedelta(hours=cfg.session_ttl_hours))
+    bridge_publisher = BridgePublisher(redis)
     dispatcher = Dispatcher(storage=storage)
 
     backend = BackendClient(cfg.backend_base_url, bot_key=cfg.bot_key)
     dispatcher.update.middleware(LoggingMiddleware())
+    dispatcher.update.middleware(BridgeEventsMiddleware(bridge_publisher))
     dispatcher.update.middleware(StoreMiddleware(backend, cfg))
     dispatcher.update.middleware(
         ThrottleMiddleware(limit=cfg.throttle_limit, interval=cfg.throttle_interval)
@@ -103,6 +107,7 @@ async def main() -> None:
                 await polling_task
         await dispatcher.storage.close()
         await dispatcher.storage.wait_closed()
+        await bridge_publisher.close()
         await backend.close()
         await bot.session.close()
 
