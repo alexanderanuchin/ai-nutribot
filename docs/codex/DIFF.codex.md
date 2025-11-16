@@ -1,3 +1,17 @@
+## 2025-12-09 – codex/telegram-sse-hardening (pending)
+
+**Summary:** Split Telegram CTA flows between Mini App SSO and classic login, gate chat SSE startup on confirmed linkage, throttle reconnection toasts, harden the auth bridge fallback, and serve the bridge stream with proper SSE headers across backend and nginx to eliminate 406 responses.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Add strict Mini App runtime detection (valid initData) and skip bot rehydrate outside Telegram. | Frontend auth | Rebuild frontend |
+| modify | frontend/src/pages/AuthBridge.tsx | Redirect non-Mini App visitors to Telegram deeplinks instead of attempting browser auth. | Frontend auth | Rebuild frontend |
+| modify | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Separate Mini App CTA to `/auth-bridge`, route the login CTA to `/login`, and pass linkage state to the chat shell diagnostics. | Frontend UI | Rebuild frontend |
+| modify | frontend/src/components/integrations/TelegramChatShell.tsx | Defer EventSource startup until Telegram is linked, throttle reconnection toasts, and show a pre-linking hint. | Frontend UI | Rebuild frontend |
+| modify | backend/apps/users/telegram_integration.py | Serve SSE with correct headers, return JSON 401/403 on auth errors, and bypass content negotiation 406 responses. | Backend API | Restart backend |
+| modify | infra/nginx.conf | Configure SSE-friendly proxy settings for the Telegram bridge stream endpoint. | Infra proxy | Reload nginx |
+| modify | docs/codex/DIFF.codex.md | Record the CTA split and SSE hardening per Codex audit policy. | Docs | No |
+
 ## 2025-11-16 – codex/frontend/telegram-integration (pending)
 
 **Summary:** Delivered the Telegram integration surface at `/profile/integrations/telegram` with deep-link/QR helpers, chat

@@ -12,6 +12,7 @@ import {
   getInitData,
   getLastSendDataAttempt,
   isTgWebAppPresent,
+  isTgWebAppRuntime,
   openTelegramLink,
   rehydrateBotSession,
 } from '../../lib/telegram'
@@ -29,6 +30,7 @@ export default function TelegramIntegrationPage() {
     () =>
       function computeDiag() {
         const present = isTgWebAppPresent()
+        const runtime = isTgWebAppRuntime()
         const initData = typeof window !== 'undefined' ? getInitData() : null
         const sendDataAvailable = present && Boolean((window as any)?.Telegram?.WebApp?.sendData)
         const mainButtonAvailable = present && Boolean((window as any)?.Telegram?.WebApp?.MainButton)
@@ -37,6 +39,7 @@ export default function TelegramIntegrationPage() {
           present,
           initDataLength: initData?.length || 0,
           initDataPreview: initData ? initData.slice(0, 16) : '',
+          runtime,
           sendDataAvailable,
           mainButtonAvailable,
           lastRid: attempt?.rid ?? null,
@@ -74,7 +77,7 @@ export default function TelegramIntegrationPage() {
   }
 
   const handleOpenMiniApp = async () => {
-    if (isTgWebAppPresent()) {
+    if (isTgWebAppRuntime()) {
       window.location.href = `/auth-bridge?v=${Date.now()}`
       return
     }
@@ -89,16 +92,8 @@ export default function TelegramIntegrationPage() {
     }
   }
 
-  const handleOpenTelegram = async () => {
-    try {
-      const link = await ensureLink()
-      const target = link?.links?.tme || link?.links?.tg
-      if (target) {
-        openTelegramLink(target)
-      }
-    } finally {
-      setDiag(buildDiag())
-    }
+  const handleOpenTelegramLogin = () => {
+    window.location.href = '/login'
   }
 
   return (
@@ -106,11 +101,11 @@ export default function TelegramIntegrationPage() {
       {isLoading ? (
         <TelegramHeroSkeleton />
       ) : (
-        <TelegramHeroCard
-          startLink={statusQuery.data?.link?.links?.tme}
-          startAppLink={statusQuery.data?.link?.links?.startapp}
-          onOpenMiniApp={handleOpenMiniApp}
-          onOpenTelegram={handleOpenTelegram}
+          <TelegramHeroCard
+            startLink={statusQuery.data?.link?.links?.tme}
+            startAppLink={statusQuery.data?.link?.links?.startapp}
+            onOpenMiniApp={handleOpenMiniApp}
+          onOpenTelegram={handleOpenTelegramLogin}
           loading={statusQuery.isLoading || startLinkMutation.isPending}
         />
       )}
@@ -118,7 +113,10 @@ export default function TelegramIntegrationPage() {
       <div className="grid gap-4 lg:grid-cols-[2fr,1.2fr]">
         <div className="space-y-4">
           <TelegramHowItWorks />
-          <TelegramChatShell startAppLink={statusQuery.data?.link?.links?.startapp} />
+          <TelegramChatShell
+            startAppLink={statusQuery.data?.link?.links?.startapp}
+            linked={Boolean(statusQuery.data?.linked)}
+          />
         </div>
         <div className="space-y-4">
           {isLoading ? (
@@ -148,6 +146,7 @@ export default function TelegramIntegrationPage() {
               <div>tgPresent: {String(diag.present)}</div>
               <div>initData length: {diag.initDataLength}</div>
               <div>initData preview: {diag.initDataPreview}</div>
+              <div>webapp runtime: {String(diag.runtime)}</div>
               <div>sendData доступен: {String(diag.sendDataAvailable)}</div>
               <div>MainButton: {String(diag.mainButtonAvailable)}</div>
               <div>last rid: {diag.lastRid ?? '—'} ({diag.lastStatus ?? '—'})</div>

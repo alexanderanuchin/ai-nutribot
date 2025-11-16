@@ -18,9 +18,10 @@ type ChatMessage = {
 
 interface TelegramChatShellProps {
   startAppLink?: string
+  linked: boolean
 }
 
-export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
+export function TelegramChatShell({ startAppLink, linked }: TelegramChatShellProps) {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([{
     id: 'system-intro',
@@ -32,6 +33,7 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
   const seenIds = useRef(new Set<string>(['system-intro']))
   const streamRef = useRef<EventSource | null>(null)
   const reconnectRef = useRef<number | null>(null)
+  const lastWarningRef = useRef<number>(0)
   const scrollerRef = useRef<HTMLDivElement | null>(null)
 
   const baseApi = useMemo(() => {
@@ -67,7 +69,12 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
 
   const startStream = useCallback(() => {
     const token = tokenStore.access
+    if (!token) return
     const url = `${baseApi}/users/telegram/bridge/stream/${token ? `?token=${encodeURIComponent(token)}` : ''}`
+    if (streamRef.current) {
+      streamRef.current.close()
+      streamRef.current = null
+    }
     const source = new EventSource(url)
     streamRef.current = source
 
@@ -83,11 +90,15 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
 
     source.onerror = () => {
       source.close()
-      notify({
-        title: 'Поток событий остановлен',
-        description: 'Переподключаемся… если проблема повторится, откройте Mini App в Telegram.',
-        tone: 'warning',
-      })
+      const now = Date.now()
+      if (!lastWarningRef.current || now - lastWarningRef.current > 6000) {
+        lastWarningRef.current = now
+        notify({
+          title: 'Поток событий остановлен',
+          description: 'Переподключаемся… если проблема повторится, откройте Mini App в Telegram.',
+          tone: 'warning',
+        })
+      }
       if (reconnectRef.current) {
         window.clearTimeout(reconnectRef.current)
       }
@@ -96,6 +107,16 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
   }, [baseApi, notify])
 
   useEffect(() => {
+    if (!linked) {
+      if (reconnectRef.current) {
+        window.clearTimeout(reconnectRef.current)
+        reconnectRef.current = null
+      }
+      streamRef.current?.close()
+      streamRef.current = null
+      return
+    }
+
     startStream()
     return () => {
       if (reconnectRef.current) {
@@ -104,7 +125,7 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
       streamRef.current?.close()
       streamRef.current = null
     }
-  }, [startStream])
+  }, [linked, startStream])
 
   useEffect(() => {
     scrollToBottom()
@@ -133,6 +154,11 @@ export function TelegramChatShell({ startAppLink }: TelegramChatShellProps) {
         Только события, которые наш сервер обрабатывает. Полная переписка доступна в Telegram. Мини‑приложение лучше открывать из клавиши бота — встроенного Telegram-чата для сайтов не существует.
       </p>
       <div className="mt-3 flex flex-col gap-3">
+        {!linked && (
+          <div className="rounded-xl border border-dashed border-amber-400/60 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-300/60 dark:bg-amber-900/30 dark:text-amber-50">
+            Подключите Mini App в Telegram, чтобы включить поток событий. После подтверждения связки чат обновится автоматически.
+          </div>
+        )}
         <div
           ref={el => {
             scrollerRef.current = el

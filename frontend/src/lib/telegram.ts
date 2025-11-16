@@ -11,6 +11,23 @@ export function isTgWebAppPresent(): boolean {
   return typeof window !== 'undefined' && Boolean((window as any).Telegram?.WebApp)
 }
 
+function hasValidInitData(rawInitData: string | null): boolean {
+  if (!rawInitData || typeof rawInitData !== 'string') return false
+  try {
+    const params = new URLSearchParams(rawInitData)
+    return Boolean(params.get('hash') && (params.get('user') || params.get('chat_instance')))
+  } catch {
+    return false
+  }
+}
+
+export function isTgWebAppRuntime(): boolean {
+  if (typeof window === 'undefined') return false
+  const webApp = tg()
+  if (!webApp) return false
+  return hasValidInitData(getInitData())
+}
+
 const MIN_VERTICAL_SWIPE_CONTROL_VERSION = '6.1'
 
 function parseVersionParts(version: string): number[] {
@@ -359,6 +376,7 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
 
 export function rehydrateBotSession(): void {
   if (rehydrateOnceGuard) return
+  if (!isTgWebAppRuntime()) return
   const accessToken = tokenStore.access
   const expiresAt = tokenStore.accessExpiresAt
   if (!accessToken) {

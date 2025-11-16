@@ -25,7 +25,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from django.utils import timezone
-from rest_framework import permissions, status
+from rest_framework import exceptions, permissions, renderers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -394,9 +394,23 @@ class TelegramBridgeSendView(APIView):
 class TelegramBridgeStreamView(APIView):
     authentication_classes = [QueryStringJWTAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+    renderer_classes = [renderers.JSONRenderer]
+
+    def perform_content_negotiation(self, request, force=False):  # pragma: no cover - negotiation override
+        try:
+            return super().perform_content_negotiation(request, force=force)
+        except exceptions.NotAcceptable:
+            renderer = self.renderer_classes[0]()
+            return renderer, renderer.media_type
 
     def get(self, request):
         rid = getattr(request, "request_id", get_request_id())
+        if not request.user or not request.user.is_authenticated:
+            logger.warning(
+                "telegram bridge stream unauthorized",
+                extra={"rid": rid},
+            )
+            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
         profile, _ = Profile.objects.get_or_create(user=request.user)
         telegram_id = profile.telegram_id or getattr(request.user, "telegram_id", None)
         if not telegram_id:
@@ -414,7 +428,7 @@ class TelegramBridgeStreamView(APIView):
             status=status.HTTP_200_OK,
             content_type="text/event-stream",
         )
-        response["Cache-Control"] = "no-cache"
+        response["Cache-Control"] = "no-cache, no-transform"
         response["X-Accel-Buffering"] = "no"
         return response
 

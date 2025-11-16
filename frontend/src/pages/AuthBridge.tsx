@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { bootstrapTelegramAuth, tg } from '../lib/telegram'
+import { fetchTelegramStatus } from '../api/telegram'
+import { bootstrapTelegramAuth, isTgWebAppRuntime, openTelegramLink, tg } from '../lib/telegram'
 import { debugLog, generateRequestId, warnLog } from '../lib/logging'
 import { sendApplicationLog } from '../lib/monitoring'
 import { tokenStore } from '../utils/storage'
@@ -8,6 +9,39 @@ export default function AuthBridge() {
   useEffect(() => {
     const rid = generateRequestId()
     const webApp = tg()
+    const isMiniAppRuntime = isTgWebAppRuntime()
+
+    if (!isMiniAppRuntime) {
+      const openTelegram = async () => {
+        try {
+          const status = await fetchTelegramStatus()
+          const startApp = status?.link?.links?.startapp || status?.link?.links?.tme
+          if (startApp) {
+            debugLog('telegram/bridge', 'redirecting to telegram deeplink', { rid, startApp })
+            openTelegramLink(startApp)
+          }
+        } catch (error) {
+          warnLog('telegram/bridge', 'failed to redirect to telegram', {
+            rid,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          void sendApplicationLog({
+            level: 'WARNING',
+            logger: 'webapp.telegram.bridge',
+            message: 'redirect to telegram failed',
+            requestId: rid,
+            extra: {
+              error: error instanceof Error ? error.message : String(error),
+              hasTelegram: Boolean(webApp),
+            },
+          })
+        }
+      }
+
+      void openTelegram()
+      return
+    }
+
     const sendAuthPayload = async () => {
       try {
         const session = await bootstrapTelegramAuth()
@@ -21,7 +55,7 @@ export default function AuthBridge() {
             requestId: rid,
             extra: { hasSession: Boolean(session) },
           })
-            return
+          return
         }
         const refreshToken = session?.refreshToken || tokenStore.refresh || undefined
         const expiresAt = session?.expiresAt ?? tokenStore.accessExpiresAt
