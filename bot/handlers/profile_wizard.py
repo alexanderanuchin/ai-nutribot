@@ -7,12 +7,7 @@ from typing import Any, Dict, List
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.backend_client import (
@@ -22,14 +17,10 @@ from bot.backend_client import (
     BackendValidationError,
 )
 from bot.constants import STARS_BLOCKED_MESSAGE
+from bot.keyboards.auth import build_authorize_keyboard
 from bot.logkit import get_request_id
 from bot.states import ProfileWizard
-from .wallet import (
-    _authorization_keyboard,
-    _get_tokens,
-    build_stars_topup_invoice,
-    plan_topup_payload,
-)
+from .wallet import _get_tokens, build_stars_topup_invoice, plan_topup_payload
 
 router = Router()
 
@@ -437,7 +428,7 @@ async def webapp_credentials(
         if not stored_access_token:
             await message.answer(
                 "Сначала авторизуйтесь через WebApp, чтобы пополнять баланс.",
-                reply_markup=_authorization_keyboard(webapp_url),
+                reply_markup=build_authorize_keyboard(webapp_url),
             )
             return
         state_data = await state.get_data()

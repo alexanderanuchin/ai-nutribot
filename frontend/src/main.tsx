@@ -9,6 +9,7 @@ import { CommandPaletteProvider } from './hooks/useCommandPalette'
 import { logout as performLogout } from './api/auth'
 import './styles/index.css'
 import { DEFAULT_BASE_PATH, getAppBasePath } from './lib/basePath'
+import { bootstrapTelegramAuth } from './lib/telegram'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,12 @@ const queryClient = new QueryClient({
 
 const appBasePath = getAppBasePath()
 const routerBasename = appBasePath === DEFAULT_BASE_PATH ? undefined : appBasePath
+
+;(async () => {
+  try {
+    await bootstrapTelegramAuth()
+  } catch {}
+})()
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter basename={routerBasename}>

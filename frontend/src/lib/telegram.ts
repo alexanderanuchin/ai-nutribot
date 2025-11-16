@@ -103,6 +103,10 @@ export interface TelegramAuthSession {
 
 let bootstrapPromise: Promise<TelegramAuthSession | null> | null = null
 let cachedSession: TelegramAuthSession | null | undefined
+let rehydrateOnceGuard = false
+let manualBridgeTimeout: ReturnType<typeof setTimeout> | null = null
+let manualBridgeActive = false
+let manualBridgeClickHandler: (() => void) | null = null
 
 function shouldReuseSession(session: TelegramAuthSession | null | undefined): boolean {
   if (!session) {
@@ -210,10 +214,48 @@ interface AuthPayload {
   refreshToken?: string
   expiresAt?: number | null
   rid: string
-  reason: 'login' | 'rehydrate'
+  reason: 'login' | 'rehydrate' | 'bridge' | 'manual'
 }
 
-function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reason }: AuthPayload): void {
+function resetManualBridge(mainButton: any) {
+  if (!mainButton) return
+  if (typeof mainButton.offClick === 'function' && manualBridgeClickHandler) {
+    mainButton.offClick(manualBridgeClickHandler)
+  }
+  manualBridgeClickHandler = null
+  manualBridgeActive = false
+  try {
+    mainButton.hide?.()
+  } catch {}
+}
+
+function scheduleManualBridge(payload: AuthPayload & { userId?: number | null }) {
+  const webApp = tg()
+  const mainButton = webApp?.MainButton
+  if (!mainButton || manualBridgeTimeout || manualBridgeActive) {
+    return
+  }
+  manualBridgeTimeout = setTimeout(() => {
+    manualBridgeTimeout = null
+    if (!webApp?.MainButton) return
+    const targetButton = webApp.MainButton
+    manualBridgeActive = true
+    targetButton.setText?.('Связать с ботом')
+    manualBridgeClickHandler = () => {
+      sendAuthPayloadToBot({ ...payload, rid: generateRequestId(), reason: 'manual' })
+      try {
+        webApp.close?.()
+      } catch {}
+      resetManualBridge(targetButton)
+    }
+    if (typeof targetButton.onClick === 'function' && manualBridgeClickHandler) {
+      targetButton.onClick(manualBridgeClickHandler)
+    }
+    targetButton.show?.()
+  }, 1500)
+}
+
+function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reason }: AuthPayload): boolean {
   const webApp = tg()
   if (!webApp || typeof webApp.sendData !== 'function') {
     debugLog('telegram/sendData', 'skip auth payload', {
@@ -221,7 +263,15 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
       reason,
       hasWebApp: Boolean(webApp),
     })
-    return
+    scheduleManualBridge({
+      accessToken,
+      refreshToken,
+      expiresAt: expiresAt ?? undefined,
+      rid,
+      reason,
+      userId: undefined,
+    })
+    return false
   }
   const telegramUserId = getTelegramUserIdFromSdk()
   try {
@@ -252,6 +302,14 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
         rid,
       })
     )
+    if (manualBridgeTimeout) {
+      clearTimeout(manualBridgeTimeout)
+      manualBridgeTimeout = null
+    }
+    if (manualBridgeActive) {
+      resetManualBridge(webApp.MainButton)
+    }
+    return true
   } catch (error) {
     warnLog('telegram/sendData', 'auth payload failed', {
       rid,
@@ -268,14 +326,25 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
         error: error instanceof Error ? error.message : String(error),
       },
     })
+    scheduleManualBridge({
+      accessToken,
+      refreshToken,
+      expiresAt: expiresAt ?? undefined,
+      rid,
+      reason,
+      userId: telegramUserId,
+    })
+    return false
   }
 }
 
-function rehydrateBotSession(): void {
+export function rehydrateBotSession(): void {
+  if (rehydrateOnceGuard) return
   const accessToken = tokenStore.access
   if (!accessToken) {
     return
   }
+  rehydrateOnceGuard = true
   const rid = generateRequestId()
   sendAuthPayloadToBot({
     accessToken,
@@ -301,6 +370,13 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
   const initData = getInitData()
   logWebAppEnvironment(initData)
   if (!initData) {
+    void sendApplicationLog({
+      level: 'WARNING',
+      logger: 'webapp.telegram.auth',
+      message: 'init data missing',
+      requestId: generateRequestId(),
+      extra: { hasTelegram: Boolean(tg()) },
+    })
     cachedSession = null
     return cachedSession
   }

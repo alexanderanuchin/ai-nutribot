@@ -1,3 +1,12 @@
+## 2025-12-07 – Telegram Mini App auth bridge (pending)
+
+- Added the WebApp auth bridge flow: reply-keyboard CTA opens `/auth-bridge`,
+  the Mini App boots auth, sends a compact `sendData` payload with rid/reason,
+  and closes instantly; bot logs `web_app_data` receipt and stores tokens with
+  a confirmation message. Added guarded auto-rehydrate, MainButton fallback,
+  and telemetry for sendData/login/init-data gaps. See
+  [DIFF 2025-12-07](./DIFF.codex.md#2025-12-07--codexwebapp-auth-bridge-pending).
+
 ## 2025-12-04 – Stage 3 Stars monetization (bot) (pending)
 
 - Finalised the Stage 3 Stars flow in the Telegram bot: added plan-specific

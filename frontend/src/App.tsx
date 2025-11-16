@@ -12,6 +12,7 @@ import Compose from './pages/Compose'
 import Notifications from './pages/Notifications'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import AuthBridge from './pages/AuthBridge'
 import MarketLayout from './pages/market/MarketLayout'
 import MarketHubPage from './pages/market/MarketHubPage'
 import MarketRecipesPage from './pages/market/MarketRecipesPage'
@@ -43,6 +44,10 @@ export default function App(){
   const { theme, resolvedTheme } = useTheme()
   const { openPalette } = useCommandPalette()
   const [drawerOpen, setDrawerOpen] = useState(false)
+
+  if (location.pathname === '/auth-bridge') {
+    return <AuthBridge />
+  }
 
   const isAuthRoute = AUTH_ROUTES.some(path => location.pathname.startsWith(path))
   const hasTokens = authReady
@@ -89,6 +94,7 @@ export default function App(){
                   <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                   <Route path="/billing" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+                  <Route path="/auth-bridge" element={<AuthBridge />} />
                   <Route path="*" element={<div className="card">Страница не найдена</div>} />
                 </Routes>
               </div>

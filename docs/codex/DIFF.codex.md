@@ -1,3 +1,25 @@
+## 2025-12-07 – codex/webapp-auth-bridge (pending)
+
+**Summary:** Implemented the Telegram Mini App auth bridge with a reply-keyboard
+CTA, `/auth-bridge` route that sends `sendData` immediately and closes, guarded
+auto-rehydrate + MainButton fallback, richer telemetry, and bot-side
+`web_app_data` logging/confirmation so JWT delivery is observable and resilient.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | bot/keyboards/auth.py | Provide the reply-keyboard WebApp bridge button that opens `/auth-bridge` with `web_app` info. | Bot UX | Restart bot |
+| modify | bot/handlers/wallet.py | Use the bridge keyboard for unauthorized wallet flows to force reliable sendData delivery. | Bot UX | Restart bot |
+| modify | bot/handlers/profile_wizard.py | Reuse the bridge keyboard when WebApp top-ups need fresh auth. | Bot UX | Restart bot |
+| modify | bot/handlers/webapp_data.py | Log received `web_app_data` keys, harden JSON parsing, and confirm auth to the user. | Bot telemetry | Restart bot |
+| create | bot/tests/test_keyboards_auth.py | Cover the auth bridge keyboard URL shaping and empty-url fallback. | Bot tests | No |
+| modify | bot/tests/test_wallet_handlers.py | Align wallet auth prompt expectations with the reply-keyboard bridge. | Bot tests | No |
+| create | frontend/src/pages/AuthBridge.tsx | Add the forced-auth webview that bootstraps auth, sends the `auth` payload, and closes. | Frontend WebApp | Rebuild frontend |
+| modify | frontend/src/App.tsx | Route `/auth-bridge` even before auth so bot CTA can complete the handshake. | Frontend routing | Rebuild frontend |
+| modify | frontend/src/lib/telegram.ts | Guard rehydrate sendData to a single attempt, add MainButton fallback, and log init-data gaps. | Frontend auth/telemetry | Rebuild frontend |
+| modify | frontend/src/main.tsx | Bootstrap Telegram auth before rendering to unblock early sendData. | Frontend startup | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Note the Mini App auth bridge milestone. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this bridge implementation per audit policy. | Docs | No |
+
 ## 2025-12-06 – codex/infra/retire-cloudpub-stack (pending)
 
 **Summary:** Retired the CloudPub publication setup and scrubbed its

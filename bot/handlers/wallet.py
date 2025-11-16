@@ -7,13 +7,7 @@ from typing import Any, Iterable, Tuple
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    Message,
-    PreCheckoutQuery,
-    WebAppInfo,
-)
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message, PreCheckoutQuery
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.backend_client import (
@@ -26,6 +20,7 @@ from bot.backend_client import (
 )
 from bot.constants import STARS_BLOCKED_MESSAGE, TOPUP_AMOUNTS as DEFAULT_TOPUP_AMOUNTS
 from bot.handlers.plan import resume_plan_generation_if_needed
+from bot.keyboards.auth import build_authorize_keyboard
 from bot.logkit import get_request_id
 from bot.payments import build_stars_topup_invoice, parse_invoice_payload, plan_topup_payload
 
@@ -35,18 +30,6 @@ logger = logging.getLogger("audit.wallet")
 TOPUP_AMOUNTS: Tuple[int, ...] = DEFAULT_TOPUP_AMOUNTS
 MIN_TOPUP_AMOUNT = 1
 MAX_TOPUP_AMOUNT = 10000
-
-
-def _authorization_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    if webapp_url:
-        if webapp_url.lower().startswith("https://"):
-            builder.button(text="Открыть приложение", web_app=WebAppInfo(url=webapp_url))
-        else:
-            builder.button(text="Открыть приложение", url=webapp_url)
-    builder.button(text="↩️ В меню", callback_data="menu")
-    builder.adjust(1)
-    return builder.as_markup()
 
 
 def _wallet_keyboard(*, stars_blocked: bool = False) -> InlineKeyboardMarkup:
@@ -197,8 +180,8 @@ async def _load_bot_balance(
 
 async def _ensure_authorized(message: Message, webapp_url: str) -> None:
     await message.answer(
-        "Нужно войти, чтобы посмотреть кошелёк.",
-        reply_markup=_authorization_keyboard(webapp_url),
+        "Сначала авторизуйтесь через мини‑приложение:",
+        reply_markup=build_authorize_keyboard(webapp_url),
     )
 
 

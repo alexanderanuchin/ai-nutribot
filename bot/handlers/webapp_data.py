@@ -78,9 +78,7 @@ async def _handle_auth_payload(message: Message, state: FSMContext, payload: dic
         },
     )
     await state.update_data(**updates)
-    await message.answer(
-        "Авторизация WebApp подтверждена. Можно продолжить операции с кошельком в боте."
-    )
+    await message.answer("Авторизация подтверждена ✅")
 
 
 async def _handle_topup_payload(
@@ -258,9 +256,13 @@ async def webapp_data_handler(
         )
         return
 
+    payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
+    logger.info(
+        "web_app_data received", extra={"rid": rid, "payload_keys": payload_keys}
+    )
+
     payload_type = str(payload.get("type") or "").lower()
     action = str(payload.get("action") or "").lower()
-    payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else []
     logger.info(
         "webapp payload",
         extra={

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -103,7 +104,9 @@ async def test_wallet_command_requires_auth():
 
     message.answer.assert_awaited()
     text = message.answer.call_args[0][0]
-    assert "нужно" in text.lower()
+    markup = message.answer.call_args[1]["reply_markup"]
+    assert "авториз" in text.lower()
+    assert getattr(markup, "keyboard", None)
 
 
 @pytest.mark.asyncio
@@ -195,7 +198,7 @@ async def test_wallet_topup_callback_requires_auth_before_invoice():
 
     callback.message.answer.assert_awaited()
     text = callback.message.answer.call_args[0][0]
-    assert "нужно" in text.lower()
+    assert "авториз" in text.lower()
     callback.message.answer_invoice.assert_not_called()
     callback.answer.assert_awaited()
 
