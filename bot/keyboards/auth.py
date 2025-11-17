@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, WebAppInfo
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 def build_auth_bridge_url(webapp_url: str | None) -> str | None:
@@ -10,12 +11,12 @@ def build_auth_bridge_url(webapp_url: str | None) -> str | None:
     return f"{cleaned}/auth-bridge"
 
 
-def build_authorize_keyboard(webapp_url: str) -> ReplyKeyboardMarkup:
-    sanitized_url = build_auth_bridge_url(webapp_url) or ""
-    button = KeyboardButton(
-        text="Авторизоваться",
-        web_app=WebAppInfo(url=sanitized_url) if sanitized_url else None,
-    )
-    return ReplyKeyboardMarkup(
-        keyboard=[[button]], resize_keyboard=True, one_time_keyboard=True, is_persistent=False
-    )
+def build_authorize_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    sanitized_url = build_auth_bridge_url(webapp_url)
+    if sanitized_url and sanitized_url.lower().startswith("https://"):
+        builder.button(text="Авторизоваться", web_app=WebAppInfo(url=sanitized_url))
+    elif sanitized_url:
+        builder.button(text="Авторизоваться", url=sanitized_url)
+    builder.adjust(1)
+    return builder.as_markup()

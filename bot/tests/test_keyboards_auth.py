@@ -1,4 +1,4 @@
-from aiogram.types import ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup
 
 from bot.keyboards.auth import build_auth_bridge_url, build_authorize_keyboard
 
@@ -16,13 +16,18 @@ def test_build_auth_bridge_url_handles_empty_value():
 
 def test_build_authorize_keyboard_appends_bridge_path():
     markup = build_authorize_keyboard("https://example.com/webapp/")
-    assert isinstance(markup, ReplyKeyboardMarkup)
-    button = markup.keyboard[0][0]
+    assert isinstance(markup, InlineKeyboardMarkup)
+    button = markup.inline_keyboard[0][0]
     assert button.text == "Авторизоваться"
     assert button.web_app and button.web_app.url == "https://example.com/webapp/auth-bridge"
 
 
+def test_build_authorize_keyboard_falls_back_to_url_for_non_https():
+    markup = build_authorize_keyboard("http://localhost:5173")
+    button = markup.inline_keyboard[0][0]
+    assert button.url == "http://localhost:5173/auth-bridge"
+
+
 def test_build_authorize_keyboard_handles_empty_url():
     markup = build_authorize_keyboard("")
-    button = markup.keyboard[0][0]
-    assert button.web_app is None
+    assert markup.inline_keyboard == []

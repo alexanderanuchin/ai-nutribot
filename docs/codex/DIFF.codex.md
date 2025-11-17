@@ -1,3 +1,14 @@
+## 2025-12-11 – codex/bot/webapp-inline-auth (pending)
+
+**Summary:** Switched the bot authorization CTA to an inline `web_app` button so Mini App launches always receive initData, mirroring the profile wizard’s markup, and let aiogram derive `allowed_updates` to ensure WebApp service payloads are delivered. Added coverage for HTTPS and non-HTTPS fallbacks and documented the change.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/keyboards/auth.py | Replace the reply keyboard auth CTA with an inline `web_app` button using the auth bridge URL. | Bot auth UX | Restart bot |
+| modify | bot/tests/test_keyboards_auth.py | Assert inline keyboard rendering for HTTPS, fallback URL for non-HTTPS, and empty WebApp URL handling. | Bot tests | No |
+| modify | bot/main.py | Allow aiogram to compute `allowed_updates` so `web_app_data` and other service messages are not filtered. | Bot runtime | Restart bot |
+| modify | docs/codex/DIFF.codex.md | Record the inline auth keyboard swap per Codex audit policy. | Docs | No |
+
 ## 2025-12-10 – codex/bot/webapp-auth-bridge-buttons (pending)
 
 **Summary:** Switched the bot’s auth CTAs to always launch the `/auth-bridge` Mini App via `web_app` buttons so Telegram clients pass initData, and covered the inline/reply keyboards with tests.
@@ -1092,3 +1103,21 @@ sendData-based auto-auth.
 | modify | frontend/src/lib/deeplinks.ts | Detect legacy vs new argument order for start/startapp link builders to avoid broken Mini App URLs. | Frontend deeplinks | Rebuild frontend |
 | modify | docs/codex/CHANGELOG.codex.md | Log the deeplink signature compatibility fix per Codex audit policy. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this audit entry per Codex policy. | Docs | No |
+
+## 2025-12-17 – codex/frontend/telegram-senddata-desktop-reliability (pending)
+
+**Summary:** Add delivery cushions and a Telegram Desktop fallback button so auth sendData has time to arrive before closing the WebApp.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Add delivery pauses around sendData/close and a Telegram Desktop fallback MainButton to retry auth payloads. | Frontend auth bridge | No |
+| modify | docs/codex/DIFF.codex.md | Record the Telegram auth sendData reliability adjustments per Codex policy. | Docs | No |
+
+## 2025-12-18 – codex/frontend/telegram-mainbutton-handler (pending)
+
+**Summary:** Fix Telegram Desktop manual auth fallback by wiring MainButton click handlers through the official onEvent API and surfacing click logs.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Attach/detach Telegram MainButton handlers via onEvent/offEvent with logging so Desktop fallback clicks resend auth payloads. | Frontend auth bridge | No |
+| modify | docs/codex/DIFF.codex.md | Log the MainButton click handler fix per Codex audit policy. | Docs | No |

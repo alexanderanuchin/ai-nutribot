@@ -30,12 +30,12 @@ from bot.handlers.webapp_data import router as webapp_router
 from bot.services.bridge import BridgePublisher
 from bot.services.commands import set_chat_menu_button, set_my_commands
 
-ALLOWED_UPDATES = ("message", "callback_query", "pre_checkout_query")
-
 
 async def _start_polling(bot: Bot, dispatcher: Dispatcher) -> None:
     try:
-        await dispatcher.start_polling(bot, allowed_updates=ALLOWED_UPDATES)
+        # Let aiogram derive allowed_updates from registered handlers so Web App
+        # service payloads (e.g., web_app_data) are not filtered out.
+        await dispatcher.start_polling(bot)
     finally:
         dispatcher.stop_polling()
 

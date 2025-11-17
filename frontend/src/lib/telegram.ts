@@ -146,14 +146,28 @@ export async function runAuthBridge(payloadForStartApp = 'auth') {
   tokenStore.refresh = data.refresh
   tokenStore.accessExpiresAt = data.exp
 
+  // 1) Отправляем auth-пакет боту
   try {
     tg()?.sendData?.(
-      JSON.stringify({ type: 'auth', access_token: data.access, refresh_token: data.refresh, exp: data.exp }),
+      JSON.stringify({
+        type: 'auth',
+        access_token: data.access,
+        refresh_token: data.refresh ?? undefined,
+        exp: data.exp ?? undefined,
+      }),
     )
   } catch {}
+
+  // 2) Даём Telegram время ДОСТАВИТЬ web_app_data (важно для Telegram Desktop)
+  await new Promise(resolve => setTimeout(resolve, 450))
+
+  // 3) Закрываем WebView (если поддерживается)
   try {
     tg()?.close?.()
   } catch {}
+
+  // 4) Ещё короткая пауза, чтобы не «срезать» доставку после закрытия
+  await new Promise(resolve => setTimeout(resolve, 150))
 
   window.location.href = '/app'
 }
@@ -274,6 +288,8 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     rid,
     reason: 'login',
   })
+  // Мини-пауза, чтобы Telegram Desktop успел доставить web_app_data
+  await new Promise(resolve => setTimeout(resolve, 350))
 
   return session
 }
@@ -287,9 +303,15 @@ interface AuthPayload {
 }
 
 function resetManualBridge(mainButton: any) {
+  const webApp = tg()
   if (!mainButton) return
-  if (typeof mainButton.offClick === 'function' && manualBridgeClickHandler) {
-    mainButton.offClick(manualBridgeClickHandler)
+  // Снимаем обработчик правильным способом
+  if (webApp && typeof (webApp as any).offEvent === 'function' && manualBridgeClickHandler) {
+    try { (webApp as any).offEvent('mainButtonClicked', manualBridgeClickHandler) } catch {}
+  }
+  // На всякий случай поддержим неофициальные обёртки
+  if (typeof (mainButton as any).offClick === 'function' && manualBridgeClickHandler) {
+    try { (mainButton as any).offClick(manualBridgeClickHandler) } catch {}
   }
   manualBridgeClickHandler = null
   manualBridgeActive = false
@@ -310,17 +332,21 @@ function scheduleManualBridge(payload: AuthPayload & { userId?: number | null })
     const targetButton = webApp.MainButton
     manualBridgeActive = true
     targetButton.setText?.('Связать с ботом')
+    targetButton.enable?.()
+    targetButton.show?.()
     manualBridgeClickHandler = () => {
+      debugLog('telegram/sendData', 'manual mainButton clicked', { rid: generateRequestId() })
       sendAuthPayloadToBot({ ...payload, rid: generateRequestId(), reason: 'manual' })
-      try {
-        webApp.close?.()
-      } catch {}
+      try { webApp.close?.() } catch {}
       resetManualBridge(targetButton)
     }
-    if (typeof targetButton.onClick === 'function' && manualBridgeClickHandler) {
-      targetButton.onClick(manualBridgeClickHandler)
+    // Правильный способ повесить обработчик клика MainButton
+    if (webApp && typeof (webApp as any).onEvent === 'function' && manualBridgeClickHandler) {
+      (webApp as any).onEvent('mainButtonClicked', manualBridgeClickHandler)
+    } else if (typeof (targetButton as any).onClick === 'function' && manualBridgeClickHandler) {
+      // fallback для кастомных обёрток
+      (targetButton as any).onClick(manualBridgeClickHandler)
     }
-    targetButton.show?.()
   }, 1500)
 }
 
@@ -376,6 +402,23 @@ function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reaso
         rid,
       })
     )
+    // Fallback для Telegram Desktop: покажем кнопку «Связать с ботом», если sendData не дошёл
+    try {
+      // @ts-ignore — у Telegram.WebApp есть platform
+      const platform = (webApp as any)?.platform
+      if (String(platform || '').toLowerCase() === 'tdesktop') {
+        setTimeout(() => {
+          scheduleManualBridge({
+            accessToken,
+            refreshToken,
+            expiresAt: expiresAt ?? undefined,
+            rid,
+            reason,
+            userId: telegramUserId,
+          })
+        }, 1200)
+      }
+    } catch {}
     lastSendDataAttempt = { rid, status: 'sent', reason, timestamp: Date.now() }
     if (manualBridgeTimeout) {
       clearTimeout(manualBridgeTimeout)
