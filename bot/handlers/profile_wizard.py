@@ -17,7 +17,7 @@ from bot.backend_client import (
     BackendValidationError,
 )
 from bot.constants import STARS_BLOCKED_MESSAGE
-from bot.keyboards.auth import build_authorize_keyboard
+from bot.keyboards.auth import build_auth_bridge_url, build_authorize_keyboard
 from bot.logkit import get_request_id
 from bot.states import ProfileWizard
 from .wallet import _get_tokens, build_stars_topup_invoice, plan_topup_payload
@@ -44,10 +44,11 @@ GOAL_LABELS = {value: label for value, label in GOAL_OPTIONS}
 
 def _build_authorization_markup(webapp_url: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    if webapp_url.lower().startswith("https://"):
-        builder.button(text="Открыть анкету", web_app=WebAppInfo(url=webapp_url))
-    else:
-        builder.button(text="Открыть анкету", url=webapp_url)
+    sanitized_url = build_auth_bridge_url(webapp_url)
+    if sanitized_url and sanitized_url.lower().startswith("https://"):
+        builder.button(text="Открыть анкету", web_app=WebAppInfo(url=sanitized_url))
+    elif sanitized_url:
+        builder.button(text="Открыть анкету", url=sanitized_url)
     builder.adjust(1)
     return builder.as_markup()
 

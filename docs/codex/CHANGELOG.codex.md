@@ -1,3 +1,10 @@
+## 2025-12-10 – Bot auth bridge buttons (pending)
+
+- Updated bot auth prompts to launch the `/auth-bridge` Mini App via `web_app`
+  buttons (reply and inline) so Telegram clients pass `initData`; added focused
+  tests for the shared bridge URL builder and profile auth markup. See
+  [DIFF 2025-12-10](./DIFF.codex.md#2025-12-10--codexbotwebapp-auth-bridge-buttons-pending).
+
 ## 2025-11-16 – Telegram integration surface (pending)
 
 - Added the `/profile/integrations/telegram` experience with hero/status cards, deep-link + QR helpers, and a lightweight

@@ -1,3 +1,15 @@
+## 2025-12-10 – codex/bot/webapp-auth-bridge-buttons (pending)
+
+**Summary:** Switched the bot’s auth CTAs to always launch the `/auth-bridge` Mini App via `web_app` buttons so Telegram clients pass initData, and covered the inline/reply keyboards with tests.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/keyboards/auth.py | Reuse a shared auth-bridge URL builder and keep reply keyboards opening the Mini App via web_app. | Bot auth UX | Restart bot |
+| modify | bot/handlers/profile_wizard.py | Point the profile auth prompt to the `/auth-bridge` WebApp instead of a plain URL fallback. | Bot auth UX | Restart bot |
+| modify | bot/tests/test_keyboards_auth.py | Cover the auth-bridge URL builder and reply keyboard bridge URL. | Bot tests | No |
+| create | bot/tests/test_profile_wizard_auth.py | Assert the profile auth markup launches the WebApp bridge and falls back gracefully for non-HTTPS hosts. | Bot tests | No |
+| modify | docs/codex/DIFF.codex.md | Record the WebApp auth CTA fix per Codex audit policy. | Docs | No |
+
 ## 2025-12-09 – codex/telegram-sse-hardening (pending)
 
 **Summary:** Split Telegram CTA flows between Mini App SSO and classic login, gate chat SSE startup on confirmed linkage, throttle reconnection toasts, harden the auth bridge fallback, and serve the bridge stream with proper SSE headers across backend and nginx to eliminate 406 responses.
