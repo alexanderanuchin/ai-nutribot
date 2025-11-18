@@ -1,8 +1,21 @@
+## 2025-12-22 – Telegram WebApp confirmation flags (pending)
+
+- Gated Mini App auth confirmations behind explicit flags, collected initData from header/body/query sources, ensured the bot
+  receives auth payloads via sendData (with legacy/current token keys and a brief delivery cushion) before any optional
+  WebView close, and returned JWTs to the WebApp exchange response so sendData always carries tokens. See
+  [DIFF 2025-12-22](./DIFF.codex.md#2025-12-22--codexfullstacktelegram-webapp-confirm-flag-pending).
+
 ## 2025-12-21 – Mini App auth runtime stability (pending)
 
 - Allowed the Telegram Mini App auth bridge to keep the WebView open on desktop clients and accept backend logins that omit
   access/refresh tokens, aligning the SPA with the server-side token store. See
   [DIFF 2025-12-21](./DIFF.codex.md#2025-12-21--codexfrontendtelegram-auth-runtime-stability-pending).
+
+## 2025-11-18 – Telegram WebApp auth flow hardening (pending)
+
+- Made Telegram WebApp confirmations opt-in to avoid auto-closing, gathered initData from header/body/query/hash sources, and
+  resumed sending auth tokens to the bot via `sendData` before optionally closing the WebView. See
+  [DIFF 2025-11-18](./DIFF.codex.md#2025-11-18--codexfullstacktelegram-webapp-flow-pending).
 
 ## 2025-12-10 – Bot auth bridge buttons (pending)
 

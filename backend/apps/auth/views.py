@@ -17,6 +17,7 @@ from urllib.parse import parse_qsl
 from apps.users.tg_auth import (
     TelegramWebAppAuthError,
     exchange_webapp_init_data,
+    should_send_webapp_confirmation,
     send_webapp_auth_confirmation,
 )
 from apps.users.models import Profile
@@ -33,11 +34,14 @@ def _collect_init_data_candidates(request) -> list[Tuple[str, str]]:
     candidates: list[Tuple[str, str]] = []
     header_value = request.headers.get("X-Telegram-Init-Data")
     body_value = request.data.get("init_data") if hasattr(request, "data") else None
+    query_value = request.query_params.get("tgWebAppData") if hasattr(request, "query_params") else None
 
     if header_value:
         candidates.append((header_value, "header"))
     if body_value and (not header_value or body_value != header_value):
         candidates.append((body_value, "body"))
+    if query_value and query_value not in {header_value, body_value}:
+        candidates.append((query_value, "query"))
 
     return candidates
 
@@ -131,6 +135,7 @@ class WebAppLoginView(APIView):
         init_source = candidates[0][1] if candidates else "missing"
         header_value = request.headers.get("X-Telegram-Init-Data")
         body_value = request.data.get("init_data") if hasattr(request, "data") else None
+        query_value = request.query_params.get("tgWebAppData") if hasattr(request, "query_params") else None
         rid = getattr(request, "request_id", get_request_id())
         token_value = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
         token_source = getattr(settings, "TELEGRAM_BOT_TOKEN_SOURCE", "unknown")
@@ -155,6 +160,8 @@ class WebAppLoginView(APIView):
             log_extra["init_data_header_length"] = len(header_value)
         if body_value:
             log_extra["init_data_body_length"] = len(body_value)
+        if query_value:
+            log_extra["init_data_query_length"] = len(query_value)
         if candidates:
             log_extra["init_data_sources"] = [source for _, source in candidates]
         else:
@@ -231,11 +238,12 @@ class WebAppLoginView(APIView):
                 "webapp login success",
                 extra={**success_extra, "query_id": query_id},
             )
-            send_webapp_auth_confirmation(
-                query_id,
-                rid=rid,
-                telegram_user_id=payload.get("telegram_user_id"),
-            )
+            if should_send_webapp_confirmation(request) and query_id:
+                send_webapp_auth_confirmation(
+                    query_id,
+                    rid=rid,
+                    telegram_user_id=payload.get("telegram_user_id"),
+                )
             return Response(payload)
 
         exc = last_exc

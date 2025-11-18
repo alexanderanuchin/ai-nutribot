@@ -35,6 +35,26 @@ logger = logging.getLogger("audit.auth")
 tg_logger = logging.getLogger("audit.telegram")
 
 
+def _coerce_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return False
+
+
+def should_send_webapp_confirmation(request) -> bool:
+    query_params = getattr(request, "query_params", {}) or {}
+    body = getattr(request, "data", {}) or {}
+    return _coerce_bool(
+        query_params.get("confirm")
+        or body.get("send_webapp_confirmation")
+        or body.get("confirm")
+    )
+
+
 def _ensure_profile_telegram_id(user, tg_id: int) -> Tuple[Profile, bool]:
     profile, created = Profile.objects.get_or_create(user=user)
     if profile.telegram_id != tg_id:
@@ -160,16 +180,34 @@ def exchange_webapp_init_data(
 
     refresh = RefreshToken.for_user(user)
     access_token = refresh.access_token
-    exp = access_token.get("exp")
+    exp_raw = access_token.get("exp")
+    try:
+        exp = int(exp_raw) if exp_raw is not None else None
+    except Exception:
+        try:
+            exp = int(datetime.fromtimestamp(exp_raw).timestamp()) if exp_raw else None
+        except Exception:
+            exp = None
+
+    payload.update(
+        {
+            "access": str(access_token),
+            "refresh": str(refresh),
+            "exp": exp,
+        }
+    )
 
     from .models import TelegramSession
 
+    expires_at = (
+        datetime.fromtimestamp(exp, tz=dt_timezone.utc) if isinstance(exp, int) else None
+    )
     TelegramSession.objects.update_or_create(
         profile=profile,
         defaults={
             "access_token": str(access_token),
             "refresh_token": str(refresh),
-            "expires_at": datetime.fromtimestamp(int(exp), tz=dt_timezone.utc),
+            "expires_at": expires_at,
         },
     )
 
@@ -261,7 +299,8 @@ def tg_exchange(request):
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
     rid = getattr(request, "request_id", get_request_id())
     query_id = payload.pop("web_app_query_id", None)
-    send_webapp_auth_confirmation(
-        query_id, rid=rid, telegram_user_id=payload.get("telegram_user_id")
-    )
+    if should_send_webapp_confirmation(request) and query_id:
+        send_webapp_auth_confirmation(
+            query_id, rid=rid, telegram_user_id=payload.get("telegram_user_id")
+        )
     return Response(payload)

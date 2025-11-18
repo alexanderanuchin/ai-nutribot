@@ -1,3 +1,14 @@
+## 2025-12-22 – codex/fullstack/telegram-webapp-confirm-flag (pending)
+
+**Summary:** Align Telegram Mini App auth exchange with explicit confirmation flags, robust initData sourcing, reliable sendData delivery (including legacy field names and a short delivery cushion) before any optional close, and return JWTs to the WebApp so bot `sendData` payloads always contain tokens.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/auth/views.py | Collect initData from header/body/query safely and gate web_app auth confirmations behind explicit flags to keep the WebView open by default. | Backend auth | Restart backend |
+| modify | backend/apps/users/tg_auth.py | Share confirmation flag helpers, make the legacy exchange endpoint opt-in for Mini App closure, normalize exp handling, and return access/refresh/exp in the exchange response so the WebApp can forward tokens to the bot. | Backend auth | Restart backend |
+| modify | frontend/src/lib/telegram.ts | Harden initData discovery, defer WebView closing to explicit query flags, send auth payloads with legacy+current token keys, and pause briefly so sendData reaches the bot before navigation. | Frontend auth | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Record the Telegram confirmation flag alignment per Codex audit policy. | Docs | No |
+
 ## 2025-12-21 – codex/frontend/telegram-auth-runtime-stability (pending)
 
 **Summary:** Kept the Mini App WebView open after initData exchange to avoid premature closure on desktop Telegram, and made the frontend tolerate backend auth responses that omit access/refresh tokens while still logging access presence.
@@ -484,6 +495,18 @@ and added a reproducible `make typecheck` target for backend contributors.
 | modify | backend/README.md | Document the new type checking workflow. | Docs | No |
 | modify | docs/codex/CHANGELOG.codex.md | Record typing bootstrap milestone. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Append traceability entry for mypy integration. | Docs | No |
+
+## 2025-11-18 – codex/fullstack/telegram-webapp-flow (pending)
+
+**Summary:** Stopped auto-closing the Telegram Mini App from the backend, added opt-in confirmation toggles, broadened initData collection to include query/hash payloads, and restored `sendData` delivery of auth tokens before any optional WebView close.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/apps/auth/views.py | Accept initData from header/body/query sources and only answer WebApp queries when explicitly requested. | Backend auth | Restart backend |
+| modify | backend/apps/users/tg_auth.py | Reuse boolean coercion for query flags and gate Telegram auth confirmations on an opt-in flag. | Backend/bot auth handshake | Restart backend |
+| modify | frontend/src/lib/telegram.ts | Read initData from runtime/hash/query, send auth tokens to the bot via `sendData` before optionally closing the WebView, and keep redirects stable. | Frontend auth | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Log the Telegram WebApp flow hardening per Codex policy. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Append this audit entry. | Docs | No |
 
 ## 2025-11-17 – codex/infra/lint-style (pending)
 

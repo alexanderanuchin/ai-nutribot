@@ -1,6 +1,5 @@
 import api from '../api/client'
 import { tokenStore } from '../utils/storage'
-import { buildStartAppLink } from './deeplinks'
 import { debugLog, generateRequestId, maskToken, warnLog } from './logging'
 import { sendApplicationLog } from './monitoring'
 
@@ -24,7 +23,26 @@ function hasValidInitData(raw: string | null): boolean {
 
 export function getInitData(): string | null {
   try {
-    return tg()?.initData || null
+    const runtimeInitData = tg()?.initData || null
+    if (hasValidInitData(runtimeInitData)) {
+      return runtimeInitData
+    }
+
+    if (typeof window === 'undefined') return runtimeInitData
+
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const fromHash = hashParams.get('tgWebAppData')
+    if (hasValidInitData(fromHash)) {
+      return fromHash
+    }
+
+    const searchParams = new URLSearchParams(window.location.search)
+    const fromQuery = searchParams.get('tgWebAppData')
+    if (hasValidInitData(fromQuery)) {
+      return fromQuery
+    }
+
+    return runtimeInitData || fromHash || fromQuery
   } catch {
     return null
   }
@@ -120,6 +138,7 @@ function logWebAppEnvironment(initData: string | null): void {
 export async function runAuthBridge(payloadForStartApp = 'auth') {
   const rid = generateRequestId()
   if (!isTgWebAppRuntime()) {
+    const { buildStartAppLink } = await import('./deeplinks')
     const startAppLink = buildStartAppLink(payloadForStartApp)
     debugLog('telegram/bridge', 'redirecting to startapp deeplink', { rid, startAppLink })
     window.location.href = startAppLink
@@ -135,7 +154,8 @@ export async function runAuthBridge(payloadForStartApp = 'auth') {
     return
   }
 
-  await exchangeInitData(initData)
+  const session = await exchangeInitData(initData)
+  await sendAuthPayloadToTelegram(session, rid)
 
   // Не закрываем WebView насильно: на десктопных клиентах закрытие происходит раньше, чем отрисуется контент.
   window.location.href = '/app'
@@ -180,9 +200,11 @@ function resolveTelegramUserId(payload: any): number | null {
 }
 
 async function exchangeInitData(initData: string): Promise<TelegramAuthSession | null> {
-  const headers = { 'X-Telegram-Init-Data': initData }
   const rid = generateRequestId()
-  headers['X-Request-Id'] = rid
+  const headers: Record<string, string> = { 'X-Request-Id': rid }
+  if (initData) {
+    headers['X-Telegram-Init-Data'] = initData
+  }
   debugLog('telegram/auth', 'login request', {
     rid,
     hasInitData: Boolean(initData),
@@ -300,6 +322,102 @@ export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | nul
     })
 
   return bootstrapPromise
+}
+
+function shouldCloseWebViewFromParams(): boolean {
+  if (typeof window === 'undefined') return false
+  const params = new URLSearchParams(window.location.search)
+  const closeParam = params.get('close') || params.get('webapp_close')
+  if (!closeParam) return false
+  return ['1', 'true', 'yes', 'on', 'y'].includes(closeParam.toLowerCase())
+}
+
+async function sendAuthPayloadToTelegram(
+  session: TelegramAuthSession | null,
+  rid: string,
+): Promise<void> {
+  const webApp = tg()
+  if (!webApp || typeof webApp.sendData !== 'function') {
+    debugLog('telegram/sendData', 'skip sendData', {
+      rid,
+      hasWebApp: Boolean(webApp),
+      hasSession: Boolean(session),
+      canSend: Boolean(webApp?.sendData),
+    })
+    return
+  }
+
+  const access = session?.accessToken ?? tokenStore.access ?? ''
+  const refresh = session?.refreshToken ?? tokenStore.refresh ?? ''
+  const expiresAt = session?.expiresAt ?? tokenStore.accessExpiresAt ?? null
+
+  if (!access && !refresh) {
+    debugLog('telegram/sendData', 'skip sendData missing tokens', {
+      rid,
+      hasSession: Boolean(session),
+      hasAccess: Boolean(access),
+      hasRefresh: Boolean(refresh),
+    })
+    return
+  }
+
+  const payload = {
+    type: 'auth',
+    access_token: access,
+    refresh_token: refresh,
+    // compatibility for handlers expecting legacy keys
+    access,
+    refresh,
+    expires_at: expiresAt,
+    rid,
+  }
+
+  try {
+    webApp.sendData(JSON.stringify(payload))
+    debugLog('telegram/sendData', 'auth payload sent to bot', {
+      rid,
+      hasRefresh: Boolean(refresh),
+      hasAccess: Boolean(access),
+    })
+    void sendApplicationLog({
+      level: 'INFO',
+      logger: 'webapp.telegram.auth',
+      message: 'sendData auth payload sent',
+      requestId: rid,
+      extra: {
+        hasRefresh: Boolean(refresh),
+        hasAccess: Boolean(access),
+        expiresAt,
+        phase: 'sendData',
+      },
+    })
+    await new Promise(resolve => setTimeout(resolve, 150))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    warnLog('telegram/sendData', 'failed to send auth payload', { rid, error: message })
+    void sendApplicationLog({
+      level: 'WARNING',
+      logger: 'webapp.telegram.auth',
+      message: 'sendData auth payload failed',
+      requestId: rid,
+      extra: {
+        error: message,
+        phase: 'sendData_failed',
+      },
+    })
+  }
+
+  if (shouldCloseWebViewFromParams()) {
+    try {
+      webApp.close()
+      debugLog('telegram/sendData', 'webapp closed by query flag', { rid })
+    } catch (error) {
+      warnLog('telegram/sendData', 'failed to close webapp', {
+        rid,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 }
 
 export function openTelegramLink(url: string): void {
