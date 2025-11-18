@@ -1,13 +1,19 @@
+from datetime import datetime, timezone as dt_timezone
+
 from rest_framework import viewsets, permissions, decorators, response, status, generics
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 from django.conf import settings
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from .api_payloads import build_profile_response
 from .models import Profile
 from .serializers import (
@@ -183,3 +189,44 @@ class BotStarsBalanceView(APIView):
                 }
             }
         )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def get_telegram_session(request, telegram_id: int):
+    """
+    Возвращает access/refresh токены и expires_at для заданного telegram_id.
+    Требует заголовка X-Bot-Key.
+    """
+
+    bot_key = request.headers.get("X-Bot-Key")
+    if bot_key != getattr(settings, "TELEGRAM_BOT_KEY", ""):
+        return response.Response({"detail": "unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    profile = Profile.objects.filter(telegram_id=telegram_id).first()
+    if not profile:
+        return response.Response({"detail": "not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    session = getattr(profile, "telegram_session", None)
+    if not session:
+        return response.Response({"detail": "session not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    if session.expires_at <= timezone.now():
+        try:
+            refreshed = RefreshToken(session.refresh_token)
+            new_access = refreshed.access_token
+            session.access_token = str(new_access)
+            session.expires_at = datetime.fromtimestamp(
+                int(new_access["exp"]), tz=dt_timezone.utc
+            )
+            session.save(update_fields=["access_token", "expires_at", "updated_at"])
+        except TokenError:
+            return response.Response({"detail": "token expired"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    return response.Response(
+        {
+            "access": session.access_token,
+            "refresh": session.refresh_token,
+            "expires_at": session.expires_at.isoformat(),
+        }
+    )

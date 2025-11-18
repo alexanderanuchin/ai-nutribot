@@ -1,3 +1,12 @@
+## 2025-12-21 – codex/frontend/telegram-auth-runtime-stability (pending)
+
+**Summary:** Kept the Mini App WebView open after initData exchange to avoid premature closure on desktop Telegram, and made the frontend tolerate backend auth responses that omit access/refresh tokens while still logging access presence.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Stop force-closing the WebView after initData exchange and treat tokens in the response as optional so SPA auth does not crash when backend suppresses JWTs. | Frontend auth | Rebuild frontend |
+| modify | docs/codex/CHANGELOG.codex.md | Record the auth runtime stability adjustments per Codex audit policy. | Docs | No |
+
 ## 2025-12-11 – codex/bot/webapp-inline-auth (pending)
 
 **Summary:** Switched the bot authorization CTA to an inline `web_app` button so Mini App launches always receive initData, mirroring the profile wizard’s markup, and let aiogram derive `allowed_updates` to ensure WebApp service payloads are delivered. Added coverage for HTTPS and non-HTTPS fallbacks and documented the change.
@@ -1121,3 +1130,40 @@ sendData-based auto-auth.
 | --- | --- | --- | --- | --- |
 | modify | frontend/src/lib/telegram.ts | Attach/detach Telegram MainButton handlers via onEvent/offEvent with logging so Desktop fallback clicks resend auth payloads. | Frontend auth bridge | No |
 | modify | docs/codex/DIFF.codex.md | Log the MainButton click handler fix per Codex audit policy. | Docs | No |
+## 2025-12-12 – codex/telegram-inline-webapp (pending)
+
+**Summary:** Removed the deprecated sendData/web_app_data flow for inline Mini Apps, shifted the WebApp login to server-side confirmation via answerWebAppQuery, and cleaned frontend diagnostics to focus on initData runtime state.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | frontend/src/lib/telegram.ts | Drop sendData/rehydrate logic, reuse initData exchange for the auth bridge, and keep token storage local without bot delivery. | Frontend auth | Rebuild frontend |
+| modify | frontend/src/pages/integrations/TelegramIntegrationPage.tsx | Simplify diagnostics to initData/runtime flags and remove sendData expectations. | Frontend UI | Rebuild frontend |
+| modify | frontend/src/components/integrations/TelegramHowItWorks.tsx | Refresh step copy to describe inline initData + backend confirmation. | Frontend UI | Rebuild frontend |
+| modify | backend/apps/auth/views.py | Send answerWebAppQuery on successful inline auth using the validated query_id. | Backend auth | Restart backend |
+| modify | backend/apps/users/tg_auth.py | Surface query_id from initData, persist it in exchange responses, and call answerWebAppQuery with audit logging. | Backend auth | Restart backend |
+| modify | bot/main.py | Unregister the obsolete web_app_data handler to avoid silent sendData waits. | Bot runtime | Restart bot |
+| delete | bot/handlers/webapp_data.py | Remove the web_app_data router now that inline Mini Apps use answerWebAppQuery. | Bot runtime | Restart bot |
+| delete | bot/tests/test_webapp_data.py | Drop tests covering the removed web_app_data handler. | Bot tests | No |
+| modify | docs/codex/DIFF.codex.md | Record the inline WebApp sendData removal and backend confirmation path. | Docs | No |
+
+## 2025-12-19 – codex/fullstack/telegram-session-store (pending)
+
+**Summary:** Persist Telegram Mini App JWTs server-side, expose a bot-key-guarded session endpoint, and hydrate the bot FSM from backend tokens instead of sendData.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | backend/apps/users/migrations/0012_telegramsession.py | Add DB storage for Telegram access/refresh tokens. | Backend auth | Run migration + restart backend |
+| modify | backend/apps/users/models.py | Introduce TelegramSession model linked to Profile. | Backend auth | Restart backend |
+| modify | backend/apps/users/tg_auth.py | Store exchanged JWTs in TelegramSession and stop returning tokens to the client. | Backend auth | Restart backend |
+| modify | backend/apps/users/views.py | Add get_telegram_session endpoint refreshing expired access tokens with bot-key auth. | Backend API | Restart backend |
+| modify | backend/apps/users/urls.py | Wire bot/telegram/session route under /api/users/. | Backend routing | Restart backend |
+| modify | backend/nutribot/settings.py | Load TELEGRAM_BOT_KEY for bot-key-protected endpoints. | Backend config | Restart backend |
+| create | backend/apps/users/tests/test_telegram_session_endpoint.py | Cover bot-key auth, token retrieval, and refresh on expiry. | Backend tests | No |
+| modify | backend/tests/test_tg_exchange.py | Align initData HMAC to WebApp scheme and assert server-side token persistence. | Backend tests | No |
+| modify | backend/tests/test_webapp_login.py | Use WebApp initData signatures for login flow expectations. | Backend tests | No |
+| modify | bot/backend_client.py | Fetch Telegram sessions via bot-key-secured backend endpoint. | Bot backend client | Restart bot |
+| modify | bot/middlewares/access_token.py | Hydrate FSM tokens from backend Telegram sessions when absent. | Bot middleware | Restart bot |
+| create | bot/tests/test_access_token_middleware.py | Verify middleware skips backend when token exists and stores fetched sessions. | Bot tests | No |
+| modify | docs/codex/CHANGELOG.codex.md | Log Telegram session storage and bot hydration changes. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Record this change set per Codex policy. | Docs | No |
+

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone as dt_timezone
 from typing import Any, Dict, Tuple
+
+import httpx
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -123,7 +126,12 @@ def exchange_webapp_init_data(
 
     tg_logger.info(
         "exchange init_data verified",
-        extra={**base_extra, "claims": sorted(parsed.keys()), "meta": meta},
+        extra={
+            **base_extra,
+            "claims": sorted(parsed.keys()),
+            "meta": meta,
+            "query_id": parsed.get("query_id"),
+        },
     )
 
     user_json = parsed.get("user")
@@ -142,17 +150,27 @@ def exchange_webapp_init_data(
         user.save(update_fields=["first_name", "last_name"])
 
     profile = Profile.objects.select_related("user").get(user=user)
-    refresh = RefreshToken.for_user(user)
-    access_token = refresh.access_token
-    exp = access_token.get("exp")
     payload = build_profile_response(user, profile)
     payload.update(
         {
-            "access": str(access_token),
-            "refresh": str(refresh),
             "telegram_user_id": profile.telegram_id,
-            "exp": int(exp) if isinstance(exp, int) else exp,
+            "web_app_query_id": parsed.get("query_id"),
         }
+    )
+
+    refresh = RefreshToken.for_user(user)
+    access_token = refresh.access_token
+    exp = access_token.get("exp")
+
+    from .models import TelegramSession
+
+    TelegramSession.objects.update_or_create(
+        profile=profile,
+        defaults={
+            "access_token": str(access_token),
+            "refresh_token": str(refresh),
+            "expires_at": datetime.fromtimestamp(int(exp), tz=dt_timezone.utc),
+        },
     )
 
     tg_logger.info(
@@ -173,10 +191,60 @@ def exchange_webapp_init_data(
             "user_id": getattr(user, "id", None),
             "access": summarize_token(str(access_token)),
             "refresh": summarize_token(str(refresh)),
-            "exp": payload.get("exp"),
+            "exp": int(exp) if isinstance(exp, int) else exp,
         },
     )
     return payload
+
+
+def send_webapp_auth_confirmation(
+    query_id: str | None, *, rid: str, telegram_user_id: int | None = None
+) -> None:
+    if not query_id:
+        return
+
+    token = getattr(settings, "TELEGRAM_BOT_TOKEN", "")
+    extra = {
+        "rid": rid,
+        "query_id": query_id,
+        "telegram_user_id": telegram_user_id,
+        "token_source": getattr(settings, "TELEGRAM_BOT_TOKEN_SOURCE", "unknown"),
+        "token_fingerprint": telegram_token_fingerprint(token),
+    }
+
+    if not token:
+        logger.warning("webapp auth confirmation skipped", extra={**extra, "reason": "missing_token"})
+        return
+
+    result = {
+        "type": "article",
+        "id": query_id,
+        "title": "Авторизация",
+        "input_message_content": {"message_text": "Авторизация завершена ✅"},
+    }
+
+    try:
+        response = httpx.post(
+            f"https://api.telegram.org/bot{token}/answerWebAppQuery",
+            json={"web_app_query_id": query_id, "result": result},
+            timeout=6.0,
+        )
+        data = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        ok = response.status_code == 200 and isinstance(data, dict) and data.get("ok") is True
+        logger.info(
+            "webapp auth confirmation sent",
+            extra={**extra, "status": response.status_code, "ok": ok},
+        )
+        if not ok:
+            logger.warning(
+                "webapp auth confirmation rejected",
+                extra={**extra, "status": response.status_code, "response": data},
+            )
+    except Exception as exc:  # pragma: no cover - network/runtime
+        logger.warning(
+            "webapp auth confirmation failed",
+            extra={**extra, "error": str(exc)},
+        )
 
 
 @api_view(["POST"])
@@ -191,4 +259,9 @@ def tg_exchange(request):
         payload = exchange_webapp_init_data(init_data)
     except TelegramWebAppAuthError as exc:
         return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    rid = getattr(request, "request_id", get_request_id())
+    query_id = payload.pop("web_app_query_id", None)
+    send_webapp_auth_confirmation(
+        query_id, rid=rid, telegram_user_id=payload.get("telegram_user_id")
+    )
     return Response(payload)

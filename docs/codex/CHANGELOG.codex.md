@@ -1,3 +1,9 @@
+## 2025-12-21 – Mini App auth runtime stability (pending)
+
+- Allowed the Telegram Mini App auth bridge to keep the WebView open on desktop clients and accept backend logins that omit
+  access/refresh tokens, aligning the SPA with the server-side token store. See
+  [DIFF 2025-12-21](./DIFF.codex.md#2025-12-21--codexfrontendtelegram-auth-runtime-stability-pending).
+
 ## 2025-12-10 – Bot auth bridge buttons (pending)
 
 - Updated bot auth prompts to launch the `/auth-bridge` Mini App via `web_app`
@@ -267,3 +273,9 @@ formatting. See [DIFF 2025-11-17](./DIFF.codex.md#2025-11-17--codexinfralint-sty
 - Restored backward compatibility for Telegram start/startapp deeplink builders so legacy call signatures don't swap payloads
   and bot usernames. See
   [DIFF 2025-12-16](./DIFF.codex.md#2025-12-16--codexfullstacktelegram-deeplink-compat-pending).
+
+## 2025-12-19 – Telegram session storage for bot access (pending)
+
+- Persist Telegram Mini App JWTs in TelegramSession, expose a bot-key-protected endpoint for the bot to fetch/refresh tokens,
+  and hydrate the bot FSM from backend sessions instead of sendData. See
+  [DIFF 2025-12-19](./DIFF.codex.md#2025-12-19--codexfullstacktelegram-session-store-pending).

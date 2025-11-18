@@ -6,11 +6,13 @@ from urllib.parse import urlencode
 import pytest
 from django.contrib.auth import get_user_model
 
+from apps.users.models import TelegramSession
+
 
 def build_init_data(bot_token: str, payload: dict) -> str:
     data = payload.copy()
     data_check_string = "\n".join(f"{key}={data[key]}" for key in sorted(data))
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     data["hash"] = hmac.new(
         secret_key, data_check_string.encode(), hashlib.sha256
     ).hexdigest()
@@ -32,8 +34,6 @@ def test_tg_exchange_returns_tokens_and_profile_summary(client, settings):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["access"]
-    assert payload["refresh"]
     assert payload["user"]["first_name"] == "Иван"
     assert payload["user"]["phone"] == "tg_12345"
     assert payload["profile"]["telegram_id"] == 12345
@@ -46,6 +46,10 @@ def test_tg_exchange_returns_tokens_and_profile_summary(client, settings):
     assert profile.telegram_id == 12345
     assert user.first_name == "Иван"
     assert user.last_name == "Петров"
+
+    session = TelegramSession.objects.get(profile=profile)
+    assert session.access_token
+    assert session.refresh_token
 
 
 @pytest.mark.django_db
@@ -67,14 +71,16 @@ def test_tg_exchange_reuses_existing_profile(client, settings):
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["access"]
-    assert payload["refresh"]
     assert payload["user"]["phone"] == "existing"
 
     existing.refresh_from_db()
     assert existing.profile.telegram_id == 777
     assert User.objects.filter(username="existing").count() == 1
     assert not User.objects.filter(username="tg_777").exists()
+
+    session = TelegramSession.objects.get(profile=existing.profile)
+    assert session.access_token
+    assert session.refresh_token
 
 
 @pytest.mark.django_db

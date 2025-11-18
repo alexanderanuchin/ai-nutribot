@@ -267,6 +267,26 @@ class BackendClient:
             raise BackendError("Unexpected payload from refresh endpoint")
         return result
 
+    async def get_telegram_session(self, telegram_user_id: int) -> Dict[str, Any] | None:
+        """
+        Возвращает доступные токены для telegram_user_id или None.
+        Требует, чтобы self._bot_key был настроен в cfg.bot_key.
+        """
+
+        if not self._bot_key:
+            raise BackendError("Bot key is not configured")
+        try:
+            result = await self._request(
+                "GET",
+                f"/api/users/bot/telegram/session/{int(telegram_user_id)}/",
+                headers={"X-Bot-Key": self._bot_key},
+            )
+            if not isinstance(result, dict):
+                raise BackendError("Unexpected payload from get_telegram_session")
+            return result
+        except BackendError:
+            return None
+
     async def report_stars_payment(
             self,
             *,

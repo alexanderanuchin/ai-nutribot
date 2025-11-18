@@ -17,6 +17,7 @@ from urllib.parse import parse_qsl
 from apps.users.tg_auth import (
     TelegramWebAppAuthError,
     exchange_webapp_init_data,
+    send_webapp_auth_confirmation,
 )
 from apps.users.models import Profile
 from apps.common.logging import summarize_token, telegram_token_fingerprint
@@ -225,7 +226,16 @@ class WebAppLoginView(APIView):
                 details = getattr(primary_failure, "details", None)
                 if details:
                     success_extra["init_data_primary_failure_details"] = details
-            logger.info("webapp login success", extra=success_extra)
+            query_id = payload.pop("web_app_query_id", None)
+            logger.info(
+                "webapp login success",
+                extra={**success_extra, "query_id": query_id},
+            )
+            send_webapp_auth_confirmation(
+                query_id,
+                rid=rid,
+                telegram_user_id=payload.get("telegram_user_id"),
+            )
             return Response(payload)
 
         exc = last_exc

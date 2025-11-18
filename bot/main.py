@@ -26,7 +26,6 @@ from bot.handlers.plan import router as plan_router
 from bot.handlers.profile_wizard import router as wizard_router
 from bot.handlers.support import router as support_router
 from bot.handlers.wallet import router as wallet_router
-from bot.handlers.webapp_data import router as webapp_router
 from bot.services.bridge import BridgePublisher
 from bot.services.commands import set_chat_menu_button, set_my_commands
 
@@ -68,7 +67,6 @@ async def main() -> None:
     )
     dispatcher.update.middleware(AccessTokenMiddleware(dispatcher.storage))
 
-    dispatcher.include_router(webapp_router)
     dispatcher.include_router(commands_router)
     dispatcher.include_router(menu_router)
     dispatcher.include_router(plan_router)

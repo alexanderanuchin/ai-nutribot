@@ -4,12 +4,12 @@ import { FingerprintIcon, MessageSquareIcon, ShieldCheckIcon } from 'lucide-reac
 const steps = [
   {
     title: 'Откройте Mini App из клавиши',
-    description: 'Используйте reply‑клавишу в чате, Mini App отправит sendData, а бот получит web_app_data.',
+    description: 'Нажмите inline‑кнопку, Mini App получит initData с query_id и пользователем.',
     icon: FingerprintIcon,
   },
   {
-    title: 'Бот выдаёт доступ',
-    description: 'Токены сохраняются в сессии бота, после чего открывается кошелёк и сценарии.',
+    title: 'Backend подтверждает авторизацию',
+    description: 'initData обменивается на JWT на сервере, токены сохраняются и закрепляются за вашим Telegram ID.',
     icon: ShieldCheckIcon,
   },
   {

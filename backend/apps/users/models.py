@@ -106,6 +106,24 @@ class Profile(models.Model):
         return f"Profile<{self.user_id}>"
 
 
+class TelegramSession(models.Model):
+    """
+    Сохраняет пару access/refresh токенов для Telegram-пользователя.
+    Используется ботом для доступа к API после авторизации mini-app.
+    """
+
+    profile = models.OneToOneField(
+        Profile, on_delete=models.CASCADE, related_name="telegram_session"
+    )
+    access_token = models.CharField(max_length=1024)
+    refresh_token = models.CharField(max_length=1024)
+    expires_at = models.DateTimeField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"TelegramSession<{self.profile.telegram_id}>"
+
+
 class TelegramIntegrationLink(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"

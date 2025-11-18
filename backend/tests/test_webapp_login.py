@@ -9,7 +9,7 @@ import pytest
 def build_init_data(bot_token: str, payload: dict) -> str:
     data = payload.copy()
     data_check_string = "\n".join(f"{key}={data[key]}" for key in sorted(data))
-    secret_key = hashlib.sha256(bot_token.encode()).digest()
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
     data["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     return urlencode(data)
 
@@ -34,9 +34,7 @@ def test_webapp_login_succeeds_with_header_and_body(client, settings):
     assert response.status_code == 200
     payload = response.json()
     assert payload["telegram_user_id"] == 222
-    assert payload["access"]
-    assert payload["refresh"]
-
+    
 
 @pytest.mark.django_db
 def test_webapp_login_falls_back_to_body_when_header_invalid(client, settings):
@@ -59,5 +57,3 @@ def test_webapp_login_falls_back_to_body_when_header_invalid(client, settings):
     assert response.status_code == 200
     payload = response.json()
     assert payload["telegram_user_id"] == 333
-    assert payload["access"]
-    assert payload["refresh"]

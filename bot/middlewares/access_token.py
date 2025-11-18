@@ -4,6 +4,8 @@ from aiogram import BaseMiddleware
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.base import StorageKey, BaseStorage
 
+from bot.backend_client import BackendClient
+
 
 class AccessTokenMiddleware(BaseMiddleware):
     """Loads/stores access tokens in FSM storage for each Telegram user."""
@@ -34,6 +36,22 @@ class AccessTokenMiddleware(BaseMiddleware):
         if state is not None:
             stored = await state.get_data()
             access_token = stored.get("access_token")
+
+        if not access_token and bot and from_user:
+            backend: BackendClient | None = data.get("backend")
+            if backend:
+                session_data = await backend.get_telegram_session(from_user.id)
+                if session_data:
+                    access_token = session_data.get("access")
+                    refresh = session_data.get("refresh")
+                    expires_at = session_data.get("expires_at")
+                    if access_token:
+                        await state.update_data(
+                            access_token=access_token,
+                            refresh_token=refresh,
+                            session_user_id=from_user.id,
+                            session_expires_at=expires_at,
+                        )
         data["access_token"] = access_token
 
         return await handler(event, data)

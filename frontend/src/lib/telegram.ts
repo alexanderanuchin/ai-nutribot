@@ -106,7 +106,6 @@ function logWebAppEnvironment(initData: string | null): void {
     initDataPreview: preview,
     url,
     hasInitData: Boolean(initData),
-    hasSendData: Boolean(webApp?.sendData),
   }
   debugLog('telegram/env', 'environment detection', payload)
   void sendApplicationLog({
@@ -136,44 +135,14 @@ export async function runAuthBridge(payloadForStartApp = 'auth') {
     return
   }
 
-  const { data } = await api.post(
-    '/users/auth/tg_exchange/',
-    { init_data: initData },
-    { headers: { 'X-Telegram-Init-Data': initData } },
-  )
+  await exchangeInitData(initData)
 
-  tokenStore.access = data.access
-  tokenStore.refresh = data.refresh
-  tokenStore.accessExpiresAt = data.exp
-
-  // 1) Отправляем auth-пакет боту
-  try {
-    tg()?.sendData?.(
-      JSON.stringify({
-        type: 'auth',
-        access_token: data.access,
-        refresh_token: data.refresh ?? undefined,
-        exp: data.exp ?? undefined,
-      }),
-    )
-  } catch {}
-
-  // 2) Даём Telegram время ДОСТАВИТЬ web_app_data (важно для Telegram Desktop)
-  await new Promise(resolve => setTimeout(resolve, 450))
-
-  // 3) Закрываем WebView (если поддерживается)
-  try {
-    tg()?.close?.()
-  } catch {}
-
-  // 4) Ещё короткая пауза, чтобы не «срезать» доставку после закрытия
-  await new Promise(resolve => setTimeout(resolve, 150))
-
+  // Не закрываем WebView насильно: на десктопных клиентах закрытие происходит раньше, чем отрисуется контент.
   window.location.href = '/app'
 }
 
 export interface TelegramAuthSession {
-  accessToken: string
+  accessToken?: string
   refreshToken?: string
   telegramUserId: number | null
   expiresAt?: number | null
@@ -182,12 +151,6 @@ export interface TelegramAuthSession {
 
 let bootstrapPromise: Promise<TelegramAuthSession | null> | null = null
 let cachedSession: TelegramAuthSession | null | undefined
-let rehydrateOnceGuard = false
-let manualBridgeTimeout: ReturnType<typeof setTimeout> | null = null
-let manualBridgeActive = false
-let manualBridgeClickHandler: (() => void) | null = null
-let lastSendDataAttempt: { rid: string; status: 'sent' | 'skipped' | 'failed'; reason?: string; timestamp: number } | null = null
-
 function shouldReuseSession(session: TelegramAuthSession | null | undefined): boolean {
   if (!session) {
     return false
@@ -237,23 +200,23 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
   })
   const body = { init_data: initData }
   const { data } = await api.post('/auth/webapp/login/', body, { headers })
-  const access = data?.access
-  if (!access || typeof access !== 'string') {
-    throw new Error('Не удалось получить access_token из ответа авторизации')
-  }
+  const access: string | undefined = typeof data?.access === 'string' ? data.access : undefined
   const refreshToken: string | undefined = typeof data?.refresh === 'string' ? data.refresh : undefined
+  const expiresAt: number | undefined = typeof data?.exp === 'number' ? data.exp : undefined
+
+  if (access) {
+    tokenStore.access = access
+  }
   if (refreshToken) {
     tokenStore.refresh = refreshToken
   }
-  tokenStore.access = access
-  const expiresAt: number | undefined = typeof data?.exp === 'number' ? data.exp : undefined
   if (expiresAt) {
     tokenStore.accessExpiresAt = expiresAt
   }
   const telegramUserIdFromBackend = resolveTelegramUserId(data)
   const telegramUserIdFromSdk = getTelegramUserIdFromSdk()
   const session: TelegramAuthSession = {
-    accessToken: access,
+    accessToken: access ?? tokenStore.access,
     refreshToken,
     telegramUserId: telegramUserIdFromSdk ?? telegramUserIdFromBackend,
     expiresAt: expiresAt ?? tokenStore.accessExpiresAt,
@@ -266,6 +229,7 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
     telegramUserIdFromSdk,
     expiresAt: session.expiresAt,
     hasRefresh: Boolean(refreshToken),
+    hasAccess: Boolean(access ?? tokenStore.access),
   })
   void sendApplicationLog({
     level: 'INFO',
@@ -281,215 +245,13 @@ async function exchangeInitData(initData: string): Promise<TelegramAuthSession |
       phase: 'success',
     },
   })
-  sendAuthPayloadToBot({
-    accessToken: access,
-    refreshToken,
-    expiresAt: session.expiresAt,
-    rid,
-    reason: 'login',
-  })
-  // Мини-пауза, чтобы Telegram Desktop успел доставить web_app_data
-  await new Promise(resolve => setTimeout(resolve, 350))
 
   return session
-}
-
-interface AuthPayload {
-  accessToken: string
-  refreshToken?: string
-  expiresAt?: number | null
-  rid: string
-  reason: 'login' | 'rehydrate' | 'bridge' | 'manual'
-}
-
-function resetManualBridge(mainButton: any) {
-  const webApp = tg()
-  if (!mainButton) return
-  // Снимаем обработчик правильным способом
-  if (webApp && typeof (webApp as any).offEvent === 'function' && manualBridgeClickHandler) {
-    try { (webApp as any).offEvent('mainButtonClicked', manualBridgeClickHandler) } catch {}
-  }
-  // На всякий случай поддержим неофициальные обёртки
-  if (typeof (mainButton as any).offClick === 'function' && manualBridgeClickHandler) {
-    try { (mainButton as any).offClick(manualBridgeClickHandler) } catch {}
-  }
-  manualBridgeClickHandler = null
-  manualBridgeActive = false
-  try {
-    mainButton.hide?.()
-  } catch {}
-}
-
-function scheduleManualBridge(payload: AuthPayload & { userId?: number | null }) {
-  const webApp = tg()
-  const mainButton = webApp?.MainButton
-  if (!mainButton || manualBridgeTimeout || manualBridgeActive) {
-    return
-  }
-  manualBridgeTimeout = setTimeout(() => {
-    manualBridgeTimeout = null
-    if (!webApp?.MainButton) return
-    const targetButton = webApp.MainButton
-    manualBridgeActive = true
-    targetButton.setText?.('Связать с ботом')
-    targetButton.enable?.()
-    targetButton.show?.()
-    manualBridgeClickHandler = () => {
-      debugLog('telegram/sendData', 'manual mainButton clicked', { rid: generateRequestId() })
-      sendAuthPayloadToBot({ ...payload, rid: generateRequestId(), reason: 'manual' })
-      try { webApp.close?.() } catch {}
-      resetManualBridge(targetButton)
-    }
-    // Правильный способ повесить обработчик клика MainButton
-    if (webApp && typeof (webApp as any).onEvent === 'function' && manualBridgeClickHandler) {
-      (webApp as any).onEvent('mainButtonClicked', manualBridgeClickHandler)
-    } else if (typeof (targetButton as any).onClick === 'function' && manualBridgeClickHandler) {
-      // fallback для кастомных обёрток
-      (targetButton as any).onClick(manualBridgeClickHandler)
-    }
-  }, 1500)
-}
-
-function sendAuthPayloadToBot({ accessToken, refreshToken, expiresAt, rid, reason }: AuthPayload): boolean {
-  const webApp = tg()
-  if (!webApp || typeof webApp.sendData !== 'function') {
-    lastSendDataAttempt = { rid, status: 'skipped', reason: 'missing-webapp', timestamp: Date.now() }
-    debugLog('telegram/sendData', 'skip auth payload', {
-      rid,
-      reason,
-      hasWebApp: Boolean(webApp),
-    })
-    scheduleManualBridge({
-      accessToken,
-      refreshToken,
-      expiresAt: expiresAt ?? undefined,
-      rid,
-      reason,
-      userId: undefined,
-    })
-    return false
-  }
-  const telegramUserId = getTelegramUserIdFromSdk()
-  try {
-    debugLog('telegram/sendData', 'auth payload', {
-      rid,
-      reason,
-      telegramUserId,
-      expiresAt,
-      hasAccess: Boolean(accessToken),
-      hasWebApp: Boolean(webApp?.sendData),
-    })
-    void sendApplicationLog({
-      level: 'INFO',
-      logger: 'webapp.telegram.sendData',
-      message: 'auth payload sent',
-      requestId: rid,
-      extra: {
-        reason,
-        telegramUserId,
-        expiresAt,
-        hasAccess: Boolean(accessToken),
-        hasWebApp: Boolean(webApp?.sendData),
-      },
-    })
-    webApp.sendData(
-      JSON.stringify({
-        type: 'auth',
-        access_token: accessToken,
-        refresh_token: refreshToken ?? undefined,
-        expires_at: expiresAt ?? undefined,
-        user_id: telegramUserId ?? undefined,
-        rid,
-      })
-    )
-    // Fallback для Telegram Desktop: покажем кнопку «Связать с ботом», если sendData не дошёл
-    try {
-      // @ts-ignore — у Telegram.WebApp есть platform
-      const platform = (webApp as any)?.platform
-      if (String(platform || '').toLowerCase() === 'tdesktop') {
-        setTimeout(() => {
-          scheduleManualBridge({
-            accessToken,
-            refreshToken,
-            expiresAt: expiresAt ?? undefined,
-            rid,
-            reason,
-            userId: telegramUserId,
-          })
-        }, 1200)
-      }
-    } catch {}
-    lastSendDataAttempt = { rid, status: 'sent', reason, timestamp: Date.now() }
-    if (manualBridgeTimeout) {
-      clearTimeout(manualBridgeTimeout)
-      manualBridgeTimeout = null
-    }
-    if (manualBridgeActive) {
-      resetManualBridge(webApp.MainButton)
-    }
-    return true
-  } catch (error) {
-    warnLog('telegram/sendData', 'auth payload failed', {
-      rid,
-      reason,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    lastSendDataAttempt = { rid, status: 'failed', reason, timestamp: Date.now() }
-    void sendApplicationLog({
-      level: 'WARNING',
-      logger: 'webapp.telegram.sendData',
-      message: 'auth payload failed',
-      requestId: rid,
-      extra: {
-        reason,
-        hasAccess: Boolean(accessToken),
-        hasWebApp: Boolean(webApp?.sendData),
-        error: error instanceof Error ? error.message : String(error),
-      },
-    })
-    scheduleManualBridge({
-      accessToken,
-      refreshToken,
-      expiresAt: expiresAt ?? undefined,
-      rid,
-      reason,
-      userId: telegramUserId,
-    })
-    return false
-  }
-}
-
-export function rehydrateBotSession(): void {
-  if (rehydrateOnceGuard) return
-  if (!isTgWebAppRuntime()) return
-  const accessToken = tokenStore.access
-  const expiresAt = tokenStore.accessExpiresAt
-  if (!accessToken) {
-    return
-  }
-  if (typeof expiresAt === 'number') {
-    const nowSeconds = Math.floor(Date.now() / 1000)
-    const safetySeconds = 15
-    if (expiresAt <= nowSeconds + safetySeconds) {
-      return
-    }
-  }
-
-  rehydrateOnceGuard = true
-  const rid = generateRequestId()
-  sendAuthPayloadToBot({
-    accessToken,
-    refreshToken: tokenStore.refresh || undefined,
-    expiresAt,
-    rid,
-    reason: 'rehydrate',
-  })
 }
 
 export async function bootstrapTelegramAuth(): Promise<TelegramAuthSession | null> {
   if (cachedSession !== undefined) {
     if (shouldReuseSession(cachedSession)) {
-      rehydrateBotSession()
       return cachedSession
     }
     cachedSession = undefined
@@ -547,8 +309,4 @@ export function openTelegramLink(url: string): void {
     return
   }
   window.open(url, '_blank', 'noopener')
-}
-
-export function getLastSendDataAttempt() {
-  return lastSendDataAttempt
 }

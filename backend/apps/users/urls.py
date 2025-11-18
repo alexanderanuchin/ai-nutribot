@@ -11,6 +11,7 @@ from .views import (
     PasswordResetRequestView,
     PasswordResetConfirmView,
     PhoneEmailTokenObtainPairView,
+    get_telegram_session,
 )
 from .tg_auth import tg_exchange
 from .telegram_integration import (
@@ -57,6 +58,11 @@ urlpatterns = [
         "telegram/bridge/stream/",
         TelegramBridgeStreamView.as_view(),
         name="telegram-bridge-stream",
+    ),
+    path(
+        "bot/telegram/session/<int:telegram_id>/",
+        get_telegram_session,
+        name="telegram-session",
     ),
 
     # Router + "me" ручки

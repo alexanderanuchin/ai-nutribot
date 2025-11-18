@@ -9,24 +9,12 @@ import { TelegramChatShell } from '../../components/integrations/TelegramChatShe
 import { Skeleton, useToast } from '../../components/ui'
 import { buildStartAppLink } from '../../lib/deeplinks'
 import { fetchTelegramStatus, startTelegramLink, type TelegramLinkResponse } from '../../api/telegram'
-import {
-  getInitData,
-  getLastSendDataAttempt,
-  isTgWebAppPresent,
-  isTgWebAppRuntime,
-  openTelegramLink,
-  rehydrateBotSession,
-  runAuthBridge,
-} from '../../lib/telegram'
+import { getInitData, isTgWebAppPresent, isTgWebAppRuntime, openTelegramLink, runAuthBridge } from '../../lib/telegram'
 
 export default function TelegramIntegrationPage() {
   const statusQuery = useQuery({ queryKey: ['telegram-status'], queryFn: fetchTelegramStatus })
   const startLinkMutation = useMutation({ mutationFn: startTelegramLink })
   const { notify } = useToast()
-
-  useEffect(() => {
-    rehydrateBotSession()
-  }, [])
 
   const startAppTarget = (link?: TelegramLinkResponse | null) =>
     link?.links?.startapp || buildStartAppLink(link?.code || 'dashboard')
@@ -37,18 +25,12 @@ export default function TelegramIntegrationPage() {
         const present = isTgWebAppPresent()
         const runtime = isTgWebAppRuntime()
         const initData = typeof window !== 'undefined' ? getInitData() : null
-        const sendDataAvailable = present && Boolean((window as any)?.Telegram?.WebApp?.sendData)
-        const mainButtonAvailable = present && Boolean((window as any)?.Telegram?.WebApp?.MainButton)
-        const attempt = getLastSendDataAttempt()
         return {
           present,
           initDataLength: initData?.length || 0,
           initDataPreview: initData ? initData.slice(0, 16) : '',
           runtime,
-          sendDataAvailable,
-          mainButtonAvailable,
-          lastRid: attempt?.rid ?? null,
-          lastStatus: attempt?.status ?? null,
+          mainButtonAvailable: present && Boolean((window as any)?.Telegram?.WebApp?.MainButton),
         }
       },
     [],
@@ -154,14 +136,12 @@ export default function TelegramIntegrationPage() {
               <div>initData length: {diag.initDataLength}</div>
               <div>initData preview: {diag.initDataPreview}</div>
               <div>webapp runtime: {String(diag.runtime)}</div>
-              <div>sendData доступен: {String(diag.sendDataAvailable)}</div>
               <div>MainButton: {String(diag.mainButtonAvailable)}</div>
-              <div>last rid: {diag.lastRid ?? '—'} ({diag.lastStatus ?? '—'})</div>
             </div>
             {!diag.present && (
               <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/30 dark:text-amber-100">
                 <AlertTriangleIcon className="mt-0.5 h-4 w-4" aria-hidden="true" />
-                Откройте Mini App по reply‑клавише в Telegram. В браузере sendData недоступен — используйте deep‑link или QR.
+                Откройте Mini App из inline‑кнопки в Telegram, чтобы передать initData. В браузере Mini App не инициализируется.
               </div>
             )}
           </div>
