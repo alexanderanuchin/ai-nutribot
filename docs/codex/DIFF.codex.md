@@ -1190,3 +1190,26 @@ sendData-based auto-auth.
 | modify | docs/codex/CHANGELOG.codex.md | Log Telegram session storage and bot hydration changes. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this change set per Codex policy. | Docs | No |
 
+## 2025-12-23 – codex/infra/timeweb-letsencrypt (pending)
+
+**Summary:** Added a dedicated ACME helper service that issues/renews Let's Encrypt
+certificates through the Timeweb DNS API (DNS-01), stores them inside a shared
+Docker volume, and documents how to trigger issuance/renewals while keeping the
+gateway HTTP-only until we're ready to serve HTTPS locally.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| create | infra/acme/Dockerfile | Package certbot with the Timeweb DNS hook scripts so issuance runs in an isolated helper container. | Infra / TLS | Build `acme` image |
+| create | infra/acme/entrypoint.sh | Route `issue`/`renew`/`cron` commands invoked via Compose into the right certbot workflow. | Infra / TLS | No |
+| create | infra/acme/certbot-issue.sh | Automate first-time cert issuance (apex + wildcard + extras) with manual DNS hooks. | Infra / TLS | No |
+| create | infra/acme/certbot-renew.sh | Wrap `certbot renew` with the Timeweb hooks so DNS-01 renewals run unattended. | Infra / TLS | No |
+| create | infra/acme/renew-cron.sh | Keep the helper alive and retry renewals on a configurable interval when the acme profile is up. | Infra / TLS | Restart acme profile |
+| create | infra/acme/timeweb_dns_hook.py | Talk to the Timeweb Cloud API to add/remove `_acme-challenge` TXT records and wait for propagation. | Infra / TLS | No |
+| modify | infra/docker-compose.yml | Mount the shared `letsencrypt` volume on the gateway and register the optional `acme` service profile. | Infra | Restart gateway when mounting volume |
+| modify | infra/.env.example | Document the required Timeweb/ACME secrets and toggles for the new helper. | Infra docs | No |
+| create | docs/infra/letsencrypt.md | Explain environment variables, issuance, renewals, and cron usage for the Timeweb DNS-01 flow. | Docs | No |
+| create | scripts/letsencrypt/issue.sh | Provide a repo-level helper to run `docker compose --profile acme run acme issue`. | Tooling | No |
+| create | scripts/letsencrypt/renew.sh | Provide a helper for manual `certbot renew` runs via Compose. | Tooling | No |
+| modify | docs/codex/CHANGELOG.codex.md | Record the Timeweb DNS-01 automation milestone. | Docs | No |
+| modify | docs/codex/DIFF.codex.md | Add this traceability entry per Codex policy. | Docs | No |
+

@@ -1,3 +1,11 @@
+## 2025-12-23 – Timeweb DNS Let's Encrypt automation (pending)
+
+- Added a dedicated ACME helper container that talks to the Timeweb Cloud DNS
+  API via DNS-01 challenges, stores certificates in a shared Docker volume,
+  and keeps the gateway ready to pick up the live chain whenever HTTPS moves
+  off Cloudpub. See
+  [DIFF 2025-12-23](./DIFF.codex.md#2025-12-23--codexinfratimeweb-letsencrypt-pending).
+
 ## 2025-12-22 – Telegram WebApp confirmation flags (pending)
 
 - Gated Mini App auth confirmations behind explicit flags, collected initData from header/body/query sources, ensured the bot
