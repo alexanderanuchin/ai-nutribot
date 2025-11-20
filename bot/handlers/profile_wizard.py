@@ -83,10 +83,15 @@ def _build_confirmation_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def _format_budget(value: Decimal | None) -> str:
-    if value is None:
+def _format_budget(value: Any) -> str:
+    """
+    Аккуратно форматируем бюджет, независимо от того,
+    пришёл он как Decimal, строка, int или float.
+    """
+    budget = _extract_budget(value)
+    if budget is None:
         return "Не указан"
-    return f"{value.quantize(Decimal('0.01'))} ₽"
+    return f"{budget.quantize(Decimal('0.01'))} ₽"
 
 
 def _format_allergies(values: List[str]) -> str:
@@ -109,25 +114,42 @@ def _extract_budget(raw: Any) -> Decimal | None:
         return None
 
 
-async def _update_form(state: FSMContext, **updates: Any) -> Dict[str, Any]:
-    data = await state.get_data()
-    form = dict(data.get("profile_form") or {})
-    form.update(updates)
-    await state.update_data(profile_form=form)
-    return form
-
-
 async def _get_form(state: FSMContext) -> Dict[str, Any]:
     data = await state.get_data()
     return dict(data.get("profile_form") or {})
 
 
+def _normalize_for_json(value: Any) -> Any:
+    """
+    Aiogram хранит состояние в Redis в виде JSON.
+    Decimal туда не сериализуется, поэтому конвертируем его
+    (и вложенные структуры) в JSON‑дружелюбный вид.
+    """
+    if isinstance(value, Decimal):
+        # храним как строку, а перед отправкой в backend
+        # снова превращаем в Decimal через _extract_budget
+        return str(value)
+    if isinstance(value, list):
+        return [_normalize_for_json(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _normalize_for_json(v) for k, v in value.items()}
+    return value
+
+
+async def _update_form(state: FSMContext, **updates: Any) -> Dict[str, Any]:
+    form = await _get_form(state)
+    form.update(updates)
+    safe_form = _normalize_for_json(form)
+    await state.update_data(profile_form=safe_form)
+    return safe_form
+
+
 async def _start_profile_flow(
-        message: Message,
-        backend: BackendClient,
-        state: FSMContext,
-        access_token: str | None,
-        webapp_url: str,
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    webapp_url: str,
 ) -> None:
     if not access_token:
         await state.clear()
@@ -159,7 +181,8 @@ async def _start_profile_flow(
         "allergies": list(profile.get("allergies", [])),
         "goals": profile.get("goals") or "keep_fit",
     }
-    await state.update_data(profile_form=form, profile_payload=payload)
+    safe_form = _normalize_for_json(form)
+    await state.update_data(profile_form=safe_form, profile_payload=payload)
 
     city_hint = f" (текущее значение: {form['city']})" if form["city"] else ""
     await state.set_state(ProfileWizard.city)
@@ -170,11 +193,11 @@ async def _start_profile_flow(
 
 @router.message(Command("profile"))
 async def on_profile_command(
-        message: Message,
-        backend: BackendClient,
-        state: FSMContext,
-        access_token: str | None,
-        webapp_url: str,
+    message: Message,
+    backend: BackendClient,
+    state: FSMContext,
+    access_token: str | None,
+    webapp_url: str,
 ):
     await _start_profile_flow(message, backend, state, access_token, webapp_url)
 
