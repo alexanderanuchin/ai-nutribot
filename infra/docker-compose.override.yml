@@ -24,7 +24,7 @@ services:
 
         # Гарантируем пакеты миграций (абсолютные пути, без завязки на PATH)
         for a in users catalog nutrition orders; do
-          /bin/mkdir -p "./apps/${a}/migrations"
+          /bin/mkdir -p "./apps/$${a}/migrations"
           [ -f "./apps/$${a}/migrations/__init__.py" ] || /usr/bin/touch "./apps/$${a}/migrations/__init__.py"
         done
 

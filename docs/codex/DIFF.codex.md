@@ -1,3 +1,15 @@
+## 2025-12-26 – codex/infra/gateway-pid-fix (pending)
+
+**Summary:** Keep the nginx reload sidecar in sync with the gateway’s PID namespace by giving the gateway a stable container nam
+e and escape compose-time env substitution in the dev migration helper loop.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/docker-compose.yml | Pin the gateway container name so the nginx reload sidecar can join its PID namespace ins
+tead of failing with “No such container: gateway”. | Infra | Recreate gateway/reloader |
+| modify | infra/docker-compose.override.yml | Escape shell variables in the migration bootstrap loop to avoid compose-time env s
+ubstitution warnings and keep per-app migration folders intact. | Backend dev env | Recreate backend |
+
 ## 2025-12-24 – codex/infra/letsencrypt-bootstrap (pending)
 
 **Summary:** Stage 1 HTTPS readiness for caloiq.ru with webroot-based Let's Encrypt issuance/renewals (no gateway downtime), ACME served locally on port 80, background certbot + nginx reload sidecar, and an optional cron fallback.
