@@ -5,11 +5,15 @@ import logging
 import signal
 from contextlib import suppress
 from datetime import timedelta
+from urllib.parse import urlparse
 
+from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.storage.redis import Redis, RedisStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 from bot.backend_client import BackendClient
 from bot.config import Config
@@ -37,6 +41,14 @@ async def _start_polling(bot: Bot, dispatcher: Dispatcher) -> None:
         await dispatcher.start_polling(bot)
     finally:
         dispatcher.stop_polling()
+
+
+def _is_https_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    return parsed.scheme.lower() == "https" and bool(parsed.netloc)
 
 
 async def main() -> None:
@@ -79,6 +91,22 @@ async def main() -> None:
     await set_chat_menu_button(bot, webapp_url=cfg.webapp_webview_url)
 
     stop_event = asyncio.Event()
+    webhook_runner: web.AppRunner | None = None
+    use_webhook = cfg.webhook_enable
+    webhook_path = cfg.webhook_path if cfg.webhook_path.startswith("/") else f"/{cfg.webhook_path}"
+    allowed_updates = dispatcher.resolve_used_update_types()
+    if cfg.webhook_enable and not _is_https_url(cfg.webhook_url):
+        logger.error(
+            "Webhook URL must be HTTPS; falling back to polling",
+            extra={
+                "rid": get_request_id(),
+                "webhook_url": cfg.webhook_url,
+                "webhook_path": webhook_path,
+                "webhook_port": cfg.webhook_port,
+                "allowed_updates": allowed_updates,
+            },
+        )
+        use_webhook = False
 
     def _handle_signal(sig: signal.Signals) -> None:
         logger.info("Shutdown signal received", extra={"rid": get_request_id(), "signal": sig.name})
@@ -91,18 +119,95 @@ async def main() -> None:
             loop.add_signal_handler(sig, _handle_signal, sig)
         except NotImplementedError:  # pragma: no cover - Windows
             pass
+    polling_task: asyncio.Task[None] | None = None
+    if use_webhook:
+        webhook_secret = cfg.webhook_secret or None
+        webhook_handler = SimpleRequestHandler(dispatcher, bot, secret_token=webhook_secret)
+        app = web.Application()
 
-    polling_task = asyncio.create_task(_start_polling(bot, dispatcher), name="aiogram-polling")
-    polling_task.add_done_callback(lambda _: stop_event.set())
-    logger.info("Bot started in POLLING mode", extra={"rid": get_request_id()})
+        @web.middleware
+        async def reqlog_mw(request: web.Request, handler):
+            rid = getattr(request, "request_id", get_request_id())
+            if request.path == webhook_path:
+                hdr = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+                logger.info(
+                    "webhook request",
+                    extra={
+                        "rid": rid,
+                        "path": request.path,
+                        "method": request.method,
+                        "has_secret": bool(hdr),
+                        "remote": request.remote,
+                        "ua": request.headers.get("User-Agent"),
+                        "content_length": request.headers.get("Content-Length"),
+                    },
+                )
+            return await handler(request)
+
+        async def health(_req: web.Request):
+            return web.Response(text="ok")
+
+        app.middlewares.append(reqlog_mw)
+        app.router.add_get("/healthz", health)
+        webhook_handler.register(app, path=webhook_path)
+        setup_application(app, dispatcher, bot=bot)
+
+        webhook_runner = web.AppRunner(app)
+        try:
+            await webhook_runner.setup()
+            site = web.TCPSite(webhook_runner, host="0.0.0.0", port=cfg.webhook_port)
+            await bot.set_webhook(
+                url=cfg.webhook_url,
+                secret_token=webhook_secret,
+                drop_pending_updates=True,
+                allowed_updates=allowed_updates,
+            )
+            await site.start()
+            logger.info(
+                "Bot started in WEBHOOK mode",
+                extra={
+                    "rid": get_request_id(),
+                    "webhook_url": cfg.webhook_url,
+                    "webhook_path": webhook_path,
+                    "webhook_port": cfg.webhook_port,
+                    "allowed_updates": allowed_updates,
+                },
+            )
+        except TelegramBadRequest as exc:
+            logger.error(
+                "Telegram rejected webhook; switching to polling",
+                extra={
+                    "rid": get_request_id(),
+                    "error": str(exc),
+                    "webhook_url": cfg.webhook_url,
+                    "webhook_path": webhook_path,
+                    "webhook_port": cfg.webhook_port,
+                    "allowed_updates": allowed_updates,
+                },
+            )
+            use_webhook = False
+            with suppress(Exception):
+                await bot.delete_webhook(drop_pending_updates=False)
+            if webhook_runner:
+                with suppress(Exception):
+                    await webhook_runner.cleanup()
+                webhook_runner = None
+
+    if not use_webhook:
+        polling_task = asyncio.create_task(_start_polling(bot, dispatcher), name="aiogram-polling")
+        polling_task.add_done_callback(lambda _: stop_event.set())
+        logger.info("Bot started in POLLING mode", extra={"rid": get_request_id()})
 
     try:
         await stop_event.wait()
     finally:
-        if not polling_task.done():
+        if polling_task and not polling_task.done():
             polling_task.cancel()
             with suppress(asyncio.CancelledError):
                 await polling_task
+        if webhook_runner:
+            await bot.delete_webhook(drop_pending_updates=False)
+            await webhook_runner.cleanup()
         await dispatcher.storage.close()
         await dispatcher.storage.wait_closed()
         await bridge_publisher.close()

@@ -1,3 +1,40 @@
+## 2025-12-24 – codex/infra/letsencrypt-bootstrap (pending)
+
+**Summary:** Stage 1 HTTPS readiness for caloiq.ru with webroot-based Let's Encrypt issuance/renewals (no gateway downtime), ACME served locally on port 80, background certbot + nginx reload sidecar, and an optional cron fallback.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/docker-compose.yml | Keep gateway on 80/8080, share `letsencrypt` and `certbot-webroot` volumes for webroot challenges, run continuous certbot renewals, and add an nginx reload sidecar without touching cloudpub. | Infra | Recreate Compose |
+| create | infra/bootstrap-ssl.sh | Issue caloiq.ru certificates via webroot with gateway health checks and start the renewal/reloader sidecars post-issuance without stopping HTTP. | Infra ops | Recreate certbot/reloader |
+| create | infra/renew-ssl.sh | Provide a manual webroot renew-and-reload helper plus optional cron snippet as a backup to the running certbot loop. | Infra ops | Reload gateway |
+| modify | infra/nginx.conf | Serve ACME HTTP-01 locally and keep the gateway HTTP-only for stage 1 until certificates are issued. | Gateway | Reload nginx |
+
+## 2025-12-23 – codex/bot/webhook-secret-raw (pending)
+
+**Summary:** Preserve webhook secret tokens exactly as provided via environment variables so header verification is never skipped by URL validation.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/config.py | Keep WEBHOOK_SECRET untouched (or None when empty) instead of passing it through URL sanitization. | Bot runtime | Restart bot |
+
+## 2025-12-22 – codex/bot/webhook-https-guard (pending)
+
+**Summary:** Prevent Telegram webhook startup from crashing on non-HTTPS webhook URLs by validating the endpoint and falling back
+to polling when Telegram rejects the webhook configuration.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/main.py | Validate webhook URL scheme, log HTTPS requirement breaches, and auto-switch to polling if Telegram rejects webhook setup. | Bot runtime | Restart bot |
+
+## 2025-12-22 – codex/bot/webhook-env-sample (pending)
+
+**Summary:** Documented the webhook configuration knobs in the shared env example so deployments can enable aiogram webhook mode
+ consistently with configured URL, secret, port, and path.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/.env.example | Add WEBHOOK_* defaults (enable flag, HTTPS URL on caloiq.ru, secret, port, path) to guide webhook deployments. | Bot config | No |
+
 ## 2025-12-22 – codex/fullstack/telegram-webapp-confirm-flag (pending)
 
 **Summary:** Align Telegram Mini App auth exchange with explicit confirmation flags, robust initData sourcing, reliable sendData delivery (including legacy field names and a short delivery cushion) before any optional close, and return JWTs to the WebApp so bot `sendData` payloads always contain tokens.
@@ -1190,7 +1227,57 @@ sendData-based auto-auth.
 | modify | docs/codex/CHANGELOG.codex.md | Log Telegram session storage and bot hydration changes. | Docs | No |
 | modify | docs/codex/DIFF.codex.md | Record this change set per Codex policy. | Docs | No |
 
+## 2025-12-20 – codex/bot/webhook-mode (pending)
+
+**Summary:** Enable aiogram webhook mode end-to-end with environment toggles while preserving polling fallback.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/config.py | Load webhook settings (enable flag, URL, secret, port, path) from environment for aiogram 3.22+. | Bot config | Restart bot |
+| modify | bot/main.py | Switch dispatcher startup between webhook and polling, configure aiohttp webhook server, and clean shutdown with webhook deletion. | Bot runtime | Restart bot |
+| modify | docs/codex/DIFF.codex.md | Log the webhook enablement change set per Codex audit policy. | Docs | No |
+
+## 2025-12-23 – codex/bot/webhook-config-cleanup (pending)
+
+**Summary:** Stop nulling webhook secrets, require explicit HTTPS webhook URLs before enabling webhook mode, and enrich fallback
+logging with path/port/update metadata to speed up debugging behind reverse proxies.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/config.py | Load webhook URL as-is (default empty) and keep WEBHOOK_SECRET untouched so header validation is not disabled. | Bot config | Restart bot |
+| modify | bot/main.py | Reuse resolved webhook path/allowed updates in logs and webhook setup while logging HTTPS/fallback context. | Bot runtime | Restart bot |
+| modify | infra/.env.example | Provide HTTPS webhook URL/secret hints without relying on code defaults. | Bot config | No |
+| modify | docs/codex/DIFF.codex.md | Record the webhook configuration cleanup per Codex audit policy. | Docs | No |
+
+## 2025-12-24 – codex/bot/webhook-observability (pending)
+
+**Summary:** Add webhook request diagnostics (health probe and request logger) and ship an HTTPS Nginx config for caloiq.ru with strict POST-only forwarding to the bot.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | bot/main.py | Log inbound webhook requests with secret/header presence and expose /healthz for Nginx/Ingress probes. | Bot runtime | Restart bot |
+| modify | infra/nginx.conf | Provide caloiq.ru HTTPS reverse proxy with POST-only /bot/webhook forwarding and bot health probe. | Infra | Reload Nginx |
+| modify | docs/codex/DIFF.codex.md | Record webhook observability and Nginx config updates per Codex audit policy. | Docs | No |
+
+## 2025-12-24 – codex/infra/letsencrypt-webroot-bootstrap (pending)
+
+**Summary:** Align Let’s Encrypt bootstrap and renewal scripts with the webroot flow used by the gateway, avoiding downtime while keeping certbot/ACME paths consistent.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/bootstrap-ssl.sh | Bootstrap certificates via the shared webroot and start renewal/reloader services without stopping the gateway. | Infra | Restart gateway/certbot |
+| modify | infra/renew-ssl.sh | Provide a manual webroot renew-and-reload helper consistent with the background certbot/reloader containers. | Infra | Reload gateway |
+
+## 2025-12-25 – codex/bot/webhook-secret-example (pending)
+
+**Summary:** Provide a stronger sample webhook secret to avoid reusing trivial defaults when configuring webhook deployments.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | infra/.env.example | Replace the webhook secret hint with a realistic 32-character token to encourage unique secrets in deployments. | Bot config | No |
+
 ## 2025-12-23 – codex/infra/timeweb-letsencrypt (pending)
+
 
 **Summary:** Added a dedicated ACME helper service that issues/renews Let's Encrypt
 certificates through the Timeweb DNS API (DNS-01), stores them inside a shared

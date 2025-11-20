@@ -130,8 +130,10 @@ services:
     image: nginx:1.27
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - letsencrypt:/etc/letsencrypt:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
     ports:
+      - "80:80"
       - "8080:80"         # Локально смотришь http://localhost:8080
     depends_on:
       - backend
@@ -151,6 +153,23 @@ services:
     volumes:
       - cloudpub-config:/home/cloudpub  # чтобы адрес CloudPub не менялся между рестартами
 
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: sh
+    command: -c 'while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h; done'
+
+  # Сайдкар, каждые 12ч шлёт HUP мастеру nginx (gateway), чтобы подхватить обновлённые .pem
+  nginx-reloader:
+    image: alpine:3.20
+    depends_on: [gateway]
+    pid: "container:gateway"
+    entrypoint: sh
+    command: -c 'while :; do sleep 12h; kill -HUP 1 || true; done'
+
   acme:
     build:
       context: ./acme
@@ -168,3 +187,4 @@ volumes:
   db-data:
   cloudpub-config:
   letsencrypt:
+  certbot-webroot:

@@ -97,6 +97,11 @@ class Config:
     experimental_menu: bool
     telegram_provider_token: str
     session_ttl_hours: int
+    webhook_enable: bool
+    webhook_url: str
+    webhook_secret: str | None
+    webhook_port: int
+    webhook_path: str
 
     @classmethod
     def load(cls) -> "Config":
@@ -117,6 +122,11 @@ class Config:
         experimental_menu = _read_bool(os.getenv("BOT_EXPERIMENTAL_MENU"))
         provider_token = os.getenv("TELEGRAM_PROVIDER_TOKEN") or os.getenv("PAYMENT_PROVIDER_TOKEN") or ""
         session_ttl_hours = _read_positive_int(os.getenv("BOT_SESSION_TTL_HOURS"), 1)
+        webhook_enable = _read_bool(os.getenv("WEBHOOK_ENABLE"))
+        webhook_url = os.getenv("WEBHOOK_URL", "").strip()
+        webhook_secret = os.getenv("WEBHOOK_SECRET") or None
+        webhook_port = _read_positive_int(os.getenv("WEBHOOK_PORT"), 8081)
+        webhook_path = os.getenv("WEBHOOK_PATH", "/bot/webhook") or "/bot/webhook"
         return cls(
             token=token,
             bot_key=bot_key,
@@ -135,6 +145,11 @@ class Config:
             experimental_menu=experimental_menu,
             telegram_provider_token=provider_token,
             session_ttl_hours=session_ttl_hours,
+            webhook_enable=webhook_enable,
+            webhook_url=webhook_url,
+            webhook_secret=webhook_secret,
+            webhook_port=webhook_port,
+            webhook_path=webhook_path,
         )
 
     @property
