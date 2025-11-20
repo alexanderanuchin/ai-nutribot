@@ -1,29 +1,40 @@
 from __future__ import annotations
 
+from typing import Any
+
 from aiogram import BaseMiddleware
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.storage.base import StorageKey, BaseStorage
+from aiogram.fsm.storage.base import BaseStorage, StorageKey
 
 from bot.backend_client import BackendClient
 
 
 class AccessTokenMiddleware(BaseMiddleware):
-    """Loads/stores access tokens in FSM storage for each Telegram user."""
+    """
+    Поднимает access_token для каждого Telegram-пользователя:
 
-    def __init__(self, storage: BaseStorage):
+    - сначала пытается взять из FSM (Redis),
+    - если нет — тянет из backend`а через /api/users/bot/telegram/session/<tg_id>/,
+    - кладёт access_token в data["access_token"], чтобы им могли пользоваться хэндлеры.
+    """
+
+    def __init__(self, storage: BaseStorage) -> None:
         super().__init__()
         self._storage = storage
 
-    async def __call__(self, handler, event, data):
+    async def __call__(self, handler, event: Any, data: dict[str, Any]):
+        # В aiogram 3 "кто прислал апдейт" уже разложен в data
         state: FSMContext | None = data.get("state")
         bot = data.get("bot")
-        from_user = getattr(event, "from_user", None)
+        from_user = data.get("event_from_user")
+        chat = data.get("event_chat")
 
-        chat = getattr(event, "chat", None)
-        if chat is None and hasattr(event, "message"):
-            chat = getattr(event.message, "chat", None)
+        # Если апдейт не от пользователя (service, my_chat_member и т.п.) — просто пропускаем
+        if bot is None or from_user is None:
+            return await handler(event, data)
 
-        if state is None and bot and from_user:
+        # 1. Гарантируем FSMContext для (bot_id, user_id, chat_id)
+        if state is None:
             key = StorageKey(
                 bot_id=bot.id,
                 user_id=from_user.id,
@@ -32,26 +43,26 @@ class AccessTokenMiddleware(BaseMiddleware):
             state = FSMContext(storage=self._storage, key=key)
             data["state"] = state
 
-        access_token = None
-        if state is not None:
-            stored = await state.get_data()
-            access_token = stored.get("access_token")
+        # 2. Пробуем взять токен из FSM
+        stored = await state.get_data()
+        access_token: str | None = stored.get("access_token")
 
-        if not access_token and bot and from_user:
+        # 3. Если токена нет в FSM — вытаскиваем из backend
+        if not access_token:
             backend: BackendClient | None = data.get("backend")
-            if backend:
-                session_data = await backend.get_telegram_session(from_user.id)
-                if session_data:
-                    access_token = session_data.get("access")
-                    refresh = session_data.get("refresh")
-                    expires_at = session_data.get("expires_at")
-                    if access_token:
-                        await state.update_data(
-                            access_token=access_token,
-                            refresh_token=refresh,
-                            session_user_id=from_user.id,
-                            session_expires_at=expires_at,
-                        )
-        data["access_token"] = access_token
+            if backend is not None:
+                session = await backend.get_telegram_session(from_user.id)
+                if session:
+                    access_token = session.get("access")
+                    refresh = session.get("refresh")
+                    expires_at = session.get("expires_at")
+                    await state.update_data(
+                        access_token=access_token,
+                        refresh_token=refresh,
+                        session_user_id=from_user.id,
+                        session_expires_at=expires_at,
+                    )
 
+        # 4. Кладём access_token в data — его уже ждут wallet/profile/etc
+        data["access_token"] = access_token
         return await handler(event, data)

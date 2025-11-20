@@ -1,3 +1,15 @@
+## 2025-12-27 – codex/backend/bot-session-key (pending)
+
+**Summary:** Align bot/backend bot-key defaults and Telegram session middleware with the verified backend session endpoint.
+
+| Action | Path | Reason | Impact | Migrations / Restart |
+| --- | --- | --- | --- | --- |
+| modify | backend/nutribot/settings.py | Use a shared default bot key consistent with .env to sign bot-to-backend requests. | Backend config | No |
+| modify | backend/apps/users/views.py | Match the documented telegram session endpoint contract and keep session refresh logic intact. | Backend API | No |
+| modify | bot/config.py | Load the same bot key values as the backend (TELEGRAM_BOT_KEY/BOT_KEY/BOT_INTERNAL_KEY). | Bot config | No |
+| modify | bot/middlewares/access_token.py | Ensure middleware hydrates FSM state with backend-provided session tokens when missing. | Bot session handling | No |
+| modify | docs/codex/DIFF.codex.md | Record this change for traceability. | Docs | No |
+
 ## 2025-12-26 – codex/infra/gateway-pid-fix (pending)
 
 **Summary:** Keep the nginx reload sidecar in sync with the gateway’s PID namespace by giving the gateway a stable container nam

@@ -424,7 +424,15 @@ CELERY_BEAT_SCHEDULE = {
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 BOT_INTERNAL_KEY = os.getenv("BOT_INTERNAL_KEY", "")
-TELEGRAM_BOT_KEY = os.getenv("TELEGRAM_BOT_KEY") or os.getenv("BOT_KEY") or ""
+
+# Ключ, которым Telegram-бот подписывает свои запросы к backend’у.
+# Важный момент: это тот же ключ, который ты кладёшь в .env (TELEGRAM_BOT_KEY / BOT_KEY).
+TELEGRAM_BOT_KEY = (
+    os.getenv("TELEGRAM_BOT_KEY")
+    or os.getenv("BOT_KEY")
+    or "super-secret-bot-key"
+)
+
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 

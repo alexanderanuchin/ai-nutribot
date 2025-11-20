@@ -106,7 +106,15 @@ class Config:
     @classmethod
     def load(cls) -> "Config":
         token = os.getenv("TELEGRAM_BOT_TOKEN") or os.getenv("BOT_TOKEN") or ""
-        bot_key = os.getenv("BOT_KEY") or os.getenv("BOT_INTERNAL_KEY") or "super-secret-bot-key"
+
+        # Ключ, которым бот подписывает запросы к backend’у.
+        # Тот же самый, что TELEGRAM_BOT_KEY / BOT_KEY у Django.
+        bot_key = (
+            os.getenv("TELEGRAM_BOT_KEY")
+            or os.getenv("BOT_KEY")
+            or os.getenv("BOT_INTERNAL_KEY")
+            or "super-secret-bot-key"
+        )
         backend_base_url = resolve_backend_url()
         webapp_url = _extract_webapp_url(os.getenv("WEBAPP_URL"))
         bot_username = os.getenv("BOT_USERNAME") or os.getenv("TELEGRAM_BOT_USERNAME") or ""
