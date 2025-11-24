@@ -1,3 +1,4 @@
+[
   {
     "external_id": "seed-fit-01",
     "source": "restaurant",
@@ -98,7 +99,7 @@
     "source": "store",
     "source_id": 2,
     "title": "Веганский протеиновый батончик",
-    "description": "Орехи, семена тыквы, финики и гороховый протеин, покрытые темным шоколадом.",
+    "description": "Орехи, семена тыквы, финики и гороховый протеин, покрытые тёмным шоколадом.",
     "price": 210,
     "tags": ["snack", "vegan", "high-protein"],
     "allergens": ["nuts"],

@@ -48,7 +48,9 @@ class MenuItem(models.Model):
     tags = models.JSONField(default=list)
     allergens = models.JSONField(default=list)
     exclusions = models.JSONField(default=list)
-    nutrients = models.OneToOneField(Nutrients, on_delete=models.CASCADE, related_name="item")
+    nutrients = models.OneToOneField(
+        Nutrients, on_delete=models.CASCADE, related_name="item", null=True, blank=True
+    )
 
     class Meta:
         indexes = [
